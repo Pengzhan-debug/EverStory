@@ -7,33 +7,57 @@
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
-    <header>
-      <div class="brand">EverStory <span class="sub">state-consistent AI world engine</span></div>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">◈</span>
+        <div class="brand-text">
+          <div class="brand-name">EverStory</div>
+          <div class="brand-sub">The Lost Lighthouse · state-consistent AI world</div>
+        </div>
+      </div>
       <div class="controls">
         <span id="mode-chip" class="chip">turn 0 · time 0</span>
-        <button id="reset-btn">New world</button>
+        <button id="reset-btn" class="btn-ghost" title="Reset the world">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <span>New world</span>
+        </button>
       </div>
     </header>
+
     <main>
-      <section id="chat" class="panel">
+      <section id="chat" class="panel chat-panel">
+        <div class="chat-head">
+          <span class="status-dot"></span>
+          <span class="chat-title">Live session</span>
+          <span class="chat-hint">natural language · validated by the engine</span>
+        </div>
         <div id="messages"></div>
-        <form id="input-form">
+        <form id="input-form" class="input-bar">
           <input
             id="input"
             type="text"
             placeholder='Try: "move to the cave", "take rusty key", "use rusty key on chest"...'
             autocomplete="off"
           />
-          <button type="submit">Say</button>
+          <button type="submit" class="send-btn" title="Send">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
         </form>
       </section>
-      <aside id="inspector" class="panel">
+
+      <aside id="inspector" class="panel inspector">
         <div id="player-card" class="card"></div>
         <div id="facts-card" class="card"></div>
-        <div id="map-card" class="card"><h3>World map</h3><div id="map"></div></div>
+        <div id="map-card" class="card">
+          <div class="card-head"><h3>World map</h3><span class="chip">live</span></div>
+          <div id="map"></div>
+        </div>
         <div id="entities-card" class="card"></div>
         <div id="quests-card" class="card"></div>
-        <div id="log-card" class="card"><h3>Event log</h3><div id="log"></div></div>
+        <div id="log-card" class="card">
+          <div class="card-head"><h3>Event log</h3></div>
+          <div id="log"></div>
+        </div>
       </aside>
     </main>
     <script src="/static/app.js"></script>
