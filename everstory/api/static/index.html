@@ -9,10 +9,16 @@
   <body>
     <header class="topbar">
       <div class="brand">
-        <span class="logo">◈</span>
+        <span class="logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l4.2 7H7.8L12 3z" />
+            <rect x="9" y="10" width="6" height="10" rx="1" />
+            <path d="M3 15l5-2.2M21 15l-5-2.2M12 20v2.5" />
+          </svg>
+        </span>
         <div class="brand-text">
           <div class="brand-name">EverStory</div>
-          <div class="brand-sub">The Lost Lighthouse · state-consistent AI world</div>
+          <div class="brand-sub">The Lost Lighthouse · a world that cannot lie</div>
         </div>
       </div>
       <div class="controls">
@@ -29,7 +35,8 @@
         <div class="chat-head">
           <span class="status-dot"></span>
           <span class="chat-title">Live session</span>
-          <span class="chat-hint">natural language · validated by the engine</span>
+          <span id="loc-chip" class="chip loc">…</span>
+          <span class="chat-hint">propose freely — the engine decides</span>
         </div>
         <div id="messages"></div>
         <form id="input-form" class="input-bar">
@@ -49,13 +56,13 @@
         <div id="player-card" class="card"></div>
         <div id="facts-card" class="card"></div>
         <div id="map-card" class="card">
-          <div class="card-head"><h3>World map</h3><span class="chip">live</span></div>
+          <div class="card-head"><h3>Sea chart</h3><span class="chip">live</span></div>
           <div id="map"></div>
         </div>
         <div id="entities-card" class="card"></div>
         <div id="quests-card" class="card"></div>
         <div id="log-card" class="card">
-          <div class="card-head"><h3>Event log</h3></div>
+          <div class="card-head"><h3>Ship's log</h3></div>
           <div id="log"></div>
         </div>
       </aside>

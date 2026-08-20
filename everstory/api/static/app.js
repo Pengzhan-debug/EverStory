@@ -90,6 +90,8 @@ function render() {
   renderQuests(world.quests);
   renderLog(world.history);
   $("#mode-chip").textContent = `turn ${world.turn} · time ${world.time}`;
+  const locChip = $("#loc-chip");
+  if (locChip) locChip.textContent = world.player.location_name;
 }
 
 function renderPlayer(player) {
