@@ -78,7 +78,8 @@ interactions can be authored without engine changes.
 - **Implemented**: engine core, rule DSL, snapshots/rollback, LLM client
   (stub + OpenAI-compatible API), intent parser, grounded narrator,
   consistency judge, entity-card/summary memory, FastAPI web UI with live
-  state inspector, and a three-architecture evaluation harness.
+  state inspector, a three-architecture evaluation harness, and symbolic
+  world-model induction (rules learned from trajectories, with a held-out
+  accuracy check and counterfactual predictions).
 - **Next**: branching from snapshots, NPC autonomy via LLM-proposed world
-  events, rule induction from interaction traces (learned dynamics), and
-  persistent session storage (Postgres).
+  events, and persistent session storage (Postgres).

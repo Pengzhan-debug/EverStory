@@ -20,6 +20,7 @@ from .models import (
     EventRecord,
     WorldState,
 )
+from .trajectory import extract_facts
 
 
 @dataclass
@@ -172,13 +173,18 @@ class WorldSession:
     """A running world: state, rules, event history, and snapshots."""
 
     def __init__(
-        self, world, rules: dict[str, ActionRule] | None = None
+        self,
+        world,
+        rules: dict[str, ActionRule] | None = None,
+        collect_transitions: bool = False,
     ) -> None:
         self.title: str = world.title
         self.engine = RuleEngine(rules)
         self.state: WorldState = copy.deepcopy(world.initial_state)
         self.history: list[EventRecord] = []
         self.snapshots: dict[int, tuple[WorldState, str]] = {}
+        self.collect_transitions = collect_transitions
+        self.transitions: list[dict] = []
         self._current: Action | None = None
         self._snapshot()
 
@@ -227,6 +233,8 @@ class WorldSession:
             resolved[key] = rid if rid is not None else value
         action = Action(action.action_type, action.actor_id, resolved)
         self._current = action
+        if self.collect_transitions:
+            before_facts, before_time = extract_facts(self.state, action)
 
         rule = self.engine.rules.get(action.action_type)
         if rule is None:
@@ -249,6 +257,20 @@ class WorldSession:
                     self._handle_use(action, res)
                 elif action.action_type == "open":
                     self._handle_open(action, res)
+
+        if self.collect_transitions:
+            after_facts, after_time = extract_facts(self.state, action)
+            self.transitions.append(
+                {
+                    "action_type": action.action_type,
+                    "params": dict(action.params),
+                    "ok": res.ok,
+                    "before": sorted(before_facts),
+                    "after": sorted(after_facts),
+                    "before_time": before_time,
+                    "after_time": after_time,
+                }
+            )
 
         self.state.turn += 1
         self._record(res)

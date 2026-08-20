@@ -15,6 +15,7 @@ authors = [{ name = "EverStory contributors" }]
 everstory = "everstory.cli:main"
 everstory-serve = "everstory.api.main:run"
 everstory-eval = "everstory.eval.__main__:main"
+everstory-learn = "everstory.learn.__main__:main"
 
 [project.optional-dependencies]
 web = ["fastapi>=0.110", "uvicorn>=0.29", "requests>=2.31", "httpx>=0.27"]

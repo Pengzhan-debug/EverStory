@@ -25,6 +25,10 @@ The result: an interactive world that stays consistent for hundreds of turns.
 - **v0.5 — Evaluation harness**: the same scripted episodes run against three
   architectures — pure-LLM, summary-memory, and EverStory — with recall,
   rejection, and token metrics, plus a generated report.
+- **v1.1 — Symbolic world-model induction**: dynamics rules are *learned* from
+  `(state, action, next-state)` trajectories (greedy conjunctive learning over
+  role-abstracted predicates), verified against a held-out episode, and
+  rendered as human-readable rules with counterfactual checks.
 - A playable demo world: **The Lost Lighthouse** (fully declarative TOML).
 
 ## Architecture
@@ -75,6 +79,9 @@ everstory-eval --mode stub
 
 # 4. Run the test suite
 python -m unittest discover -s tests -v
+
+# 5. Learn world dynamics from trajectories (symbolic world-model induction)
+everstory-learn            # or: python -m everstory.learn
 ```
 
 ### Try it
@@ -115,6 +122,7 @@ likely follow-up questions — walk it once before an interview.
 ```text
 everstory/
   engine.py        deterministic rule engine + WorldSession (rollback/snapshots)
+  trajectory.py    transition recording + role-abstracted fact extraction
   models.py        entity/relationship/action/state domain models
   commands.py      structured command parser (CLI + stub intent)
   pipeline.py      turn pipeline: intent -> engine -> narration -> fact-check
@@ -122,9 +130,11 @@ everstory/
   memory/          entity cards, rolling summaries, context builder
   api/             FastAPI app + static web UI (chat + world inspector)
   eval/            three-architecture benchmark + report generator
+  learn/           rule induction from trajectories + learned-rules report
   worlds/          declarative TOML worlds (demo: The Lost Lighthouse)
 docs/architecture.md   design document
 docs/eval-report.md    generated benchmark report
+docs/learned-rules.md  induced dynamics rules report
 ```
 
 ## Why this is interesting
