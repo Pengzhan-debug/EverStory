@@ -105,6 +105,11 @@ python -m everstory.eval --mode api
 The eval report (`docs/eval-report.md`) then contains genuine model numbers for
 the three-architecture comparison.
 
+## Interview demo
+
+[docs/DEMO.md](docs/DEMO.md) is a 1-minute demo script with talking points and
+likely follow-up questions — walk it once before an interview.
+
 ## Repository layout
 
 ```text
