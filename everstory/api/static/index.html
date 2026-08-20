@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EverStory — The Lost Lighthouse</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">EverStory <span class="sub">state-consistent AI world engine</span></div>
+      <div class="controls">
+        <span id="mode-chip" class="chip">turn 0 · time 0</span>
+        <button id="reset-btn">New world</button>
+      </div>
+    </header>
+    <main>
+      <section id="chat" class="panel">
+        <div id="messages"></div>
+        <form id="input-form">
+          <input
+            id="input"
+            type="text"
+            placeholder='Try: "move to the cave", "take rusty key", "use rusty key on chest"...'
+            autocomplete="off"
+          />
+          <button type="submit">Say</button>
+        </form>
+      </section>
+      <aside id="inspector" class="panel">
+        <div id="player-card" class="card"></div>
+        <div id="map-card" class="card"><h3>World map</h3><div id="map"></div></div>
+        <div id="entities-card" class="card"></div>
+        <div id="quests-card" class="card"></div>
+        <div id="log-card" class="card"><h3>Event log</h3><div id="log"></div></div>
+      </aside>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

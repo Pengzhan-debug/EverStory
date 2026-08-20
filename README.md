@@ -11,15 +11,26 @@ The result: an interactive world that stays consistent for hundreds of turns.
 > The core idea: **LLMs are unreliable at remembering and mutating state.
 > Don't let them. Separate generation from truth.**
 
-## Why this exists
+## What's included
 
-Every long-horizon LLM application — agents, game NPCs, virtual characters,
-roleplay, persistent assistants — eventually contradicts itself, forgets, or
-invents state. This project demonstrates a concrete architecture that solves
-that problem:
+- **v0.1 — Engine core**: declarative rule DSL (`move`, `take`, `give`, `use`,
+  `open`, `talk`, `wait`), deterministic state transitions, per-turn versioned
+  snapshots with rollback.
+- **v0.2 — LLM layer**: provider-agnostic client (stub/offline or any
+  OpenAI-compatible API), free-text intent parsing, grounded narration.
+- **v0.3 — Memory & fact-check**: entity cards + rolling summaries + a
+  consistency judge that re-verifies narration against the state delta.
+- **v0.4 — Web UI**: FastAPI + a live world inspector with an SVG map,
+  inventory, item/character states, quests, and an event log.
+- **v0.5 — Evaluation harness**: the same scripted episodes run against three
+  architectures — pure-LLM, summary-memory, and EverStory — with recall,
+  rejection, and token metrics, plus a generated report.
+- A playable demo world: **The Lost Lighthouse** (fully declarative TOML).
+
+## Architecture
 
 ```text
-User input
+User input (natural language)
    |
    v
 1. Intent parsing   LLM converts "pick up the rusty key" into structured actions
@@ -34,38 +45,86 @@ User input
 4. Narration        A grounded LLM narrates the *actual* state changes
    |
    v
-5. Fact check       Optional judge verifies narration vs. state delta
+5. Fact check       A judge verifies narration vs. state delta; retry if not
    |
    v
 6. Snapshot         Versioned world state: rollback and branching for free
 ```
 
-## Current status (v0.1)
-
-- Declarative world definitions (TOML): entities, locations, items, quests
-- Rule engine with typed checks and effects (`move`, `take`, `give`, `use`,
-  `open`, `talk`, `wait`)
-- Deterministic state transitions + per-turn versioned snapshots with rollback
-- A playable demo world: **The Lost Lighthouse**
-- Interactive CLI (LLM-free structured commands in v0.1; LLM layer in v0.2)
+The LLM never holds or mutates state — it is handed a *rendering* of the state
+each turn, proposes typed actions, and narrates the delta the engine actually
+applied. See [docs/architecture.md](docs/architecture.md) for the full design.
 
 ## Quick start
 
 ```bash
-python -m everstory            # play the demo world
-python -m unittest discover -s tests -v   # run the test suite
+# 1. Play in the terminal (deterministic stub mode, no API key needed)
+python -m everstory
+
+# 2. Web UI with live world inspector
+pip install -r requirements.txt
+everstory-serve            # or: python -m uvicorn everstory.api.main:app --port 8000
+# open http://127.0.0.1:8000
+
+# 3. Run the evaluation benchmark (stub mode = offline deterministic)
+python -m everstory.eval --mode stub
+
+# 4. Run the test suite
+python -m unittest discover -s tests -v
 ```
 
-Try: `look`, `move to lighthouse_ground`, `move to cliff_path`, `move to cave`,
-`take rusty key`, `use rusty key on chest`, `open chest`, `rollback 0`.
+### Try it
 
-## Roadmap
+```text
+look
+move to lighthouse_ground
+move to cliff_path
+move to cave
+take rusty key
+use rusty key on chest
+open chest
+take flint
+rollback 0
+```
 
-- **v0.2** — LLM intent parser + grounded narration (Qwen/DeepSeek)
-- **v0.3** — memory layer: entity cards, rolling summaries, fact-check pass
-- **v0.4** — web UI with a live world-state inspector
-- **v0.5** — evaluation harness: EverStory vs. pure-LLM vs. summary-memory
-  baselines, with contradiction-rate and recall metrics
+## Real LLM numbers
+
+By default EverStory runs in `stub` mode: deterministic, offline, and
+test-friendly. To use real models (Qwen / DeepSeek / any OpenAI-compatible
+endpoint):
+
+```bash
+cp .env.example .env     # set LLM_MODE=api and LLM_API_KEY=
+python -m everstory.eval --mode api
+```
+
+The eval report (`docs/eval-report.md`) then contains genuine model numbers for
+the three-architecture comparison.
+
+## Repository layout
+
+```text
+everstory/
+  engine.py        deterministic rule engine + WorldSession (rollback/snapshots)
+  models.py        entity/relationship/action/state domain models
+  commands.py      structured command parser (CLI + stub intent)
+  pipeline.py      turn pipeline: intent -> engine -> narration -> fact-check
+  llm/             provider client, intent parser, narrator, consistency judge
+  memory/          entity cards, rolling summaries, context builder
+  api/             FastAPI app + static web UI (chat + world inspector)
+  eval/            three-architecture benchmark + report generator
+  worlds/          declarative TOML worlds (demo: The Lost Lighthouse)
+docs/architecture.md   design document
+docs/eval-report.md    generated benchmark report
+```
+
+## Why this is interesting
+
+Long-horizon LLM applications — agents, game NPCs, virtual characters, roleplay,
+persistent assistants — all suffer from the same failure: models forget,
+contradict themselves, and invent state. EverStory is a concrete, tested answer
+to that problem, built as a small engine rather than a wrapper: the world is
+truth, the LLM is a constrained actor, and every claim can be verified.
 
 ## License
 

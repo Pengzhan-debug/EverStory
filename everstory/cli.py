@@ -5,18 +5,13 @@ from __future__ import annotations
 import re
 import sys
 
+from .commands import parse_structured
 from .engine import WorldSession
 from .models import Action
 from .worlds import load_world
 
 WORLD_NAME = "lost_lighthouse"
 
-CMD_MOVE = re.compile(r"^(?:go|move)(?:\s+to)?\s+(.+)$", re.I)
-CMD_TAKE = re.compile(r"^take\s+(.+)$", re.I)
-CMD_GIVE = re.compile(r"^give\s+(.+?)\s+to\s+(.+)$", re.I)
-CMD_USE = re.compile(r"^use\s+(.+?)\s+(?:on|with)\s+(.+)$", re.I)
-CMD_OPEN = re.compile(r"^open\s+(.+)$", re.I)
-CMD_TALK = re.compile(r"^talk\s+(?:to\s+)?(.+)$", re.I)
 CMD_ROLLBACK = re.compile(r"^rollback\s+(\d+)$", re.I)
 
 HELP_TEXT = """\
@@ -74,28 +69,18 @@ def handle_command(session: WorldSession, line: str) -> str:
     if low in ("quit", "exit"):
         raise SystemExit
 
-    m = CMD_MOVE.match(line)
-    if m:
-        return run_action(session, "move", {"to": m.group(1)})
-    m = CMD_TAKE.match(line)
-    if m:
-        return run_action(session, "take", {"item": m.group(1)})
-    m = CMD_GIVE.match(line)
-    if m:
-        return run_action(
-            session, "give", {"item": m.group(1), "recipient": m.group(2)}
-        )
-    m = CMD_USE.match(line)
-    if m:
-        return run_action(
-            session, "use", {"item": m.group(1), "target": m.group(2)}
-        )
-    m = CMD_OPEN.match(line)
-    if m:
-        return run_action(session, "open", {"target": m.group(1)})
-    m = CMD_TALK.match(line)
-    if m:
-        return run_action(session, "talk", {"target": m.group(1)})
+    actions = parse_structured(line)
+    if actions:
+        outputs = []
+        for proposal in actions:
+            outputs.append(
+                run_action(
+                    session,
+                    proposal["type"],
+                    proposal.get("params") or {},
+                )
+            )
+        return "\n".join(outputs)
     m = CMD_ROLLBACK.match(line)
     if m:
         turn = int(m.group(1))

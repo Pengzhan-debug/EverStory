@@ -1,0 +1,4 @@
+fastapi>=0.110
+uvicorn>=0.29
+requests>=2.31
+httpx>=0.27  # used by the API tests (fastapi TestClient)

@@ -13,6 +13,11 @@ authors = [{ name = "EverStory contributors" }]
 
 [project.scripts]
 everstory = "everstory.cli:main"
+everstory-serve = "everstory.api.main:run"
+everstory-eval = "everstory.eval.__main__:main"
+
+[project.optional-dependencies]
+web = ["fastapi>=0.110", "uvicorn>=0.29", "requests>=2.31", "httpx>=0.27"]
 
 [tool.setuptools.packages.find]
 include = ["everstory*"]

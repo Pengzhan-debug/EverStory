@@ -73,14 +73,12 @@ interactions can be authored without engine changes.
 - Every turn is versioned, so contradictions are detectable and recoverable.
 - Narration is grounded in state deltas, not model memory.
 
-## 7. Roadmap
+## 7. Implementation status
 
-- **v0.2 LLM layer** — intent parser: free text -> action proposals; narrator:
-  state delta -> prose. Provider-agnostic client (OpenAI-compatible), cheap
-  model for narration, stronger model for parsing.
-- **v0.3 Memory & fact-check** — entity cards + rolling summaries + a judge
-  pass that re-verifies narration against the state delta.
-- **v0.4 Web UI** — chat panel + live state inspector (the "wow" demo).
-- **v0.5 Evaluation** — scripted episodes across three architectures
-  (pure-LLM chat, summary memory, EverStory), measuring contradiction rate
-  (LLM-judge), memory recall, rule compliance, and cost per turn.
+- **Implemented**: engine core, rule DSL, snapshots/rollback, LLM client
+  (stub + OpenAI-compatible API), intent parser, grounded narrator,
+  consistency judge, entity-card/summary memory, FastAPI web UI with live
+  state inspector, and a three-architecture evaluation harness.
+- **Next**: branching from snapshots, NPC autonomy via LLM-proposed world
+  events, rule induction from interaction traces (learned dynamics), and
+  persistent session storage (Postgres).
