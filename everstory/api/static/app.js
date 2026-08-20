@@ -51,6 +51,7 @@ async function sendTurn(text) {
 
 function render() {
   renderPlayer(world.player);
+  renderFacts(world);
   renderMap(world.locations);
   renderEntities(world);
   renderQuests(world.quests);
@@ -67,6 +68,24 @@ function renderPlayer(player) {
     <p class="muted">At: ${esc(player.location_name)}</p>
     <p class="muted">Inventory:</p>
     <div class="chips">${chips || '<span class="muted">empty</span>'}</div>
+  `;
+}
+
+function renderFacts(world) {
+  const flags = Object.entries(world.flags || {})
+    .map(([k, v]) => `<li><b>${esc(k)}</b>: ${esc(String(v))}</li>`)
+    .join("");
+  const rels = (world.relationships || [])
+    .map((r) => `<li>${esc(r.type)}: ${esc(r.from)} → ${esc(r.to)}</li>`)
+    .join("");
+  $("#facts-card").innerHTML = `
+    <h3>World state</h3>
+    <ul>
+      <li>turn <b>${world.turn}</b> · time <b>${world.time}</b></li>
+      <li>hash <code>${esc(world.state_hash)}</code></li>
+    </ul>
+    ${flags ? `<h3>Flags</h3><ul>${flags}</ul>` : ""}
+    ${rels ? `<h3>Relationships</h3><ul>${rels}</ul>` : ""}
   `;
 }
 

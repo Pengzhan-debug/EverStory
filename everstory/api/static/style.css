@@ -55,7 +55,8 @@ button:hover { border-color: var(--accent); }
 main {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(360px, 1fr) 360px;
+  grid-template-columns: minmax(360px, 640px) minmax(400px, 1fr);
+  justify-content: center;
   gap: 12px;
   padding: 12px;
   min-height: 0;
