@@ -8,8 +8,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from ..config import build_role_client
 from ..engine import WorldSession
-from ..llm.client import LLMClient
 from ..pipeline import TurnPipeline
 from ..worlds import load_world
 
@@ -100,7 +100,7 @@ def create_app() -> FastAPI:
         if runtime["session"] is None:
             session = WorldSession(load_world("lost_lighthouse"))
             runtime["session"] = session
-            runtime["pipeline"] = TurnPipeline(session, LLMClient())
+            runtime["pipeline"] = TurnPipeline(session, build_role_client())
 
     @app.get("/")
     def index():

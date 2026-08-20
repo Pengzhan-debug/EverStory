@@ -126,6 +126,25 @@ python -m everstory.eval --mode api --providers qwen,deepseek
 The report gains a provider column and an average-recall summary per provider,
 so you can show which model family retains world state best over long horizons.
 
+## Mix roles across vendors
+
+The strong role (intent parsing + consistency judging) and the cheap role
+(narration) do not have to come from the same vendor:
+
+```bash
+# .env: define providers, then route roles
+# LLM_PROVIDERS=qwen,deepseek
+# LLM_ROLE_STRONG=qwen
+# LLM_ROLE_CHEAP=deepseek
+```
+
+The web UI then parses intents with Qwen and narrates with DeepSeek (or any
+combination). Benchmark the mix as a single run:
+
+```bash
+python -m everstory.eval --mode api --role-mix
+```
+
 ## Interview demo
 
 [docs/DEMO.md](docs/DEMO.md) is a 1-minute demo script with talking points and

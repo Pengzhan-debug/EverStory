@@ -86,3 +86,27 @@ def load_providers() -> list[Provider]:
             )
         )
     return providers
+
+
+def build_role_client(mode: str | None = None) -> "LLMClient":
+    """Client with the strong and cheap roles possibly routed to different
+    vendors, configured by ``LLM_ROLE_STRONG`` / ``LLM_ROLE_CHEAP`` (names
+    must match entries in ``LLM_PROVIDERS``). Falls back to the first provider
+    for both roles."""
+    from .llm.client import LLMClient
+
+    providers = load_providers()
+    by_name = {p.name: p for p in providers}
+    strong = by_name.get(env("LLM_ROLE_STRONG", ""), providers[0])
+    cheap = by_name.get(env("LLM_ROLE_CHEAP", ""), providers[0])
+    return LLMClient(
+        mode=mode or LLM_MODE,
+        base_url=strong.base_url,
+        api_key=strong.api_key,
+        strong_model=strong.strong_model,
+        cheap_model=cheap.cheap_model,
+        strong_base_url=strong.base_url,
+        strong_api_key=strong.api_key,
+        cheap_base_url=cheap.base_url,
+        cheap_api_key=cheap.api_key,
+    )

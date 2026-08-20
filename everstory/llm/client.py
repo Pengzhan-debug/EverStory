@@ -28,12 +28,21 @@ class LLMClient:
         api_key: str | None = None,
         strong_model: str | None = None,
         cheap_model: str | None = None,
+        strong_base_url: str | None = None,
+        strong_api_key: str | None = None,
+        cheap_base_url: str | None = None,
+        cheap_api_key: str | None = None,
     ) -> None:
         self.mode = (mode or LLM_MODE).lower()
         self.base_url = base_url or LLM_BASE_URL
         self.api_key = api_key or LLM_API_KEY
         self.strong_model = strong_model or LLM_MODEL_STRONG
         self.cheap_model = cheap_model or LLM_MODEL_CHEAP
+        # The strong and cheap roles can route to *different* vendors.
+        self.strong_base_url = (strong_base_url or self.base_url).rstrip("/")
+        self.strong_api_key = strong_api_key or self.api_key
+        self.cheap_base_url = (cheap_base_url or self.base_url).rstrip("/")
+        self.cheap_api_key = cheap_api_key or self.api_key
         self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
         self.stub_responder = None
 
@@ -63,9 +72,14 @@ class LLMClient:
             import requests
         except ImportError as exc:  # pragma: no cover
             raise LLMError("requests is required for LLM API mode") from exc
-        if not self.api_key:
-            raise LLMError("LLM_API_KEY is not set (or use LLM_MODE=stub)")
-        url = self.base_url.rstrip("/") + "/chat/completions"
+        if model == self.strong_model:
+            url = self.strong_base_url + "/chat/completions"
+            api_key = self.strong_api_key
+        else:
+            url = self.cheap_base_url + "/chat/completions"
+            api_key = self.cheap_api_key
+        if not api_key:
+            raise LLMError(f"API key is not set for model '{model}' (or use LLM_MODE=stub)")
         payload = {
             "model": model,
             "messages": messages,
@@ -77,7 +91,7 @@ class LLMClient:
             url,
             json=payload,
             headers={
-                "Authorization": f"Bearer {self.api_key}",
+                "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
             timeout=120,

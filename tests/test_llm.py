@@ -39,6 +39,22 @@ class IntentTest(unittest.TestCase):
             ],
         )
 
+    def test_dual_endpoint_routing(self):
+        client = LLMClient(
+            mode="stub",
+            strong_model="qwen-plus",
+            cheap_model="deepseek-chat",
+            strong_base_url="https://qwen.test/v1",
+            strong_api_key="kq",
+            cheap_base_url="https://deepseek.test/v1",
+            cheap_api_key="kd",
+        )
+        self.assertEqual(client.strong_base_url, "https://qwen.test/v1")
+        self.assertEqual(client.cheap_api_key, "kd")
+        # stub mode does not hit the network; routing fields are what matter
+        reply = client.chat([{"role": "user", "content": "hi"}], model="deepseek-chat")
+        self.assertIn("hi", reply)
+
 
 class PipelineTest(unittest.TestCase):
     def setUp(self):
