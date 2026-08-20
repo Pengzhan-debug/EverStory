@@ -58,16 +58,20 @@ applied. See [docs/architecture.md](docs/architecture.md) for the full design.
 ## Quick start
 
 ```bash
+# 0. Create a virtual environment and install the project
+python -m venv everstory-env
+everstory-env\Scripts\activate        # Windows (source everstory-env/bin/activate on macOS/Linux)
+pip install -e ".[web]"
+
 # 1. Play in the terminal (deterministic stub mode, no API key needed)
-python -m everstory
+everstory
 
 # 2. Web UI with live world inspector
-pip install -r requirements.txt
 everstory-serve            # or: python -m uvicorn everstory.api.main:app --port 8000
 # open http://127.0.0.1:8000
 
 # 3. Run the evaluation benchmark (stub mode = offline deterministic)
-python -m everstory.eval --mode stub
+everstory-eval --mode stub
 
 # 4. Run the test suite
 python -m unittest discover -s tests -v
