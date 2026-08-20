@@ -1,6 +1,8 @@
 __pycache__/
 *.py[cod]
 everstory-env/
+server.log
+server.err.log
 .env
 *.db
 dist/
