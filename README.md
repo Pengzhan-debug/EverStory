@@ -67,8 +67,8 @@ pip install -e ".[web]"
 everstory
 
 # 2. Web UI with live world inspector
-everstory-serve            # or: python -m uvicorn everstory.api.main:app --port 8000
-# open http://127.0.0.1:8000
+everstory-serve            # or: python -m uvicorn everstory.api.main:app --port 8123
+# open http://127.0.0.1:8123
 
 # 3. Run the evaluation benchmark (stub mode = offline deterministic)
 everstory-eval --mode stub

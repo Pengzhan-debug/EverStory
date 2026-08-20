@@ -158,7 +158,9 @@ app = create_app()
 def run() -> None:
     import uvicorn
 
-    uvicorn.run("everstory.api.main:app", host="127.0.0.1", port=8000, reload=False)
+    # Port 8123 avoids clashing with other local dev servers (e.g. AgentForge
+    # uses 8000/8080).
+    uvicorn.run("everstory.api.main:app", host="127.0.0.1", port=8123, reload=False)
 
 
 if __name__ == "__main__":
