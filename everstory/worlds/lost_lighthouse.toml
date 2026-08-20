@@ -1,0 +1,139 @@
+title = "The Lost Lighthouse"
+time = 0
+turn = 0
+
+[flags]
+lighthouse_lit = false
+
+[[entities]]
+id = "player"
+kind = "character"
+name = "You"
+is_player = true
+description = "A castaway who washed up on Saltrock Island."
+location = "cottage"
+
+[[entities]]
+id = "mara"
+kind = "character"
+name = "Mara"
+description = "The old lighthouse keeper. She knows what happened to the previous keeper."
+location = "lighthouse_ground"
+
+[[entities]]
+id = "lighthouse_ground"
+kind = "location"
+name = "Lighthouse Ground Floor"
+description = "A damp stone room. A spiral staircase climbs into the tower, and a logbook lies on a table."
+attributes = { connections = ["lighthouse_tower", "cottage", "cliff_path"] }
+
+[[entities]]
+id = "lighthouse_tower"
+kind = "location"
+name = "Lighthouse Tower"
+description = "A narrow stairwell spiralling up to the lantern room."
+attributes = { connections = ["lighthouse_ground", "lantern_room"] }
+
+[[entities]]
+id = "lantern_room"
+kind = "location"
+name = "Lantern Room"
+description = "The glass-walled top of the lighthouse. The great lantern sits dark and empty."
+attributes = { connections = ["lighthouse_tower"] }
+
+[[entities]]
+id = "cottage"
+kind = "location"
+name = "Keeper's Cottage"
+description = "A tidy cottage with a cold fireplace. A lantern hangs by the door."
+attributes = { connections = ["lighthouse_ground", "dock"] }
+
+[[entities]]
+id = "dock"
+kind = "location"
+name = "Dock"
+description = "A rotting wooden dock. A rowboat rocks in the surf."
+attributes = { connections = ["cottage", "boat_shed"] }
+
+[[entities]]
+id = "boat_shed"
+kind = "location"
+name = "Boat Shed"
+description = "A shack smelling of tar and salt. An oil can sits on a shelf."
+attributes = { connections = ["dock"] }
+
+[[entities]]
+id = "cliff_path"
+kind = "location"
+name = "Cliff Path"
+description = "A narrow path along the cliffs, leading down to a sea cave."
+attributes = { connections = ["lighthouse_ground", "cave"] }
+
+[[entities]]
+id = "cave"
+kind = "location"
+name = "Sea Cave"
+description = "A cold cave that fills with spray at high tide. Something glints in the sand."
+attributes = { connections = ["cliff_path"] }
+
+[[entities]]
+id = "rusty_key"
+kind = "item"
+name = "rusty key"
+description = "A corroded brass key."
+location = "cave"
+
+[[entities]]
+id = "oil_can"
+kind = "item"
+name = "oil can"
+description = "A can of lamp oil."
+location = "boat_shed"
+
+[[entities]]
+id = "lantern"
+kind = "item"
+name = "lantern"
+description = "The lighthouse lantern, cold and dark."
+location = "cottage"
+attributes = { filled = false, lit = false, fill_with = "oil_can", light_with = "flint" }
+
+[[entities]]
+id = "chest"
+kind = "item"
+name = "iron chest"
+description = "A heavy iron chest, locked."
+location = "lighthouse_ground"
+attributes = { locked = true, unlock_key = "rusty_key", contains = ["flint"] }
+
+[[entities]]
+id = "flint"
+kind = "item"
+name = "flint"
+description = "A steel striker and flint for making sparks."
+location = "chest"
+
+[[entities]]
+id = "logbook"
+kind = "item"
+name = "logbook"
+description = "The keeper's logbook. The last entry is dated the night the light went out."
+location = "lighthouse_ground"
+
+[[entities]]
+id = "rope"
+kind = "item"
+name = "coiled rope"
+description = "A strong rope."
+location = "dock"
+
+[[entities]]
+id = "light_the_lighthouse"
+kind = "quest"
+name = "Light the lighthouse"
+attributes = { flag = "lighthouse_lit" }
+
+[[relationships]]
+type = "knows"
+from = "mara"
+to = "player"

@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "everstory"
+version = "0.1.0"
+description = "State-consistent persistent AI world engine: LLM proposes, state machine decides."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "EverStory contributors" }]
+
+[project.scripts]
+everstory = "everstory.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["everstory*"]
