@@ -105,7 +105,9 @@ test-friendly. To use real models (Qwen / DeepSeek / any OpenAI-compatible
 endpoint):
 
 ```bash
-cp .env.example .env     # set LLM_MODE=api and LLM_API_KEY=
+cp .env.example .env     # edit: LLM_MODE=api and LLM_API_KEY=...
+# restart the server after editing .env (it is read at startup)
+everstory-serve
 python -m everstory.eval --mode api
 ```
 
