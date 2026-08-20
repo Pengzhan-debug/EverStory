@@ -114,6 +114,18 @@ python -m everstory.eval --mode api
 The eval report (`docs/eval-report.md`) then contains genuine model numbers for
 the three-architecture comparison.
 
+## Cross-provider benchmark
+
+Compare the same episodes across vendors (Qwen, DeepSeek, ...) in one run:
+
+```bash
+# .env: uncomment LLM_PROVIDERS=qwen,deepseek and fill each provider's key
+python -m everstory.eval --mode api --providers qwen,deepseek
+```
+
+The report gains a provider column and an average-recall summary per provider,
+so you can show which model family retains world state best over long horizons.
+
 ## Interview demo
 
 [docs/DEMO.md](docs/DEMO.md) is a 1-minute demo script with talking points and

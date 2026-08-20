@@ -25,6 +25,20 @@ class EvalTest(unittest.TestCase):
             state_answer(session, "Where is the rusty key?"), "sea cave"
         )
 
+    def test_provider_label(self):
+        client = LLMClient(mode="stub")
+        results = run_eval(client, provider="qwen")
+        self.assertTrue(results)
+        self.assertTrue(all(r.provider == "qwen" for r in results))
+
+    def test_markdown_has_provider_summary(self):
+        client = LLMClient(mode="stub")
+        from everstory.eval.runner import to_markdown
+
+        markdown = to_markdown(run_eval(client), mode="stub")
+        self.assertIn("Provider summary", markdown)
+        self.assertIn("| Provider |", markdown)
+
 
 if __name__ == "__main__":
     unittest.main()

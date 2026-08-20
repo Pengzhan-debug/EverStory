@@ -19,6 +19,7 @@ class Result:
     total: int
     rejections: int
     tokens: int
+    provider: str = "default"
 
 
 def state_answer(session, question: str) -> str | None:
@@ -45,7 +46,12 @@ def state_answer(session, question: str) -> str | None:
     return None
 
 
-def run_eval(client, episodes: list[Episode] | None = None, baselines=None) -> list[Result]:
+def run_eval(
+    client,
+    episodes: list[Episode] | None = None,
+    baselines=None,
+    provider: str = "default",
+) -> list[Result]:
     episodes = episodes or EPISODES
     results: list[Result] = []
     for baseline_cls in baselines or BASELINE_CLASSES:
@@ -74,6 +80,7 @@ def run_eval(client, episodes: list[Episode] | None = None, baselines=None) -> l
                     total=total,
                     rejections=b.rejections,
                     tokens=b.tokens,
+                    provider=provider,
                 )
             )
     return results
@@ -81,23 +88,40 @@ def run_eval(client, episodes: list[Episode] | None = None, baselines=None) -> l
 
 def to_markdown(results: list[Result], mode: str) -> str:
     rows = "\n".join(
-        f"| {r.baseline} | {r.episode} | {r.recall:.0%} ({r.correct}/{r.total}) | "
+        f"| {r.provider} | {r.baseline} | {r.episode} | {r.recall:.0%} ({r.correct}/{r.total}) | "
         f"{r.rejections} | {r.tokens} |"
         for r in results
+    )
+    agg: dict[tuple[str, str], dict] = {}
+    for r in results:
+        key = (r.provider, r.baseline)
+        agg.setdefault(key, {"recall": 0.0, "n": 0, "tokens": 0})
+        agg[key]["recall"] += r.recall
+        agg[key]["n"] += 1
+        agg[key]["tokens"] += r.tokens
+    summary = "\n".join(
+        f"| {provider} | {baseline} | {v['recall'] / v['n']:.1%} | {v['tokens']} |"
+        for (provider, baseline), v in sorted(agg.items())
     )
     return f"""# EverStory Evaluation Report
 
 Mode: `{mode}` (stub = deterministic/offline; api = real LLM numbers)
 
-| Baseline | Episode | Recall | Rejected actions | Tokens |
+| Provider | Baseline | Episode | Recall | Rejected actions | Tokens |
 | --- | --- | --- | --- | --- |
 {rows}
+
+## Provider summary (average recall)
+
+| Provider | Baseline | Avg recall | Tokens |
+| --- | --- | --- | --- |
+{summary}
 
 Notes:
 - **EverStory** answers fact questions directly from its structured state, so
   recall is exact by construction; its "tokens" reflect narration/parsing only.
 - **pure-llm** keeps the full transcript in context; **summary-memory** keeps a
   rolling summary plus recent turns. Both depend on the model's memory.
-- Run `python -m everstory.eval --mode api` (with `LLM_API_KEY` set) for real
-  model numbers.
+- Configure providers in `.env` (`LLM_PROVIDERS=qwen,deepseek` + per-provider
+  keys) and run `python -m everstory.eval --mode api` for real model numbers.
 """
