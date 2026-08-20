@@ -98,52 +98,35 @@ take flint
 rollback 0
 ```
 
-## Real LLM numbers
+## Configuration (real LLM mode)
 
 By default EverStory runs in `stub` mode: deterministic, offline, and
-test-friendly. To use real models (Qwen / DeepSeek / any OpenAI-compatible
-endpoint):
+test-friendly. To use real models, edit `.env` (copied from `.env.example`):
+
+```ini
+LLM_MODE=api
+
+LLM_STRONG_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_STRONG_API_KEY=sk-...
+LLM_STRONG_MODEL=qwen-plus
+
+LLM_CHEAP_BASE_URL=https://api.deepseek.com/v1
+LLM_CHEAP_API_KEY=sk-...
+LLM_CHEAP_MODEL=deepseek-chat
+```
+
+The strong role (intent parsing + consistency judging) and the cheap role
+(narration) are independent — each has its own URL, key, and model, so you can
+mix vendors freely (e.g. Qwen for understanding, DeepSeek for narration).
+Restart the server after editing `.env` (it is read at startup), then run:
 
 ```bash
-cp .env.example .env     # edit: LLM_MODE=api and LLM_API_KEY=...
-# restart the server after editing .env (it is read at startup)
 everstory-serve
 python -m everstory.eval --mode api
 ```
 
 The eval report (`docs/eval-report.md`) then contains genuine model numbers for
-the three-architecture comparison.
-
-## Cross-provider benchmark
-
-Compare the same episodes across vendors (Qwen, DeepSeek, ...) in one run:
-
-```bash
-# .env: uncomment LLM_PROVIDERS=qwen,deepseek and fill each provider's key
-python -m everstory.eval --mode api --providers qwen,deepseek
-```
-
-The report gains a provider column and an average-recall summary per provider,
-so you can show which model family retains world state best over long horizons.
-
-## Mix roles across vendors
-
-The strong role (intent parsing + consistency judging) and the cheap role
-(narration) do not have to come from the same vendor:
-
-```bash
-# .env: define providers, then route roles
-# LLM_PROVIDERS=qwen,deepseek
-# LLM_ROLE_STRONG=qwen
-# LLM_ROLE_CHEAP=deepseek
-```
-
-The web UI then parses intents with Qwen and narrates with DeepSeek (or any
-combination). Benchmark the mix as a single run:
-
-```bash
-python -m everstory.eval --mode api --role-mix
-```
+the three-architecture comparison, labeled with the strong+cheap model combo.
 
 ## Interview demo
 

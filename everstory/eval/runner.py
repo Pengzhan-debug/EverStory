@@ -122,6 +122,7 @@ Notes:
   recall is exact by construction; its "tokens" reflect narration/parsing only.
 - **pure-llm** keeps the full transcript in context; **summary-memory** keeps a
   rolling summary plus recent turns. Both depend on the model's memory.
-- Configure providers in `.env` (`LLM_PROVIDERS=qwen,deepseek` + per-provider
-  keys) and run `python -m everstory.eval --mode api` for real model numbers.
+- Configure `LLM_STRONG_*` / `LLM_CHEAP_*` in `.env` (each role may use a
+  different vendor) and run `python -m everstory.eval --mode api` for real
+  model numbers.
 """

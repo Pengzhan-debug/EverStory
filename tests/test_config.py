@@ -1,60 +1,56 @@
 import os
 import unittest
 
-from everstory.config import load_providers
+from everstory.config import build_client
 
 
-class ProviderConfigTest(unittest.TestCase):
+class ConfigTest(unittest.TestCase):
     def tearDown(self):
-        for key in [k for k in os.environ if k.startswith("LLM_PROVIDER")]:
+        for key in [
+            k
+            for k in os.environ
+            if k.startswith("LLM_STRONG")
+            or k.startswith("LLM_CHEAP")
+            or k in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL_STRONG", "LLM_MODEL_CHEAP")
+        ]:
             del os.environ[key]
-        os.environ["LLM_PROVIDERS"] = ""
 
-    def test_legacy_fallback(self):
-        os.environ["LLM_PROVIDERS"] = ""
-        providers = load_providers()
-        self.assertEqual(len(providers), 1)
-        self.assertEqual(providers[0].name, "default")
+    def test_strong_and_cheap_routes(self):
+        os.environ["LLM_STRONG_BASE_URL"] = "https://qwen.test/v1"
+        os.environ["LLM_STRONG_API_KEY"] = "kq"
+        os.environ["LLM_STRONG_MODEL"] = "qwen-plus"
+        os.environ["LLM_CHEAP_BASE_URL"] = "https://deepseek.test/v1"
+        os.environ["LLM_CHEAP_API_KEY"] = "kd"
+        os.environ["LLM_CHEAP_MODEL"] = "deepseek-chat"
 
-    def test_multiple_providers(self):
-        os.environ["LLM_PROVIDERS"] = "qwen,deepseek"
-        os.environ["LLM_PROVIDER_QWEN_BASE_URL"] = "https://qwen.test/v1"
-        os.environ["LLM_PROVIDER_QWEN_API_KEY"] = "k1"
-        os.environ["LLM_PROVIDER_DEEPSEEK_API_KEY"] = "k2"
-        providers = load_providers()
-        self.assertEqual([p.name for p in providers], ["qwen", "deepseek"])
-        self.assertEqual(providers[0].base_url, "https://qwen.test/v1")
-        self.assertEqual(providers[0].api_key, "k1")
-        self.assertEqual(providers[1].api_key, "k2")
-
-    def test_filter_requested(self):
-        os.environ["LLM_PROVIDERS"] = "qwen,deepseek"
-        providers = load_providers()
-        self.assertEqual(
-            [p.name for p in providers if p.name in ("deepseek",)],
-            ["deepseek"],
-        )
-
-    def test_role_mix_routes_endpoints(self):
-        os.environ["LLM_PROVIDERS"] = "qwen,deepseek"
-        os.environ["LLM_PROVIDER_QWEN_BASE_URL"] = "https://qwen.test/v1"
-        os.environ["LLM_PROVIDER_QWEN_API_KEY"] = "kq"
-        os.environ["LLM_PROVIDER_QWEN_STRONG_MODEL"] = "qwen-plus"
-        os.environ["LLM_PROVIDER_DEEPSEEK_BASE_URL"] = "https://deepseek.test/v1"
-        os.environ["LLM_PROVIDER_DEEPSEEK_API_KEY"] = "kd"
-        os.environ["LLM_PROVIDER_DEEPSEEK_CHEAP_MODEL"] = "deepseek-chat"
-        os.environ["LLM_ROLE_STRONG"] = "qwen"
-        os.environ["LLM_ROLE_CHEAP"] = "deepseek"
-
-        from everstory.config import build_role_client
-
-        client = build_role_client(mode="stub")
+        client = build_client(mode="stub")
         self.assertEqual(client.strong_base_url, "https://qwen.test/v1")
         self.assertEqual(client.strong_api_key, "kq")
         self.assertEqual(client.strong_model, "qwen-plus")
         self.assertEqual(client.cheap_base_url, "https://deepseek.test/v1")
         self.assertEqual(client.cheap_api_key, "kd")
         self.assertEqual(client.cheap_model, "deepseek-chat")
+
+    def test_legacy_fallback(self):
+        for key in (
+            "LLM_STRONG_BASE_URL",
+            "LLM_STRONG_API_KEY",
+            "LLM_STRONG_MODEL",
+            "LLM_CHEAP_BASE_URL",
+            "LLM_CHEAP_API_KEY",
+            "LLM_CHEAP_MODEL",
+        ):
+            os.environ.pop(key, None)
+        os.environ["LLM_BASE_URL"] = "https://legacy.test/v1"
+        os.environ["LLM_API_KEY"] = "klegacy"
+        os.environ["LLM_MODEL_STRONG"] = "legacy-strong"
+        os.environ["LLM_MODEL_CHEAP"] = "legacy-cheap"
+
+        client = build_client(mode="stub")
+        self.assertEqual(client.strong_base_url, "https://legacy.test/v1")
+        self.assertEqual(client.strong_api_key, "klegacy")
+        self.assertEqual(client.strong_model, "legacy-strong")
+        self.assertEqual(client.cheap_model, "legacy-cheap")
 
 
 if __name__ == "__main__":

@@ -8,11 +8,13 @@ Two modes:
 from __future__ import annotations
 
 from ..config import (
-    LLM_API_KEY,
-    LLM_BASE_URL,
+    LLM_CHEAP_API_KEY,
+    LLM_CHEAP_BASE_URL,
+    LLM_CHEAP_MODEL,
     LLM_MODE,
-    LLM_MODEL_CHEAP,
-    LLM_MODEL_STRONG,
+    LLM_STRONG_API_KEY,
+    LLM_STRONG_BASE_URL,
+    LLM_STRONG_MODEL,
 )
 
 
@@ -34,10 +36,10 @@ class LLMClient:
         cheap_api_key: str | None = None,
     ) -> None:
         self.mode = (mode or LLM_MODE).lower()
-        self.base_url = base_url or LLM_BASE_URL
-        self.api_key = api_key or LLM_API_KEY
-        self.strong_model = strong_model or LLM_MODEL_STRONG
-        self.cheap_model = cheap_model or LLM_MODEL_CHEAP
+        self.base_url = base_url or LLM_STRONG_BASE_URL
+        self.api_key = api_key or LLM_STRONG_API_KEY
+        self.strong_model = strong_model or LLM_STRONG_MODEL
+        self.cheap_model = cheap_model or LLM_CHEAP_MODEL
         # The strong and cheap roles can route to *different* vendors.
         self.strong_base_url = (strong_base_url or self.base_url).rstrip("/")
         self.strong_api_key = strong_api_key or self.api_key

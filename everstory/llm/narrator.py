@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..config import LLM_MODEL_CHEAP
+from ..config import LLM_CHEAP_MODEL
 
 NARRATE_SYSTEM = """You are the narrator of a deterministic text-adventure world.
 You receive: the world summary, the player's input, and the engine's results.
@@ -19,7 +19,7 @@ def narrate(
     context_text: str,
     model: str | None = None,
 ) -> str:
-    model = model or LLM_MODEL_CHEAP
+    model = model or LLM_CHEAP_MODEL
     messages = [
         {"role": "system", "content": NARRATE_SYSTEM},
         {"role": "user", "content": context_text},

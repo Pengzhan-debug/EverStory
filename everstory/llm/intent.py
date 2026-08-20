@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from ..commands import parse_structured
-from ..config import LLM_MODEL_STRONG
+from ..config import LLM_STRONG_MODEL
 
 SYSTEM_PROMPT = """You are the intent parser of a deterministic world engine.
 Given the player's text and the current world state, emit the player's actions as JSON.
@@ -32,7 +32,7 @@ Rules:
 def parse_actions(
     text: str, world_summary: str, client, model: str | None = None
 ) -> list[dict]:
-    model = model or LLM_MODEL_STRONG
+    model = model or LLM_STRONG_MODEL
     if client.mode == "stub":
         return parse_structured(text)
     messages = [

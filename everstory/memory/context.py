@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..config import LLM_MODEL_STRONG
+from ..config import LLM_STRONG_MODEL
 from ..models import EntityKind
 
 
@@ -76,7 +76,7 @@ def summarize(
     if client.mode == "stub":
         merged = (previous + " " + event_text).strip()
         return merged[:300]
-    model = model or LLM_MODEL_STRONG
+    model = model or LLM_STRONG_MODEL
     prompt = (
         "Compress the following game events into a short summary (max 120 words). "
         "Keep concrete facts: locations, items, ownership, locks, and quest progress.\n\n"

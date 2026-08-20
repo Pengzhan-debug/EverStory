@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from ..config import LLM_MODEL_STRONG
+from ..config import LLM_STRONG_MODEL
 
 JUDGE_SYSTEM = """You check whether a narrator's prose contradicts the ground-truth
 facts of a world. Facts are listed as 'FACT: ...'. The prose is 'NARRATION: ...'.
@@ -21,7 +21,7 @@ def check_consistency(
 ) -> tuple[bool, list[str]]:
     if client.mode == "stub":
         return True, []
-    model = model or LLM_MODEL_STRONG
+    model = model or LLM_STRONG_MODEL
     payload = (
         "FACTS:\n"
         + "\n".join(f"FACT: {f}" for f in facts)
