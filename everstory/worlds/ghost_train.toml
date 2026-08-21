@@ -1,0 +1,123 @@
+title = "The Ghost Train"
+time = 0
+turn = 0
+
+[flags]
+gave_coal = false
+
+[[entities]]
+id = "player"
+kind = "character"
+name = "You"
+is_player = true
+description = "A passenger who boarded the night express and found it empty."
+location = "platform"
+
+[[entities]]
+id = "conductor"
+kind = "character"
+name = "The Conductor"
+description = "A pale figure in a blue uniform. He will not move the train until the fire is fed."
+location = "coach_b"
+
+[entities.attributes]
+gift_effect = { coal = "gave_coal" }
+
+[entities.attributes.dialogue]
+default = "The conductor tips his cap. \"The train goes nowhere until the boiler is fed, friend.\""
+gave_coal = "The conductor smiles thinly. \"Good coal. The express will run again tonight.\""
+
+[[entities]]
+id = "platform"
+kind = "location"
+name = "Platform Nine"
+description = "A foggy platform. The night express waits, doors open, every window dark."
+attributes = { connections = ["waiting_room", "coach_a"] }
+
+[[entities]]
+id = "waiting_room"
+kind = "location"
+name = "Waiting Room"
+description = "A cold waiting room with a dead clock. A brass key hangs behind the counter."
+attributes = { connections = ["platform"] }
+
+[[entities]]
+id = "coach_a"
+kind = "location"
+name = "Coach A"
+description = "Rows of empty seats. Dust has settled on every armrest."
+attributes = { connections = ["platform", "coach_b"] }
+
+[[entities]]
+id = "coach_b"
+kind = "location"
+name = "Coach B"
+description = "The middle carriage. The conductor stands by the aisle, watching the boiler door."
+attributes = { connections = ["coach_a", "dining_car", "caboose"] }
+
+[[entities]]
+id = "dining_car"
+kind = "location"
+name = "Dining Car"
+description = "Tables set with silver that no one has touched. An oil lantern hangs from a hook."
+attributes = { connections = ["coach_b", "locomotive"] }
+
+[[entities]]
+id = "locomotive"
+kind = "location"
+name = "Locomotive"
+description = "The engine room. The boiler is cold and hungry. A journal lies on the engineer's seat."
+attributes = { connections = ["dining_car"] }
+
+[[entities]]
+id = "caboose"
+kind = "location"
+name = "Caboose"
+description = "The rear car, stacked with coal and old crates."
+attributes = { connections = ["coach_b"] }
+
+[[entities]]
+id = "ticket"
+kind = "item"
+name = "silver ticket"
+description = "A ticket stamped with tonight's date."
+location = "platform"
+
+[[entities]]
+id = "master_key"
+kind = "item"
+name = "brass master key"
+description = "A heavy key that opens every door on the line."
+location = "waiting_room"
+
+[[entities]]
+id = "lantern"
+kind = "item"
+name = "oil lantern"
+description = "A lit lantern with a warm glass globe."
+location = "dining_car"
+
+[[entities]]
+id = "coal"
+kind = "item"
+name = "lump of coal"
+description = "A fist-sized lump of good black coal."
+location = "caboose"
+
+[[entities]]
+id = "journal"
+kind = "item"
+name = "engineer's journal"
+description = "The last entry reads: 'The fire went out at midnight. The conductor keeps asking for coal.'"
+location = "locomotive"
+
+[[entities]]
+id = "feed_the_fire"
+kind = "quest"
+name = "Feed the fire"
+attributes = { flag = "gave_coal" }
+
+[[relationships]]
+type = "knows"
+from = "conductor"
+to = "player"

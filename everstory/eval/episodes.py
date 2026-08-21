@@ -78,3 +78,39 @@ EPISODES: list[Episode] = [
         ],
     ),
 ]
+
+
+def long_wander(turns: int) -> Episode:
+    """A long, low-variance wandering episode for memory-decay measurement.
+
+    The world facts stay constant (the key stays in the cave, the chest stays
+    locked, the oil can stays in the boat shed), so any recall loss over the
+    horizon is purely a memory/architecture effect.
+    """
+    loop = [
+        "move to lighthouse_ground",
+        "talk to mara",
+        "move to cliff_path",
+        "move to cave",
+        "wait",
+        "move to cliff_path",
+        "move to lighthouse_ground",
+        "talk to mara",
+        "move to cottage",
+        "move to dock",
+        "move to boat_shed",
+        "wait",
+        "move to dock",
+        "move to cottage",
+        "wait",
+    ]
+    steps = [loop[i % len(loop)] for i in range(turns)]
+    return Episode(
+        name=f"long_wander_{turns}",
+        steps=steps,
+        facts=[
+            Fact("Where is the rusty key?", "sea cave"),
+            Fact("Where is the oil can?", "boat shed"),
+            Fact("Is the iron chest locked?", "yes"),
+        ],
+    )

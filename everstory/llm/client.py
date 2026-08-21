@@ -59,8 +59,9 @@ class LLMClient:
         if self.mode == "stub":
             if self.stub_responder is not None:
                 return self.stub_responder(messages, model, json_mode)
-            last = messages[-1]["content"] if messages else ""
-            return f"[stub:{model}] {last}"
+            # Short fixed reply: echoing the prompt back would let baselines
+            # grow context recursively and make stub evals quadratic.
+            return "[stub] ok"
         return self._chat_api(messages, model, json_mode, temperature)
 
     def _chat_api(

@@ -2,6 +2,8 @@
 
 **A state-consistent, persistent AI world engine.**
 
+> [中文版 README](README.zh-CN.md)
+
 EverStory is a hybrid architecture for long-horizon AI interaction: an LLM
 *proposes* actions in natural language, and a deterministic state machine
 *decides*. The world — entities, items, locations, relationships, time — lives
@@ -32,7 +34,8 @@ The result: an interactive world that stays consistent for hundreds of turns.
 - **v1.2 — Playable game**: save/load sessions (JSON), scripted NPC dialogue
   that depends on world flags, a side quest ("Learn the keeper's secret"), and
   an ending unlocked by completing both quests — all with a live web UI.
-- A playable demo world: **The Lost Lighthouse** (fully declarative TOML).
+- Two playable worlds: **The Lost Lighthouse** (multi-quest, dialogue, ending)
+  and **The Ghost Train** (fully declarative TOML — the engine is generic).
 
 ## Architecture
 

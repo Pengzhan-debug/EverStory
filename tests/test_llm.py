@@ -51,9 +51,9 @@ class IntentTest(unittest.TestCase):
         )
         self.assertEqual(client.strong_base_url, "https://qwen.test/v1")
         self.assertEqual(client.cheap_api_key, "kd")
-        # stub mode does not hit the network; routing fields are what matter
+        # stub mode does not hit the network; the reply is a short fixed string
         reply = client.chat([{"role": "user", "content": "hi"}], model="deepseek-chat")
-        self.assertIn("hi", reply)
+        self.assertEqual(reply, "[stub] ok")
 
 
 class PipelineTest(unittest.TestCase):

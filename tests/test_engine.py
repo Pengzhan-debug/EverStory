@@ -2,7 +2,7 @@ import unittest
 
 from everstory.engine import WorldSession
 from everstory.models import Action, EntityKind
-from everstory.worlds import load_world
+from everstory.worlds import WORLDS_DIR, load_world
 
 
 def new_session() -> WorldSession:
@@ -48,6 +48,31 @@ class WorldIntegrityTest(unittest.TestCase):
             if e.kind == EntityKind.CHARACTER and e.name.lower() == "you"
         ]
         self.assertEqual(len(players), 1)
+
+    def test_all_worlds_load_and_validate(self):
+        worlds = sorted(p.stem for p in WORLDS_DIR.glob("*.toml"))
+        self.assertGreaterEqual(len(worlds), 2)
+        for name in worlds:
+            session = WorldSession(load_world(name))
+            ids = set(session.state.entities)
+            for e in session.state.entities.values():
+                if e.location_id is not None:
+                    self.assertIn(e.location_id, ids, f"{name}: {e.id} location")
+                if e.owner_id is not None:
+                    self.assertIn(e.owner_id, ids, f"{name}: {e.id} owner")
+            for r in session.state.relationships:
+                self.assertIn(r.source_id, ids, f"{name}: rel source")
+                self.assertIn(r.target_id, ids, f"{name}: rel target")
+            for e in session.state.entities.values():
+                for c in e.attributes.get("connections", []):
+                    self.assertIn(c, ids, f"{name}: bad connection {e.id}->{c}")
+                    other = session.state.entities[c]
+                    self.assertIn(
+                        e.id,
+                        other.attributes.get("connections", []),
+                        f"{name}: asymmetric {e.id}->{c}",
+                    )
+            self.assertTrue(session.player_id(), f"{name}: no player")
 
 
 class EngineTest(unittest.TestCase):
