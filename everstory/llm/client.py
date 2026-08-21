@@ -7,6 +7,8 @@ Two modes:
 
 from __future__ import annotations
 
+import time
+
 from ..config import (
     LLM_CHEAP_API_KEY,
     LLM_CHEAP_BASE_URL,
@@ -90,15 +92,32 @@ class LLMClient:
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
-        resp = requests.post(
-            url,
-            json=payload,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            timeout=120,
-        )
+        last_error: Exception | None = None
+        for attempt in range(3):  # transient network failures are common
+            try:
+                resp = requests.post(
+                    url,
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=120,
+                )
+                if resp.status_code == 200:
+                    break
+                if resp.status_code < 500 and resp.status_code != 429:
+                    raise LLMError(
+                        f"LLM API error {resp.status_code}: {resp.text[:300]}"
+                    )
+                last_error = LLMError(
+                    f"LLM API error {resp.status_code}: {resp.text[:200]}"
+                )
+            except requests.exceptions.RequestException as exc:
+                last_error = exc
+            time.sleep(2 * (attempt + 1))
+        else:
+            raise LLMError(f"LLM API request failed after retries: {last_error}") from last_error
         if resp.status_code != 200:
             raise LLMError(f"LLM API error {resp.status_code}: {resp.text[:300]}")
         data = resp.json()

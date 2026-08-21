@@ -44,6 +44,9 @@ def main() -> int:
 
     results = run_eval(client, provider=label)
     markdown = to_markdown(results, mode=client.mode)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(markdown, encoding="utf-8")  # persist before the long run
     if args.long:
         print(f"running long-horizon benchmark ({args.horizon} turns) ...")
         long_results = run_long_eval(
@@ -53,8 +56,6 @@ def main() -> int:
             contradiction_every=5 if args.contradictions else 0,
         )
         markdown += "\n" + to_long_markdown(long_results)
-    out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(markdown, encoding="utf-8")
     print(markdown)
     print(f"\nReport written to {out}")
