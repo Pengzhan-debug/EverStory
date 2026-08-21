@@ -169,6 +169,19 @@ main {
 .chat-title { font-weight: 600; color: var(--text); letter-spacing: 0.2px; }
 .chat-hint { margin-left: auto; font-size: 11px; color: var(--muted); }
 
+.ending-banner {
+  margin: 12px 14px 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-family: var(--serif);
+  font-size: 14px;
+  text-align: center;
+  color: #3a2a08;
+  background: linear-gradient(135deg, #f6c36b, #f9e3b0);
+  border: 1px solid rgba(246, 195, 107, 0.6);
+  box-shadow: 0 0 26px rgba(246, 195, 107, 0.35);
+}
+
 #messages {
   flex: 1;
   overflow-y: auto;

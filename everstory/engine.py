@@ -179,6 +179,7 @@ class WorldSession:
         collect_transitions: bool = False,
     ) -> None:
         self.title: str = world.title
+        self.world_name: str = getattr(world, "name", "world")
         self.engine = RuleEngine(rules)
         self.state: WorldState = copy.deepcopy(world.initial_state)
         self.history: list[EventRecord] = []
@@ -257,6 +258,12 @@ class WorldSession:
                     self._handle_use(action, res)
                 elif action.action_type == "open":
                     self._handle_open(action, res)
+                elif action.action_type == "give":
+                    self._handle_give(action, res)
+                elif action.action_type == "talk":
+                    self._handle_talk(action, res)
+                if res.ok:
+                    self._check_ending()
 
         if self.collect_transitions:
             after_facts, after_time = extract_facts(self.state, action)
@@ -388,6 +395,48 @@ class WorldSession:
             )
         else:
             res.message = f"The {target.name} is already open."
+
+    def _handle_give(self, action: Action, res: ActionResult) -> None:
+        """Gift-driven world effects (e.g. giving the oil can to Mara)."""
+        recipient = self.state.entity(action.params["recipient"])
+        gift_effects = recipient.attributes.get("gift_effect", {})
+        flag = gift_effects.get(action.params["item"])
+        if flag:
+            self.state.flags[flag] = True
+            res.effects.append(f"flag:{flag}")
+
+    def _handle_talk(self, action: Action, res: ActionResult) -> None:
+        """Scripted dialogue: the line depends on world flags, never on memory."""
+        target = self.state.entity(action.params["target"])
+        st = self.state
+        script = target.attributes.get("dialogue", {})
+        line = None
+        for flag in ("learned_secret", "gave_oil"):
+            if flag in script and st.flags.get(flag):
+                line = script[flag]
+                break
+        if line is None:
+            line = script.get("default", f"{target.name} has nothing to say.")
+        res.message = line
+        # The reveal: the talk that follows the gift tells the secret, and only
+        # afterwards does the flag flip (so the *next* talk shows the new line).
+        if (
+            action.params["target"] == "mara"
+            and st.flags.get("gave_oil")
+            and not st.flags.get("learned_secret")
+        ):
+            st.flags["learned_secret"] = True
+
+    def _check_ending(self) -> bool:
+        st = self.state
+        if (
+            st.flags.get("lighthouse_lit")
+            and st.flags.get("learned_secret")
+            and not st.flags.get("ending")
+        ):
+            st.flags["ending"] = True
+            return True
+        return False
 
     # ------------------------------------------------------------------
     # History & snapshots

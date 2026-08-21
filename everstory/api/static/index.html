@@ -23,6 +23,12 @@
       </div>
       <div class="controls">
         <span id="mode-chip" class="chip">turn 0 · time 0</span>
+        <button id="save-btn" class="btn-ghost" title="Save the world">
+          <span>Save</span>
+        </button>
+        <button id="load-btn" class="btn-ghost" title="Load the latest save">
+          <span>Load</span>
+        </button>
         <button id="reset-btn" class="btn-ghost" title="Reset the world">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           <span>New world</span>
@@ -39,6 +45,7 @@
           <span class="chat-hint">propose freely — the engine decides</span>
         </div>
         <div id="messages"></div>
+        <div id="ending-banner" class="ending-banner" hidden></div>
         <form id="input-form" class="input-bar">
           <input
             id="input"

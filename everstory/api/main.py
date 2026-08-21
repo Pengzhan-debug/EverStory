@@ -5,11 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..config import build_client
 from ..engine import WorldSession
+from ..persistence import SAVES_DIR, list_saves, load_session, save_session
 from ..pipeline import TurnPipeline
 from ..worlds import load_world
 
@@ -116,6 +117,38 @@ def create_app() -> FastAPI:
         runtime["pipeline"] = None
         ensure()
         return {"ok": True}
+
+    @app.post("/api/save")
+    async def save(request: Request):
+        ensure()
+        body = await request.json()
+        name = (body.get("name") or "autosave").strip() or "autosave"
+        path = save_session(runtime["session"], name)
+        return {
+            "ok": True,
+            "path": str(path),
+            "turn": runtime["session"].state.turn,
+        }
+
+    @app.get("/api/saves")
+    def saves():
+        return {"saves": list_saves()}
+
+    @app.post("/api/load")
+    async def load(request: Request):
+        ensure()
+        body = await request.json()
+        raw = (body.get("path") or "").strip()
+        if not raw:
+            return JSONResponse(status_code=400, content={"error": "missing path"})
+        path = Path(raw).resolve()
+        root = SAVES_DIR.resolve()
+        if not path.is_relative_to(root) or not path.exists():
+            return JSONResponse(status_code=400, content={"error": "invalid save path"})
+        session = load_session(path)
+        runtime["session"] = session
+        runtime["pipeline"] = TurnPipeline(session, build_client())
+        return world_payload(session)
 
     @app.get("/api/world")
     def world():

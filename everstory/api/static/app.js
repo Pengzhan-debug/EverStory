@@ -92,6 +92,17 @@ function render() {
   $("#mode-chip").textContent = `turn ${world.turn} · time ${world.time}`;
   const locChip = $("#loc-chip");
   if (locChip) locChip.textContent = world.player.location_name;
+  const banner = $("#ending-banner");
+  if (banner) {
+    if (world.flags && world.flags.ending) {
+      banner.hidden = false;
+      banner.innerHTML =
+        `★ Ending unlocked — the lighthouse burns again and the keeper's secret is told. ` +
+        `Completed in <b>${world.turn}</b> turns.`;
+    } else {
+      banner.hidden = true;
+    }
+  }
 }
 
 function renderPlayer(player) {
@@ -250,6 +261,27 @@ document.addEventListener("DOMContentLoaded", () => {
     await api("/api/reset", { method: "POST" });
     $("#messages").innerHTML = "";
     addMessage("system", "A new world begins…");
+    await loadWorld();
+  });
+  $("#save-btn").addEventListener("click", async () => {
+    const res = await api("/api/save", {
+      method: "POST",
+      body: JSON.stringify({ name: "autosave" }),
+    });
+    addMessage("system", `Saved — turn ${res.turn}.`);
+  });
+  $("#load-btn").addEventListener("click", async () => {
+    const { saves } = await api("/api/saves");
+    if (!saves.length) {
+      addMessage("system", "No saves yet — play a little, then Save.");
+      return;
+    }
+    await api("/api/load", {
+      method: "POST",
+      body: JSON.stringify({ path: saves[0].path }),
+    });
+    $("#messages").innerHTML = "";
+    addMessage("system", "Loaded the latest save.");
     await loadWorld();
   });
   addMessage(

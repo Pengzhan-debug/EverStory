@@ -29,6 +29,9 @@ The result: an interactive world that stays consistent for hundreds of turns.
   `(state, action, next-state)` trajectories (greedy conjunctive learning over
   role-abstracted predicates), verified against a held-out episode, and
   rendered as human-readable rules with counterfactual checks.
+- **v1.2 — Playable game**: save/load sessions (JSON), scripted NPC dialogue
+  that depends on world flags, a side quest ("Learn the keeper's secret"), and
+  an ending unlocked by completing both quests — all with a live web UI.
 - A playable demo world: **The Lost Lighthouse** (fully declarative TOML).
 
 ## Architecture
@@ -147,6 +150,7 @@ everstory/
   api/             FastAPI app + static web UI (chat + world inspector)
   eval/            three-architecture benchmark + report generator
   learn/           rule induction from trajectories + learned-rules report
+  persistence.py   save/load world sessions to JSON
   worlds/          declarative TOML worlds (demo: The Lost Lighthouse)
 docs/architecture.md   design document
 docs/eval-report.md    generated benchmark report

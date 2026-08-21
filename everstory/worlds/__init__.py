@@ -11,9 +11,10 @@ WORLDS_DIR = Path(__file__).parent
 
 
 class WorldDef:
-    def __init__(self, title: str, initial_state: WorldState) -> None:
+    def __init__(self, title: str, initial_state: WorldState, name: str = "world") -> None:
         self.title = title
         self.initial_state = initial_state
+        self.name = name
 
 
 def load_world(name: str) -> WorldDef:
@@ -56,4 +57,6 @@ def load_world(name: str) -> WorldDef:
 
     if player_id is None:
         raise ValueError("World must declare exactly one player entity (is_player = true)")
-    return WorldDef(title=data.get("title", name), initial_state=state)
+    return WorldDef(
+        title=data.get("title", name), initial_state=state, name=name
+    )

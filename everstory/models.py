@@ -33,6 +33,29 @@ class Entity:
     def in_inventory(self) -> bool:
         return self.location_id == INVENTORY_ID and self.owner_id is not None
 
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "kind": self.kind.value,
+            "name": self.name,
+            "description": self.description,
+            "attributes": self.attributes,
+            "location_id": self.location_id,
+            "owner_id": self.owner_id,
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> "Entity":
+        return Entity(
+            id=data["id"],
+            kind=EntityKind(data["kind"]),
+            name=data["name"],
+            description=data.get("description", ""),
+            attributes=dict(data.get("attributes", {})),
+            location_id=data.get("location_id"),
+            owner_id=data.get("owner_id"),
+        )
+
 
 @dataclass
 class Relationship:
@@ -41,12 +64,44 @@ class Relationship:
     target_id: str
     properties: dict[str, Any] = field(default_factory=dict)
 
+    def to_dict(self) -> dict:
+        return {
+            "type": self.type,
+            "source_id": self.source_id,
+            "target_id": self.target_id,
+            "properties": self.properties,
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> "Relationship":
+        return Relationship(
+            type=data["type"],
+            source_id=data["source_id"],
+            target_id=data["target_id"],
+            properties=dict(data.get("properties", {})),
+        )
+
 
 @dataclass
 class Action:
     action_type: str
     actor_id: str
     params: dict[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "action_type": self.action_type,
+            "actor_id": self.actor_id,
+            "params": dict(self.params),
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> "Action":
+        return Action(
+            action_type=data["action_type"],
+            actor_id=data["actor_id"],
+            params=dict(data.get("params", {})),
+        )
 
 
 @dataclass
@@ -118,3 +173,27 @@ class WorldState:
         }
         blob = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
         return hashlib.sha256(blob).hexdigest()[:16]
+
+    def to_dict(self) -> dict:
+        return {
+            "entities": [e.to_dict() for e in self.entities.values()],
+            "relationships": [r.to_dict() for r in self.relationships],
+            "time": self.time,
+            "turn": self.turn,
+            "flags": dict(self.flags),
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> "WorldState":
+        state = WorldState(
+            time=int(data.get("time", 0)),
+            turn=int(data.get("turn", 0)),
+            flags=dict(data.get("flags", {})),
+        )
+        state.entities = {
+            e["id"]: Entity.from_dict(e) for e in data.get("entities", [])
+        }
+        state.relationships = [
+            Relationship.from_dict(r) for r in data.get("relationships", [])
+        ]
+        return state

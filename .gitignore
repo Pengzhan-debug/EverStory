@@ -3,6 +3,7 @@ __pycache__/
 everstory-env/
 server.log
 server.err.log
+saves/
 .env
 *.db
 dist/

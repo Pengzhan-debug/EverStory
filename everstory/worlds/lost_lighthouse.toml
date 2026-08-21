@@ -20,6 +20,14 @@ name = "Mara"
 description = "The old lighthouse keeper. She knows what happened to the previous keeper."
 location = "lighthouse_ground"
 
+[entities.attributes]
+gift_effect = { oil_can = "gave_oil" }
+
+[entities.attributes.dialogue]
+default = "The keeper eyes you wearily. \"The light has been out for a year, and the sea has grown restless.\""
+gave_oil = "She accepts the oil can with trembling hands. \"You'd make a fine keeper... The last one disappeared the night the light failed. His logbook says the lamp was sabotaged.\""
+learned_secret = "\"Some say the old keeper still walks the cliffs at night. Finish what he started — light the lamp.\""
+
 [[entities]]
 id = "lighthouse_ground"
 kind = "location"
@@ -132,6 +140,12 @@ id = "light_the_lighthouse"
 kind = "quest"
 name = "Light the lighthouse"
 attributes = { flag = "lighthouse_lit" }
+
+[[entities]]
+id = "learn_the_secret"
+kind = "quest"
+name = "Learn the keeper's secret"
+attributes = { flag = "learned_secret" }
 
 [[relationships]]
 type = "knows"
