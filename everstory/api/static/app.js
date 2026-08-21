@@ -157,6 +157,26 @@ const map3d = {
   initialized: false,
 };
 
+const imgCache = {};
+
+function loadLocationImage(id) {
+  if (imgCache[id] !== undefined) return imgCache[id];
+  const img = new Image();
+  img.src = `/static/img/locations/${id}.png`;
+  imgCache[id] = img;
+  return img;
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
 function initMap3D() {
   const host = $("#map");
   host.innerHTML = "";
@@ -246,6 +266,7 @@ function renderMap(locations) {
   });
   const current = locations.find((l) => l.current);
   map3d.currentId = current ? current.id : null;
+  locations.forEach((loc) => loadLocationImage(loc.id));
 }
 
 function drawMap3D() {
@@ -298,36 +319,71 @@ function drawMap3D() {
     .sort((a, b) => b.p.p - a.p.p);
   visible.forEach(({ node, p }) => {
     const isCurrent = node.id === map3d.currentId;
-    const rad = (isCurrent ? 9 : 6) * (0.7 + p.p * 0.35);
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
-    if (isCurrent) {
-      ctx.shadowColor = "rgba(246,195,107,0.9)";
-      ctx.shadowBlur = 16;
-      ctx.fillStyle = "rgba(246,195,107,0.25)";
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = "#f6c36b";
-      ctx.lineWidth = 2.2;
-    } else {
-      ctx.fillStyle = "#0e2b47";
-      ctx.strokeStyle = "rgba(76,201,240,0.7)";
-      ctx.lineWidth = 1.5;
-    }
-    ctx.fill();
-    ctx.stroke();
-
+    const img = imgCache[node.id];
+    const imgLoaded = img && img.complete && img.naturalWidth > 0;
     const alpha = Math.max(0.25, Math.min(1, (p.p - 0.7) / 0.6));
-    ctx.fillStyle = isCurrent
-      ? "#f6c36b"
-      : `rgba(243,240,232,${alpha.toFixed(2)})`;
-    ctx.font = `600 ${Math.round(10 * p.p)}px "Segoe UI", sans-serif`;
-    ctx.textAlign = "center";
-    ctx.fillText(
-      node.name.length > 18 ? node.name.slice(0, 17) + "…" : node.name,
-      p.x,
-      p.y - rad - 5
-    );
+    if (imgLoaded) {
+      // Real-scene card: a rounded photo floating in 3D space.
+      const size = (isCurrent ? 82 : 64) * (0.65 + p.p * 0.5);
+      const x = p.x - size / 2;
+      const y = p.y - size / 2;
+      if (isCurrent) {
+        ctx.shadowColor = "rgba(246,195,107,0.8)";
+        ctx.shadowBlur = 18;
+      }
+      ctx.save();
+      roundRectPath(ctx, x, y, size, size, 11);
+      ctx.clip();
+      ctx.drawImage(img, x, y, size, size);
+      ctx.restore();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = isCurrent ? 2.5 : 1.5;
+      ctx.strokeStyle = isCurrent
+        ? "#f6c36b"
+        : "rgba(76,201,240,0.75)";
+      roundRectPath(ctx, x, y, size, size, 11);
+      ctx.stroke();
+      ctx.fillStyle = isCurrent
+        ? "#f6c36b"
+        : `rgba(243,240,232,${alpha.toFixed(2)})`;
+      ctx.font = `600 ${Math.round(11 * p.p)}px "Segoe UI", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText(
+        node.name.length > 18 ? node.name.slice(0, 17) + "…" : node.name,
+        p.x,
+        y + size + 15
+      );
+    } else {
+      // Fallback: abstract node while the scene image loads (or if missing).
+      const rad = (isCurrent ? 9 : 6) * (0.7 + p.p * 0.35);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+      if (isCurrent) {
+        ctx.shadowColor = "rgba(246,195,107,0.9)";
+        ctx.shadowBlur = 16;
+        ctx.fillStyle = "rgba(246,195,107,0.25)";
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "#f6c36b";
+        ctx.lineWidth = 2.2;
+      } else {
+        ctx.fillStyle = "#0e2b47";
+        ctx.strokeStyle = "rgba(76,201,240,0.7)";
+        ctx.lineWidth = 1.5;
+      }
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = isCurrent
+        ? "#f6c36b"
+        : `rgba(243,240,232,${alpha.toFixed(2)})`;
+      ctx.font = `600 ${Math.round(10 * p.p)}px "Segoe UI", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.fillText(
+        node.name.length > 18 ? node.name.slice(0, 17) + "…" : node.name,
+        p.x,
+        p.y - rad - 5
+      );
+    }
   });
 }
 
