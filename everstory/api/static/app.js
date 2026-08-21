@@ -142,52 +142,193 @@ function renderFacts(world) {
   `;
 }
 
-function renderMap(locations) {
-  const svgNS = "http://www.w3.org/2000/svg";
-  const W = 340, H = 250, cx = 170, cy = 125, R = 95;
-  const svg = document.createElementNS(svgNS, "svg");
-  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  svg.setAttribute("class", "map");
-  const pos = {};
-  locations.forEach((loc, i) => {
-    const a = (i / locations.length) * 2 * Math.PI - Math.PI / 2;
-    pos[loc.id] = { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) };
+const map3d = {
+  canvas: null,
+  ctx: null,
+  nodes: [],
+  edges: [],
+  currentId: null,
+  yaw: -0.6,
+  pitch: 0.35,
+  dist: 3.2,
+  dragging: false,
+  lastX: 0,
+  lastY: 0,
+  initialized: false,
+};
+
+function initMap3D() {
+  const host = $("#map");
+  host.innerHTML = "";
+  const canvas = document.createElement("canvas");
+  canvas.className = "map3d";
+  host.appendChild(canvas);
+  map3d.canvas = canvas;
+  map3d.ctx = canvas.getContext("2d");
+
+  const resize = () => {
+    const rect = host.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(220, Math.round(rect.width * dpr));
+    canvas.height = 220 * dpr;
+  };
+  resize();
+  window.addEventListener("resize", resize);
+
+  canvas.addEventListener("pointerdown", (e) => {
+    map3d.dragging = true;
+    map3d.lastX = e.clientX;
+    map3d.lastY = e.clientY;
+    canvas.setPointerCapture(e.pointerId);
   });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!map3d.dragging) return;
+    const dx = e.clientX - map3d.lastX;
+    const dy = e.clientY - map3d.lastY;
+    map3d.lastX = e.clientX;
+    map3d.lastY = e.clientY;
+    map3d.yaw += dx * 0.008;
+    map3d.pitch = Math.max(-1.2, Math.min(1.2, map3d.pitch + dy * 0.008));
+  });
+  canvas.addEventListener("pointerup", () => {
+    map3d.dragging = false;
+  });
+  canvas.addEventListener("pointerleave", () => {
+    map3d.dragging = false;
+  });
+  canvas.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      map3d.dist = Math.max(2.1, Math.min(5.0, map3d.dist + e.deltaY * 0.002));
+    },
+    { passive: false }
+  );
+
+  map3d.initialized = true;
+  requestAnimationFrame(mapLoop);
+}
+
+function mapLoop() {
+  if (!map3d.dragging) map3d.yaw += 0.003;
+  drawMap3D();
+  requestAnimationFrame(mapLoop);
+}
+
+function renderMap(locations) {
+  if (!map3d.initialized) initMap3D();
+  const n = locations.length || 1;
+  map3d.nodes = locations.map((loc, i) => {
+    // Fibonacci sphere: spread locations evenly in 3D space.
+    const y = 1 - (2 * (i + 0.5)) / n;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const theta = i * 2.399963;
+    return {
+      id: loc.id,
+      name: loc.name,
+      current: loc.current,
+      x: r * Math.cos(theta),
+      y,
+      z: r * Math.sin(theta),
+    };
+  });
+  const byId = {};
+  locations.forEach((l) => (byId[l.id] = l));
+  map3d.edges = [];
   const seen = new Set();
   locations.forEach((loc) => {
     (loc.connections || []).forEach((c) => {
       const key = [loc.id, c].sort().join("|");
-      if (seen.has(key) || !pos[c]) return;
+      if (seen.has(key) || !byId[c]) return;
       seen.add(key);
-      const line = document.createElementNS(svgNS, "line");
-      line.setAttribute("x1", pos[loc.id].x);
-      line.setAttribute("y1", pos[loc.id].y);
-      line.setAttribute("x2", pos[c].x);
-      line.setAttribute("y2", pos[c].y);
-      line.setAttribute("class", "edge");
-      svg.appendChild(line);
+      map3d.edges.push([loc.id, c]);
     });
   });
-  locations.forEach((loc) => {
-    const p = pos[loc.id];
-    const g = document.createElementNS(svgNS, "g");
-    const circle = document.createElementNS(svgNS, "circle");
-    circle.setAttribute("cx", p.x);
-    circle.setAttribute("cy", p.y);
-    circle.setAttribute("r", loc.current ? 16 : 12);
-    circle.setAttribute("class", loc.current ? "node current" : "node");
-    const label = document.createElementNS(svgNS, "text");
-    label.setAttribute("x", p.x);
-    label.setAttribute("y", p.y + 4);
-    label.setAttribute("text-anchor", "middle");
-    label.setAttribute("class", "nodelabel");
-    label.textContent = loc.name.length > 20 ? loc.name.slice(0, 19) + "…" : loc.name;
-    g.appendChild(circle);
-    g.appendChild(label);
-    svg.appendChild(g);
+  const current = locations.find((l) => l.current);
+  map3d.currentId = current ? current.id : null;
+}
+
+function drawMap3D() {
+  const canvas = map3d.canvas;
+  const ctx = map3d.ctx;
+  if (!canvas) return;
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  const cx = W / 2;
+  const cy = H / 2;
+  const R = Math.min(W, H) * 0.36;
+  const { yaw, pitch, dist } = map3d;
+  const cyaw = Math.cos(yaw);
+  const syaw = Math.sin(yaw);
+  const cp = Math.cos(pitch);
+  const sp = Math.sin(pitch);
+
+  const project = (node) => {
+    const x1 = node.x * cyaw + node.z * syaw;
+    const z1 = -node.x * syaw + node.z * cyaw;
+    const y2 = node.y * cp - z1 * sp;
+    const z2 = node.y * sp + z1 * cp;
+    const persp = dist / (dist - z2);
+    if (persp <= 0) return null;
+    return { x: cx + x1 * R * persp, y: cy - y2 * R * persp, z: z2, p: persp };
+  };
+
+  const proj = {};
+  map3d.nodes.forEach((node) => {
+    proj[node.id] = { node, p: project(node) };
   });
-  $("#map").innerHTML = "";
-  $("#map").appendChild(svg);
+
+  // Edges (connections), drawn as projected lines.
+  ctx.lineWidth = 1.3;
+  ctx.strokeStyle = "rgba(76,201,240,0.45)";
+  map3d.edges.forEach(([a, b]) => {
+    const pa = proj[a] && proj[a].p;
+    const pb = proj[b] && proj[b].p;
+    if (!pa || !pb) return;
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.stroke();
+  });
+
+  // Nodes far -> near.
+  const visible = Object.values(proj)
+    .filter((p) => p.p)
+    .sort((a, b) => b.p.p - a.p.p);
+  visible.forEach(({ node, p }) => {
+    const isCurrent = node.id === map3d.currentId;
+    const rad = (isCurrent ? 9 : 6) * (0.7 + p.p * 0.35);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+    if (isCurrent) {
+      ctx.shadowColor = "rgba(246,195,107,0.9)";
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = "rgba(246,195,107,0.25)";
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "#f6c36b";
+      ctx.lineWidth = 2.2;
+    } else {
+      ctx.fillStyle = "#0e2b47";
+      ctx.strokeStyle = "rgba(76,201,240,0.7)";
+      ctx.lineWidth = 1.5;
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    const alpha = Math.max(0.25, Math.min(1, (p.p - 0.7) / 0.6));
+    ctx.fillStyle = isCurrent
+      ? "#f6c36b"
+      : `rgba(243,240,232,${alpha.toFixed(2)})`;
+    ctx.font = `600 ${Math.round(10 * p.p)}px "Segoe UI", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(
+      node.name.length > 18 ? node.name.slice(0, 17) + "…" : node.name,
+      p.x,
+      p.y - rad - 5
+    );
+  });
 }
 
 function renderEntities(world) {
