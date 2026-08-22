@@ -3,13 +3,28 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#05080d" />
     <title>EverStory — The Lost Lighthouse</title>
-    <link rel="stylesheet" href="/static/style.css?v=3" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/style.css?v=5" />
   </head>
   <body>
+    <div class="world-backdrop" aria-hidden="true">
+      <div class="moon"></div>
+      <div class="lighthouse-silhouette"><span class="beacon"></span></div>
+      <div class="fog fog-a"></div>
+      <div class="fog fog-b"></div>
+      <div class="ocean ocean-a"></div>
+      <div class="ocean ocean-b"></div>
+      <div class="vignette"></div>
+      <div class="grain"></div>
+    </div>
+
     <header class="topbar">
       <div class="brand">
-        <span class="logo">
+        <span class="logo" aria-hidden="true">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 3l4.2 7H7.8L12 3z" />
             <rect x="9" y="10" width="6" height="10" rx="1" />
@@ -17,64 +32,86 @@
           </svg>
         </span>
         <div class="brand-text">
-          <div class="brand-name">EverStory</div>
-          <div class="brand-sub">The Lost Lighthouse · a world that cannot lie</div>
+          <div class="brand-name">EVERSTORY</div>
+          <div class="brand-sub">THE LOST LIGHTHOUSE</div>
         </div>
       </div>
+
+      <div class="world-status">
+        <span class="status-dot"></span>
+        <span>WORLD STABLE</span>
+      </div>
+
       <div class="controls">
-        <span id="mode-chip" class="chip">turn 0 · time 0</span>
-        <button id="save-btn" class="btn-ghost" title="Save the world">
-          <span>Save</span>
-        </button>
-        <button id="load-btn" class="btn-ghost" title="Load the latest save">
-          <span>Load</span>
-        </button>
-        <button id="reset-btn" class="btn-ghost" title="Reset the world">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          <span>New world</span>
-        </button>
+        <span id="mode-chip" class="chip mono">TURN 0 · TIME 0</span>
+        <button id="save-btn" class="btn-ghost" title="Save the world">Save</button>
+        <button id="load-btn" class="btn-ghost" title="Load the latest save">Load</button>
+        <button id="reset-btn" class="btn-ghost" title="Start a new world">New world</button>
       </div>
     </header>
 
-    <main>
+    <main class="game-shell">
       <section id="chat" class="panel chat-panel">
+        <div class="world-hud top-left">
+          <div class="eyebrow">A WORLD THAT CANNOT LIE</div>
+          <div class="scene-title">The Lost Lighthouse</div>
+          <div class="scene-rule"></div>
+          <div class="scene-location"><span class="pin">◈</span><span id="loc-chip" class="location-name">…</span></div>
+        </div>
+
+        <div class="world-hud top-right">
+          <div class="hud-line"><span>WORLD TIME</span><strong id="hud-time">—</strong></div>
+          <div class="hud-line"><span>TURN</span><strong id="hud-turn">—</strong></div>
+          <div class="weather"><span class="weather-dot"></span> STORM APPROACHING</div>
+        </div>
+
         <div class="chat-head">
           <span class="status-dot"></span>
-          <span class="chat-title">Live session</span>
-          <span id="loc-chip" class="chip loc">…</span>
-          <span class="chat-hint">propose freely — the engine decides</span>
+          <span class="chat-title">LIVE STORY</span>
+          <span class="chat-hint">Speak freely · the engine decides what is true</span>
         </div>
+
         <div id="messages"></div>
         <div id="ending-banner" class="ending-banner" hidden></div>
+
+        <div class="story-prompt" aria-hidden="true">
+          <span>WHAT WILL YOU DO?</span>
+        </div>
+
         <form id="input-form" class="input-bar">
-          <input
-            id="input"
-            type="text"
-            placeholder='Try: "move to the cave", "take rusty key", "use rusty key on chest"...'
-            autocomplete="off"
-          />
-          <button type="submit" class="send-btn" title="Send">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          <span class="input-mark">›</span>
+          <input id="input" type="text" placeholder='Try: "walk toward the lighthouse" or "take the rusty key"…' autocomplete="off" />
+          <button type="submit" class="send-btn" title="Send" aria-label="Send">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
           </button>
         </form>
+        <div class="input-hint"><span>ENTER</span> to act · <span>FREE TEXT</span> is understood by EverStory</div>
       </section>
 
       <aside id="inspector" class="panel inspector">
+        <div class="inspector-title">
+          <div><span class="eyebrow">WORLD INSPECTOR</span><h2>Keepers' Record</h2></div>
+          <span class="chip mono">LIVE</span>
+        </div>
         <div id="player-card" class="card"></div>
         <div id="facts-card" class="card"></div>
-        <div id="map-card" class="card">
-          <div class="card-head"><h3>Sea chart · 3D</h3><span class="chip">live</span></div>
+        <div id="map-card" class="card map-card">
+          <div class="card-head"><h3>Sea Chart</h3><span class="chip">3D</span></div>
           <div id="map"></div>
           <div class="map-hint">drag to orbit · scroll to zoom · auto-rotates</div>
         </div>
         <div id="entities-card" class="card"></div>
         <div id="quests-card" class="card"></div>
         <div id="log-card" class="card">
-          <div class="card-head"><h3>Ship's log</h3></div>
+          <div class="card-head"><h3>Ship's Log</h3><span class="chip mono">EVENTS</span></div>
           <div id="log"></div>
         </div>
       </aside>
     </main>
-    <script src="/static/app.js?v=3"></script>
+
+    <div class="corner-hud bottom-left"><span class="keycap">I</span> INVENTORY</div>
+    <div class="corner-hud bottom-right"><span class="keycap">TAB</span> WORLD STATE</div>
+
+    <script src="/static/app.js?v=5"></script>
   </body>
 </html>
