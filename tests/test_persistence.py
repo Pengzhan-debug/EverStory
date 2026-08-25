@@ -7,6 +7,7 @@ from everstory.models import Action
 from everstory.persistence import (
     list_saves,
     load_session,
+    load_session_bundle,
     save_session,
     session_from_dict,
     session_to_dict,
@@ -54,6 +55,16 @@ class PersistenceTest(unittest.TestCase):
             s2 = load_session(path)
             self.assertEqual(s2.state.snapshot_hash(), s.state.snapshot_hash())
             self.assertEqual(s2.state.turn, s.state.turn)
+
+    def test_save_bundle_roundtrips_optional_runtime_memory(self):
+        s = new_session()
+        extra = {"team_chat": {"version": 1, "messages": [], "evidence": [{"id": "clue-1"}]}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = save_session(s, "bundle", saves_dir=tmp, extra=extra)
+            restored, restored_extra = load_session_bundle(path)
+            self.assertEqual(restored.state.snapshot_hash(), s.state.snapshot_hash())
+            self.assertEqual(restored_extra, extra)
+            self.assertEqual(list_saves(tmp)[0]["evidence"], 1)
 
     def test_talk_dialogue_and_ending(self):
         s = new_session()

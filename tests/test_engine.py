@@ -83,6 +83,7 @@ class EngineTest(unittest.TestCase):
     def test_move_to_connected_location(self):
         res = act(self.s, "move", to="lighthouse_ground")
         self.assertTrue(res.ok, res.message)
+        self.assertIn("Lighthouse Ground Floor", res.message)
         self.assertEqual(self.s.state.entity(self.p).location_id, "lighthouse_ground")
 
     def test_move_to_unreachable_rejected(self):
