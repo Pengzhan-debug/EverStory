@@ -984,6 +984,17 @@ body.location-cave #world-scene {
 }
 
 .inspector-title h2 { font-size: 21px; }
+.language-switch {
+  height: 31px;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 7px;
+  background: rgba(5,12,18,.72);
+  color: #bac3c6;
+  padding: 0 7px;
+  font: 9px var(--mono);
+  cursor: pointer;
+}
+.language-switch:focus-visible { outline: 1px solid var(--gold); outline-offset: 2px; }
 .inspector-actions { display: flex; align-items: center; gap: 8px; }
 .inspector-close {
   width: 30px;
@@ -1059,6 +1070,7 @@ body.location-cave #world-scene {
   .brand-sub { display: none; }
   .topbar .controls { margin-left: auto; }
   .controls #journal-btn { display: none; }
+  .language-switch { width: 42px; padding: 0 4px; }
   .controls #inventory-btn,
   .controls #debug-btn,
   .controls #settings-btn,

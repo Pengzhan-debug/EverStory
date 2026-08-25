@@ -14,6 +14,9 @@
   const viewButtons = document.querySelectorAll("[data-team-view]");
   let chat = { participants: [], messages: [], tasks: [], evidence: [] };
   let loaded = false;
+  const t = (key) => window.EverStoryI18n?.t(key) || key;
+  const tv = (value) => window.EverStoryI18n?.value(value) || value;
+  const zh = () => window.EverStoryI18n?.locale() === "zh-CN";
 
   function esc(value) {
     const node = document.createElement("div");
@@ -51,16 +54,26 @@
     const complete = task.status === "completed";
     const changesWorld = Boolean(task.action);
     const evidence = task.evidence_ids?.length || 0;
+    const localizedTitle = zh() ? ({
+      travel: `前往${tv(task.target)}`,
+      interview: `询问 ${task.target}`,
+      examine: `检查${tv(task.target)}`,
+      accuse: `正式指控 ${task.target}`,
+      inspect_scene: `勘查${tv(task.target)}`,
+      review_case: "复核已确认案卷",
+      audit_hypothesis: "审查当前推测",
+      plan_next_step: "制定下一步调查计划",
+    }[task.type] || task.title) : task.title;
     return `
       <section class="team-task-card ${complete ? "completed" : "proposed"}" data-task-id="${esc(task.id)}">
-        <div class="team-task-kicker"><span>${complete ? "APPROVED RESULT" : "ACTION PROPOSAL"}</span><b>${complete ? "complete" : "awaiting you"}</b></div>
-        <strong class="team-task-title">${esc(task.title)}</strong>
+        <div class="team-task-kicker"><span>${complete ? t("approvedResult") : t("actionProposal")}</span><b>${complete ? t("complete") : t("awaiting")}</b></div>
+        <strong class="team-task-title">${esc(localizedTitle)}</strong>
         <p>${esc(task.description)}</p>
         <div class="team-task-foot">
-          <span>Target · ${esc(task.target)}${changesWorld ? " · consumes 1 turn" : " · case-board only"}</span>
+          <span>${zh() ? "目标" : "Target"} · ${esc(tv(task.target))} · ${changesWorld ? t("consumesTurn") : t("caseOnly")}</span>
           ${complete
-            ? `<span class="team-task-done">✓ ${evidence ? `${evidence} new evidence` : "review recorded"}</span>`
-            : `<button type="button" class="team-task-approve" data-approve-task="${esc(task.id)}" aria-label="Approve task ${esc(task.title)}">Approve</button>`}
+            ? `<span class="team-task-done">✓ ${evidence ? `${evidence} ${t(evidence === 1 ? "clue" : "clues")}` : (zh() ? "已记录复核" : "review recorded")}</span>`
+            : `<button type="button" class="team-task-approve" data-approve-task="${esc(task.id)}" aria-label="Approve task ${esc(task.title)}">${t("approve")}</button>`}
         </div>
       </section>`;
   }
@@ -141,9 +154,9 @@
     });
     if (selected === "evidence") {
       renderEvidence();
-      setStatus("Case board · only engine-confirmed observations appear here.");
+      setStatus(zh() ? "案件板 · 这里只显示经过规则引擎确认的观察。" : "Case board · only engine-confirmed observations appear here.");
     } else {
-      setStatus("You are the Lead Investigator. Agent claims remain hypotheses.");
+      setStatus(zh() ? "你是首席调查员，智能体发言仍属于推测。" : "You are the Lead Investigator. Agent claims remain hypotheses.");
       input.focus();
     }
   }
@@ -153,12 +166,14 @@
     renderMessages();
     renderEvidence();
     const count = (chat.evidence || []).length;
-    evidenceCount.textContent = `${count} confirmed clue${count === 1 ? "" : "s"}`;
+    evidenceCount.textContent = zh()
+      ? `${count} ${t("clues")} · ${t("confirmed")}`
+      : `${count} confirmed clue${count === 1 ? "" : "s"}`;
     boardCount.textContent = String(count);
   }
 
   async function loadChat() {
-    setStatus("Loading team channel…");
+    setStatus(zh() ? "正在加载调查频道……" : "Loading team channel…");
     try {
       const response = await fetch("/api/agents/chat");
       const data = await response.json();
@@ -168,8 +183,8 @@
       render();
       setStatus(
         panel.dataset.view === "evidence"
-          ? "Case board · only engine-confirmed observations appear here."
-          : "You are the Lead Investigator. Agent claims remain hypotheses."
+          ? (zh() ? "案件板 · 这里只显示经过规则引擎确认的观察。" : "Case board · only engine-confirmed observations appear here.")
+          : (zh() ? "你是首席调查员，智能体发言仍属于推测。" : "You are the Lead Investigator. Agent claims remain hypotheses.")
       );
     } catch (error) {
       setStatus(error.message, true);
@@ -196,7 +211,7 @@
     const sendButton = form.querySelector('button[type="submit"]');
     sendButton.disabled = true;
     input.disabled = true;
-    setStatus("Team is reviewing facts and challenging assumptions…");
+    setStatus(zh() ? "调查组正在核对事实并质疑假设……" : "Team is reviewing facts and challenging assumptions…");
     try {
       const response = await fetch("/api/agents/chat", {
         method: "POST",
@@ -209,7 +224,9 @@
       render();
       input.value = "";
       const proposed = (data.tasks || []).filter((task) => task.status === "proposed").length;
-      setStatus(`${data.new_messages.length - 1} agent responses · ${proposed} action${proposed === 1 ? "" : "s"} awaiting approval`);
+      setStatus(zh()
+        ? `${data.new_messages.length - 1} 条智能体回复 · ${proposed} 个行动等待批准`
+        : `${data.new_messages.length - 1} agent responses · ${proposed} action${proposed === 1 ? "" : "s"} awaiting approval`);
     } catch (error) {
       setStatus(error.message, true);
     } finally {
@@ -221,7 +238,7 @@
 
   async function approveTask(taskId, button) {
     button.disabled = true;
-    setStatus("Running approved check against the authoritative world state…");
+    setStatus(zh() ? "正在根据权威世界状态执行批准的行动……" : "Running approved check against the authoritative world state…");
     try {
       const response = await fetch(`/api/agents/tasks/${encodeURIComponent(taskId)}/approve`, {
         method: "POST",
@@ -233,7 +250,9 @@
       if (data.world && window.EverStory) await window.EverStory.refresh();
       const added = data.evidence?.length || 0;
       const turnStatus = data.world ? `world advanced to turn ${data.world.turn}` : "world turn unchanged";
-      setStatus(`Approved result returned · ${added} total confirmed clue${added === 1 ? "" : "s"} · ${turnStatus}`);
+      setStatus(zh()
+        ? `行动已完成 · 共 ${added} 条确认线索 · ${data.world ? `世界推进到第 ${data.world.turn} 回合` : "世界回合未变化"}`
+        : `Approved result returned · ${added} total confirmed clue${added === 1 ? "" : "s"} · ${turnStatus}`);
     } catch (error) {
       button.disabled = false;
       setStatus(error.message, true);
@@ -281,4 +300,10 @@
   });
   window.addEventListener("everstory:loaded", () => loadChat());
   window.addEventListener("everstory:reset", () => loadChat());
+  window.addEventListener("everstory:locale", () => {
+    render();
+    setStatus(panel.dataset.view === "evidence"
+      ? (zh() ? "案件板 · 这里只显示经过规则引擎确认的观察。" : "Case board · only engine-confirmed observations appear here.")
+      : t("leadStatus"));
+  });
 })();

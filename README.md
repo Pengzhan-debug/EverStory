@@ -52,6 +52,7 @@ Each investigation and runtime role can use an independent or shared OpenAI-comp
 - **Case evidence board** — confirmed scenes, objects and people remain separate from agent hypotheses and survive save/load.
 - **Complete mystery loop** — three suspects, contradictory testimony, physical clues, evidence-gated accusations, and a deterministic culprit/confession make the lighthouse case solvable rather than merely conversational.
 - **Model signal console** — configure multiple OpenAI-compatible providers, route each agent independently, test connections, and inspect latency/token diagnostics.
+- **Shared Chinese / English interface** — the game shell and model console share one locale preference; HUD, maps, objectives, known items and the investigation room update immediately without changing engine IDs.
 - **World Inspector** — live turn/time, entities, items, quests, event log and state-oriented debugging remain available without breaking immersion.
 - **Inventory & keyboard interaction** — `I` opens inventory, `TAB` focuses world state, `ESC` closes overlays.
 - **Playable worlds** — **The Lost Lighthouse** and **The Ghost Train** demonstrate that the engine is generic and data-driven.
@@ -167,6 +168,8 @@ python -m unittest discover -s tests -v
 # 5. Learn world dynamics from trajectories
 everstory-learn
 ```
+
+The suite includes a full offline acceptance path: agent-proposed travel, two interviews, two physical-evidence examinations, and an evidence-gated final accusation. It requires no API key.
 
 ### Try the world
 

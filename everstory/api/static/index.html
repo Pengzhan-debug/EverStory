@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/static/style-v5.css?v=6"/>
 <link rel="stylesheet" href="/static/immersive.css?v=4"/>
-<link rel="stylesheet" href="/static/ui-tweaks.css?v=14"/>
+<link rel="stylesheet" href="/static/ui-tweaks.css?v=15"/>
 <link rel="stylesheet" href="/static/team-chat.css?v=1"/>
 </head>
 <body>
@@ -28,8 +28,8 @@
 </div>
 <div class="intro-title">EVERSTORY<span>THE LOST LIGHTHOUSE</span>
 </div>
-<div class="intro-sub">A world that cannot lie</div>
-<button id="intro-skip" type="button">ENTER ›</button>
+<div class="intro-sub" data-i18n="tagline">A world that cannot lie</div>
+<button id="intro-skip" type="button" data-i18n="enter">ENTER ›</button>
 </div>
 <div class="world-backdrop" aria-hidden="true">
 <div class="moon">
@@ -61,17 +61,18 @@
 </div>
 <div class="world-status" role="status" aria-live="polite">
 <span class="status-dot">
-</span>WORLD STABLE</div>
+</span><span data-i18n="worldStable">WORLD STABLE</span></div>
 <div class="controls">
 <span id="mode-chip" class="chip mono">TURN 0 · TIME 0</span>
 <a id="settings-btn" class="btn-ghost" href="/settings" aria-label="Open API signal console">API</a>
-<button id="team-btn" class="btn-ghost" type="button" aria-expanded="false" aria-controls="team-panel">Team</button>
-<button id="journal-btn" class="btn-ghost" type="button">Journal</button>
-<button id="inventory-btn" class="btn-ghost" type="button">Inventory</button>
-<button id="debug-btn" class="btn-ghost" type="button" aria-expanded="false" aria-controls="inspector">World truth</button>
-<button id="save-btn" class="btn-ghost">Save</button>
-<button id="load-btn" class="btn-ghost">Load</button>
-<button id="reset-btn" class="btn-ghost">New world</button>
+<select id="game-language" class="language-switch" aria-label="Language"><option value="zh-CN">中</option><option value="en">EN</option></select>
+<button id="team-btn" class="btn-ghost" type="button" aria-expanded="false" aria-controls="team-panel" data-i18n="team">Team</button>
+<button id="journal-btn" class="btn-ghost" type="button" data-i18n="journal">Journal</button>
+<button id="inventory-btn" class="btn-ghost" type="button" data-i18n="inventory">Inventory</button>
+<button id="debug-btn" class="btn-ghost" type="button" aria-expanded="false" aria-controls="inspector" data-i18n="worldTruth">World truth</button>
+<button id="save-btn" class="btn-ghost" data-i18n="save">Save</button>
+<button id="load-btn" class="btn-ghost" data-i18n="load">Load</button>
+<button id="reset-btn" class="btn-ghost" data-i18n="newWorld">New world</button>
 </div>
 </header>
 <main class="game-shell">
@@ -89,7 +90,7 @@
 </div>
 </div>
 <div class="world-hud top-left">
-<div class="eyebrow">A WORLD THAT CANNOT LIE</div>
+<div class="eyebrow" data-i18n="taglineCaps">A WORLD THAT CANNOT LIE</div>
 <div class="scene-title">The Lost Lighthouse</div>
 <div class="scene-rule">
 </div>
@@ -100,26 +101,26 @@
 </div>
 <div class="world-hud top-right">
 <div class="hud-line">
-<span>WORLD TIME</span>
+<span data-i18n="worldTime">WORLD TIME</span>
 <strong id="hud-time">—</strong>
 </div>
 <div class="hud-line">
-<span>TURN</span>
+<span data-i18n="turn">TURN</span>
 <strong id="hud-turn">—</strong>
 </div>
 <div class="weather">
 <span class="weather-dot">
-</span> STORM APPROACHING</div>
+</span><span data-i18n="storm">STORM APPROACHING</span></div>
 </div>
 <div class="case-objective">
-<span>ACTIVE LEAD</span>
+<span data-i18n="activeLead">ACTIVE LEAD</span>
 <strong id="objective-text">Follow the evidence</strong>
 </div>
 <div class="chat-head">
 <span class="status-dot">
 </span>
-<span class="chat-title">LIVE STORY</span>
-<span class="chat-hint">Speak freely · the engine decides what is true</span>
+<span class="chat-title" data-i18n="liveStory">LIVE STORY</span>
+<span class="chat-hint" data-i18n="chatHint">Speak freely · the engine decides what is true</span>
 </div>
 <div id="messages">
 </div>
@@ -129,25 +130,24 @@
 </div>
 <div id="action-suggestions" class="action-suggestions" aria-label="Suggested actions">
 </div>
-<div class="story-prompt">WHAT WILL YOU DO?</div>
+<div class="story-prompt" data-i18n="prompt">WHAT WILL YOU DO?</div>
 <form id="input-form" class="input-bar">
 <span class="input-mark">›</span>
-<input id="input" type="text" placeholder='Try: "walk toward the lighthouse" or "take the rusty key"…' autocomplete="off"/>
+<input id="input" type="text" data-i18n-placeholder="inputPlaceholder" placeholder='Try: "walk toward the lighthouse" or "take the rusty key"…' autocomplete="off"/>
 <button type="submit" class="send-btn" aria-label="Send">→</button>
 </form>
-<div class="input-hint">
-<span>ENTER</span> to act · <span>FREE TEXT</span> is understood by EverStory</div>
+<div class="input-hint" data-i18n="inputHint">ENTER to act · FREE TEXT is understood by EverStory</div>
 </section>
 <div id="panel-divider" class="panel-divider" role="separator" aria-orientation="vertical" title="Drag to resize">
 </div>
 <aside id="inspector" class="panel inspector">
 <div class="inspector-title">
 <div>
-<span class="eyebrow">WORLD INSPECTOR</span>
-<h2>Keepers' Record</h2>
+<span class="eyebrow" data-i18n="worldInspector">WORLD INSPECTOR</span>
+<h2 data-i18n="record">Keepers' Record</h2>
 </div>
 <div class="inspector-actions">
-<span class="chip mono">LIVE</span>
+<span class="chip mono" data-i18n="live">LIVE</span>
 <button id="inspector-close" class="inspector-close" type="button" aria-label="Close world truth">×</button>
 </div>
 </div>
@@ -157,12 +157,12 @@
 </div>
 <div id="map-card" class="card">
 <div class="card-head">
-<h3>Sea Chart</h3>
-<span class="chip">CASE MAP</span>
+<h3 data-i18n="seaChart">Sea Chart</h3>
+<span class="chip" data-i18n="caseMap">CASE MAP</span>
 </div>
 <div id="map">
 </div>
-<div class="map-hint">select a connected route to travel</div>
+<div class="map-hint" data-i18n="mapHint">select a connected route to travel</div>
 </div>
 <div id="entities-card" class="card">
 </div>
@@ -170,8 +170,8 @@
 </div>
 <div id="log-card" class="card">
 <div class="card-head">
-<h3>Ship's Log</h3>
-<span class="chip mono">EVENTS</span>
+<h3 data-i18n="shipLog">Ship's Log</h3>
+<span class="chip mono" data-i18n="events">EVENTS</span>
 </div>
 <div id="log">
 </div>
@@ -180,43 +180,44 @@
 </main>
 <section id="team-panel" class="team-panel" aria-label="Investigation team chat" aria-hidden="true">
   <header class="team-panel-head">
-    <div><span class="team-kicker">SECURE TEAM CHANNEL</span><h2>Investigation Room</h2></div>
+    <div><span class="team-kicker" data-i18n="secureChannel">SECURE TEAM CHANNEL</span><h2 data-i18n="room">Investigation Room</h2></div>
     <button id="team-close" type="button" aria-label="Close team chat">×</button>
   </header>
   <div id="team-members" class="team-members" aria-label="Team members"></div>
   <div class="team-view-tabs" role="tablist" aria-label="Investigation room view">
-    <button type="button" class="active" data-team-view="chat" role="tab" aria-selected="true">Discussion</button>
-    <button type="button" data-team-view="evidence" role="tab" aria-selected="false">Case board <span id="team-board-count">0</span></button>
+    <button type="button" class="active" data-team-view="chat" role="tab" aria-selected="true" data-i18n="discussion">Discussion</button>
+    <button type="button" data-team-view="evidence" role="tab" aria-selected="false"><span data-i18n="caseBoard">Case board</span> <span id="team-board-count">0</span></button>
   </div>
-  <div class="team-boundary"><span>FACT BOUNDARY</span> Agent claims remain hypotheses until confirmed by the world. <strong id="team-evidence-count">0 confirmed</strong></div>
+  <div class="team-boundary"><span data-i18n="factBoundary">FACT BOUNDARY</span> <span data-i18n="boundaryText">Agent claims remain hypotheses until confirmed by the world.</span> <strong id="team-evidence-count">0 confirmed</strong></div>
   <div class="team-content">
     <div id="team-messages" class="team-messages" aria-live="polite"></div>
     <div id="team-evidence-board" class="team-evidence-board" role="tabpanel" aria-label="Case evidence board"></div>
   </div>
   <div class="team-mentions" aria-label="Mention a team member">
-    <button type="button" data-mention="@analyst">@ Analyst</button>
-    <button type="button" data-mention="@skeptic">@ Skeptic</button>
-    <button type="button" data-mention="@field">@ Field</button>
+    <button type="button" data-mention="@analyst" data-i18n="analyst">@ Analyst</button>
+    <button type="button" data-mention="@skeptic" data-i18n="skeptic">@ Skeptic</button>
+    <button type="button" data-mention="@field" data-i18n="field">@ Field</button>
   </div>
   <form id="team-form" class="team-form">
     <span class="team-self-avatar">YOU</span>
-    <textarea id="team-input" maxlength="1200" rows="2" placeholder="Message the investigation team…"></textarea>
-    <button type="submit" aria-label="Send team message">Send</button>
+    <textarea id="team-input" maxlength="1200" rows="2" data-i18n-placeholder="teamPlaceholder" placeholder="Message the investigation team…"></textarea>
+    <button type="submit" aria-label="Send team message" data-i18n="send">Send</button>
   </form>
-  <div id="team-status" class="team-status">You are the Lead Investigator.</div>
+  <div id="team-status" class="team-status" data-i18n="leadStatus">You are the Lead Investigator.</div>
 </section>
 <div id="team-backdrop" class="team-backdrop" aria-hidden="true"></div>
 <div class="corner-hud bottom-left">
-<span class="keycap">I</span> INVENTORY</div>
+<span class="keycap">I</span> <span data-i18n="inventory">INVENTORY</span></div>
 <div class="corner-hud bottom-right">
-<span class="keycap">V</span> WORLD TRUTH</div>
-<script src="/static/app.js?v=12">
+<span class="keycap">V</span> <span data-i18n="worldTruth">WORLD TRUTH</span></div>
+<script src="/static/i18n.js?v=1"></script>
+<script src="/static/app.js?v=13">
 </script>
-<script src="/static/immersive.js?v=13">
+<script src="/static/immersive.js?v=14">
 </script>
-<script src="/static/gameplay-core.js?v=3">
+<script src="/static/gameplay-core.js?v=4">
 </script>
-<script src="/static/team-chat.js?v=3">
+<script src="/static/team-chat.js?v=4">
 </script>
 </body>
 </html>
