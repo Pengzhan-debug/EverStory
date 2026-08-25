@@ -176,15 +176,49 @@ class TeamChatSession:
         session.evidence = {item["id"]: item for item in evidence}
         return session
 
-    def _propose_task(self, agent_id: str, world_view: dict) -> dict:
+    @staticmethod
+    def _mentioned_target(text: str, candidates: list[dict]) -> dict | None:
+        lowered = text.casefold()
+        for candidate in candidates:
+            if candidate["id"].casefold() in lowered or candidate["name"].casefold() in lowered:
+                return candidate
+        return None
+
+    def _propose_task(self, agent_id: str, world_view: dict, player_text: str) -> dict:
         scene = world_view["scene"]
         location = scene["location"]
-        task_type = {
-            "field_investigator": "inspect_scene",
-            "case_analyst": "review_case",
-            "skeptic": "audit_hypothesis",
-            "case_director": "plan_next_step",
-        }.get(agent_id, "review_case")
+        lowered = player_text.casefold()
+        action = None
+        target = None
+        if agent_id == "case_director" and any(word in lowered for word in ("accuse", "confront", "指控", "质问")):
+            target = self._mentioned_target(player_text, scene["characters"])
+            if target:
+                action = {"type": "accuse", "params": {"target": target["id"]}}
+                task_type = "accuse"
+        if agent_id == "field_investigator":
+            if any(word in lowered for word in ("travel", "move", "go to", "前往", "移动", "去")):
+                target = self._mentioned_target(player_text, scene["exits"])
+                if target:
+                    action = {"type": "move", "params": {"to": target["id"]}}
+                    task_type = "travel"
+            if action is None and any(word in lowered for word in ("interview", "talk", "question", "ask", "询问", "采访", "问话")):
+                target = self._mentioned_target(player_text, scene["characters"])
+                if target:
+                    action = {"type": "talk", "params": {"target": target["id"]}}
+                    task_type = "interview"
+            if action is None and any(word in lowered for word in ("examine", "inspect", "check", "检查", "查看", "检视")):
+                target = self._mentioned_target(player_text, scene["items"])
+                if target:
+                    action = {"type": "examine", "params": {"target": target["id"]}}
+                    task_type = "examine"
+        if action is None:
+            task_type = {
+                "field_investigator": "inspect_scene",
+                "case_analyst": "review_case",
+                "skeptic": "audit_hypothesis",
+                "case_director": "plan_next_step",
+            }.get(agent_id, "review_case")
+        target_name = target["name"] if target else "current target"
         copy = {
             "inspect_scene": (
                 f"Inspect {location['name']}",
@@ -202,6 +236,22 @@ class TeamChatSession:
                 "Prepare the next investigation step",
                 "Use the current scene and case record to recommend one grounded follow-up action.",
             ),
+            "travel": (
+                f"Travel to {target_name}",
+                "Move the investigation team along a confirmed route. Approval advances the world turn.",
+            ),
+            "interview": (
+                f"Interview {target_name}",
+                "Ask the person who is currently present for their authoritative testimony. Approval advances the world turn.",
+            ),
+            "examine": (
+                f"Examine {target_name}",
+                "Closely inspect the visible object and record the engine-confirmed observation. Approval advances the world turn.",
+            ),
+            "accuse": (
+                f"Formally accuse {target_name}",
+                "Confront the present suspect. The engine closes the case only if every required evidence link is confirmed.",
+            ),
         }
         title, description = copy[task_type]
         task_id = uuid4().hex
@@ -212,7 +262,9 @@ class TeamChatSession:
             "type": task_type,
             "title": title,
             "description": description,
-            "target": location["name"] if task_type == "inspect_scene" else "Case record",
+            "target": target["name"] if target else (location["name"] if task_type == "inspect_scene" else "Case record"),
+            "origin_location_id": location["id"],
+            "action": action,
             "status": "proposed",
             "created_at": datetime.now(timezone.utc).isoformat(),
             "approved_at": None,
@@ -221,6 +273,45 @@ class TeamChatSession:
         }
         self.tasks[task_id] = task
         return task
+
+    @staticmethod
+    def _validate_executable_task(task: dict, world_view: dict) -> None:
+        action = task.get("action") or {}
+        params = action.get("params") or {}
+        scene = world_view["scene"]
+        if task.get("origin_location_id") != scene["location"]["id"]:
+            raise ValueError("The team has left the scene where this action was proposed. Request a fresh proposal.")
+        allowed = {
+            "move": {item["id"] for item in scene["exits"]},
+            "talk": {item["id"] for item in scene["characters"]},
+            "examine": {item["id"] for item in scene["items"]},
+            "accuse": {item["id"] for item in scene["characters"]},
+        }
+        action_type = action.get("type")
+        parameter = {"move": "to", "talk": "target", "examine": "target", "accuse": "target"}.get(action_type)
+        if not parameter or params.get(parameter) not in allowed.get(action_type, set()):
+            raise ValueError("The proposed target is no longer available in the current scene.")
+
+    def _record_action_evidence(
+        self, task: dict, result: dict, world_view: dict
+    ) -> list[str]:
+        action_type = task["action"]["type"]
+        evidence_type = {"move": "scene", "talk": "testimony", "examine": "item", "accuse": "conclusion"}[action_type]
+        evidence_id = f"action:{task['id']}"
+        title_prefix = {"move": "Arrived", "talk": "Testimony", "examine": "Examined", "accuse": "Accusation"}[action_type]
+        self.evidence[evidence_id] = {
+            "id": evidence_id,
+            "title": f"{title_prefix}: {task['target']}",
+            "detail": result["message"],
+            "type": evidence_type,
+            "location_id": world_view["scene"]["location"]["id"],
+            "location_name": world_view["scene"]["location"]["name"],
+            "source_agent_id": task["agent_id"],
+            "task_id": task["id"],
+            "confirmed_at_turn": world_view["turn"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        return [evidence_id]
 
     def _record_scene_evidence(
         self, world_view: dict, agent_id: str, task_id: str
@@ -278,7 +369,7 @@ class TeamChatSession:
             f"{added_count} new confirmed evidence record(s) added; the world turn did not advance."
         )
 
-    def approve_task(self, task_id: str, world_view: dict) -> dict:
+    def approve_task(self, task_id: str, world_view: dict, executor=None) -> dict:
         task = self.tasks.get(task_id)
         if task is None:
             raise ValueError("Unknown investigation task.")
@@ -286,7 +377,21 @@ class TeamChatSession:
             raise ValueError("This investigation task has already been resolved.")
 
         evidence_ids: list[str] = []
-        if task["type"] == "inspect_scene":
+        action_result = None
+        updated_world = world_view
+        if task.get("action"):
+            if executor is None:
+                raise ValueError("No authoritative action executor is available.")
+            self._validate_executable_task(task, world_view)
+            action_result, updated_world = executor(task["action"])
+            if not action_result["ok"]:
+                raise ValueError(action_result["message"])
+            evidence_ids = self._record_action_evidence(task, action_result, updated_world)
+            result = (
+                f"Approved {task['type']} completed at world turn {updated_world['turn']}. "
+                f"{action_result['message']}"
+            )
+        elif task["type"] == "inspect_scene":
             evidence_ids = self._record_scene_evidence(
                 world_view, task["agent_id"], task_id
             )
@@ -320,7 +425,11 @@ class TeamChatSession:
             kind="task_result",
             task_id=task_id,
         )
-        return {"new_messages": [message], **self.payload()}
+        payload = {"new_messages": [message], **self.payload()}
+        if action_result is not None:
+            payload["action_result"] = action_result
+            payload["world"] = updated_world
+        return payload
 
     def _select_responders(self, text: str) -> list[str]:
         lowered = text.lower()
@@ -410,7 +519,7 @@ class TeamChatSession:
                 reply = self._stub_reply(agent_id, text, previous)
             else:
                 reply = self._api_reply(agent_id, text, world_context, client, previous)
-            task = self._propose_task(agent_id, world_view) if index == 0 else None
+            task = self._propose_task(agent_id, world_view, text) if index == 0 else None
             message = self._append(
                 agent_id,
                 reply or "I have no grounded conclusion yet.",

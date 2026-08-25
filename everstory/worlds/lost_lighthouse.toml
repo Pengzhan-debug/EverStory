@@ -4,6 +4,7 @@ turn = 0
 
 [flags]
 lighthouse_lit = false
+case_solved = false
 
 [[entities]]
 id = "player"
@@ -22,12 +23,44 @@ location = "lighthouse_ground"
 
 [entities.attributes]
 gift_effect = { oil_can = "gave_oil" }
+talk_flag = "interviewed_mara"
 persona = "The old lighthouse keeper, in her sixties, with salt-stained hands and a voice roughened by sea wind. Wary of strangers at first; speaks in short, plain sentences. She is haunted by the previous keeper's disappearance a year ago and will not speak of it freely until she trusts you. Once trusted, she shares what the logbook says: the lamp was sabotaged, and she suspects the old keeper still walks the cliffs at night. She can describe the island, the cottage, the dock and the sea cave from years of living here."
 
 [entities.attributes.dialogue]
 default = "The keeper eyes you wearily. \"The light has been out for a year, and the sea has grown restless.\""
 gave_oil = "She accepts the oil can with trembling hands. \"You'd make a fine keeper... The last one disappeared the night the light failed. His logbook says the lamp was sabotaged.\""
 learned_secret = "\"Some say the old keeper still walks the cliffs at night. Finish what he started — light the lamp.\""
+
+[[entities]]
+id = "elias"
+kind = "character"
+name = "Elias Ward"
+description = "The island's harbormaster and salvage broker. His neat coat cannot hide tar beneath his fingernails."
+location = "dock"
+
+[entities.attributes]
+talk_flag = "interviewed_elias"
+culprit = true
+accusation_requires = ["found_cut_line", "found_salvage_ledger", "interviewed_elias", "interviewed_mara"]
+confession = "Faced with the cut fuel line, the salvage ledger, and both testimonies, Elias Ward breaks. He extinguished the lighthouse to drive a cargo ship onto Saltrock reef, then hid the wreck's cargo through his salvage office. The sabotage case is solved."
+persona = "Saltrock's controlled, defensive harbormaster. He denies entering the lighthouse and insists every salvaged crate was legally abandoned. When challenged, he focuses on procedure and avoids the night the lamp failed."
+
+[entities.attributes.dialogue]
+default = "Elias straightens his cuffs. \"I never entered that lighthouse. The lamp failed in the storm, and every crate I recovered was lawful salvage.\""
+
+[[entities]]
+id = "celia"
+kind = "character"
+name = "Dr. Celia Thorne"
+description = "A coastal researcher stranded by the storm. Her tide records make her a witness—and an early suspect."
+location = "cottage"
+
+[entities.attributes]
+talk_flag = "interviewed_celia"
+persona = "A precise coastal researcher who records times, tides, and weather obsessively. She is impatient with folklore and points investigators toward physical evidence."
+
+[entities.attributes.dialogue]
+default = "Celia taps her tide chart. \"The storm arrived after midnight. The lighthouse fuel line was already failing before the first squall—and I saw Elias's launch leave the dock at eleven.\""
 
 [[entities]]
 id = "lighthouse_ground"
@@ -135,6 +168,42 @@ kind = "item"
 name = "coiled rope"
 description = "A strong rope."
 location = "dock"
+
+[[entities]]
+id = "cut_fuel_line"
+kind = "item"
+name = "severed fuel line"
+description = "The lantern's copper fuel line bears a clean tool cut rather than storm damage."
+location = "lantern_room"
+attributes = { examine_flag = "found_cut_line", examine_text = "A narrow jaw tool cut cleanly through the copper. Tar packed into the opening matches the black residue used around the dock." }
+
+[[entities]]
+id = "salvage_ledger"
+kind = "item"
+name = "salvage ledger"
+description = "A private cargo ledger hidden behind the boat-shed oil shelf."
+location = "boat_shed"
+attributes = { examine_flag = "found_salvage_ledger", examine_text = "The final page lists cargo from the wreck before the lighthouse failed. The entries are initialed E.W., and one margin note reads: lamp dark by eleven." }
+
+[[entities]]
+id = "tide_chart"
+kind = "item"
+name = "annotated tide chart"
+description = "Celia's hourly tide observations, written in several inks."
+location = "cottage"
+attributes = { examine_flag = "verified_tide_timeline", examine_text = "The continuous measurements corroborate Celia's timeline: the wind strengthened only after the light had already gone dark." }
+
+[[entities]]
+id = "prove_sabotage"
+kind = "quest"
+name = "Prove the lighthouse was sabotaged"
+attributes = { flag = "found_cut_line" }
+
+[[entities]]
+id = "identify_saboteur"
+kind = "quest"
+name = "Identify and confront the saboteur"
+attributes = { flag = "case_solved" }
 
 [[entities]]
 id = "light_the_lighthouse"

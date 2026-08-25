@@ -10,6 +10,8 @@ GIVE = re.compile(r"^give\s+(.+?)\s+to\s+(.+)$", re.I)
 USE = re.compile(r"^use\s+(.+?)\s+(?:on|with)\s+(.+)$", re.I)
 OPEN = re.compile(r"^open\s+(.+)$", re.I)
 TALK = re.compile(r"^talk\s+(?:to\s+)?(.+)$", re.I)
+EXAMINE = re.compile(r"^(?:examine|inspect|check)\s+(.+)$", re.I)
+ACCUSE = re.compile(r"^accuse\s+(.+)$", re.I)
 
 
 def parse_structured(text: str) -> list[dict]:
@@ -44,6 +46,12 @@ def parse_structured(text: str) -> list[dict]:
     m = TALK.match(text)
     if m:
         return [{"type": "talk", "params": {"target": m.group(1).strip()}}]
+    m = EXAMINE.match(text)
+    if m:
+        return [{"type": "examine", "params": {"target": m.group(1).strip()}}]
+    m = ACCUSE.match(text)
+    if m:
+        return [{"type": "accuse", "params": {"target": m.group(1).strip()}}]
     if low in ("wait", "wait a moment"):
         return [{"type": "wait", "params": {}}]
     return []

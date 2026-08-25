@@ -49,6 +49,7 @@
   function renderTask(task) {
     if (!task) return "";
     const complete = task.status === "completed";
+    const changesWorld = Boolean(task.action);
     const evidence = task.evidence_ids?.length || 0;
     return `
       <section class="team-task-card ${complete ? "completed" : "proposed"}" data-task-id="${esc(task.id)}">
@@ -56,7 +57,7 @@
         <strong class="team-task-title">${esc(task.title)}</strong>
         <p>${esc(task.description)}</p>
         <div class="team-task-foot">
-          <span>Target · ${esc(task.target)}</span>
+          <span>Target · ${esc(task.target)}${changesWorld ? " · consumes 1 turn" : " · case-board only"}</span>
           ${complete
             ? `<span class="team-task-done">✓ ${evidence ? `${evidence} new evidence` : "review recorded"}</span>`
             : `<button type="button" class="team-task-approve" data-approve-task="${esc(task.id)}" aria-label="Approve task ${esc(task.title)}">Approve</button>`}
@@ -229,8 +230,10 @@
       if (!response.ok) throw new Error(data.error || "Task approval failed.");
       chat = data;
       render();
+      if (data.world && window.EverStory) await window.EverStory.refresh();
       const added = data.evidence?.length || 0;
-      setStatus(`Approved result returned · ${added} total confirmed clue${added === 1 ? "" : "s"} · world turn unchanged`);
+      const turnStatus = data.world ? `world advanced to turn ${data.world.turn}` : "world turn unchanged";
+      setStatus(`Approved result returned · ${added} total confirmed clue${added === 1 ? "" : "s"} · ${turnStatus}`);
     } catch (error) {
       button.disabled = false;
       setStatus(error.message, true);

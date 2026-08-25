@@ -48,8 +48,9 @@ Each investigation and runtime role can use an independent or shared OpenAI-comp
 - **Fact checking** — generated narration is checked against the state delta and can be retried when it contradicts the world.
 - **Cinematic web UI** — The Lost Lighthouse theme adds atmospheric ocean, fog, lighthouse beacon, storm particles, cinematic transitions, story HUD and immersive input.
 - **Multi-agent investigation room** — a Director, Field Investigator, Analyst and Skeptic discuss the case with distinct identities and can challenge one another.
-- **Human-in-the-loop action approval** — agents propose structured tasks; the player approves them before deterministic results are returned.
+- **Human-in-the-loop action approval** — agents propose typed `travel`, `interview`, `examine`, and `accuse` actions; nothing changes until the player approves, then the deterministic engine validates and executes the action.
 - **Case evidence board** — confirmed scenes, objects and people remain separate from agent hypotheses and survive save/load.
+- **Complete mystery loop** — three suspects, contradictory testimony, physical clues, evidence-gated accusations, and a deterministic culprit/confession make the lighthouse case solvable rather than merely conversational.
 - **Model signal console** — configure multiple OpenAI-compatible providers, route each agent independently, test connections, and inspect latency/token diagnostics.
 - **World Inspector** — live turn/time, entities, items, quests, event log and state-oriented debugging remain available without breaking immersion.
 - **Inventory & keyboard interaction** — `I` opens inventory, `TAB` focuses world state, `ESC` closes overlays.
@@ -95,6 +96,8 @@ The UI is deliberately **not** a conventional SaaS dashboard. The world occupies
 - 🗺 interactive case map
 - 💬 named multi-agent group chat with mutual challenges
 - ✅ player-approved investigation tasks
+- 🔎 executable travel / interview / examine / accuse actions
+- 🕵️ evidence-gated sabotage mystery and final confrontation
 - 🧷 confirmed-evidence case board
 - 📡 per-agent API routing and diagnostics console
 - 🎒 inventory overlay
