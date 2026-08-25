@@ -234,12 +234,13 @@ The browser layer is intentionally separated from the engine. The backend remain
 
 ## 📊 Evaluation
 
-EverStory includes an evaluation harness that runs the same scripted episodes against three architectures — pure-LLM, summary-memory, and EverStory — measuring recall, rejection and token metrics. The repository also contains symbolic world-model induction from trajectories and a generated learned-rules report.
+EverStory includes an evaluation harness that runs the same scripted episodes against three architectures — pure-LLM, summary-memory, and EverStory — measuring recall, rejection and token metrics. A second deterministic multi-agent benchmark measures proposal accuracy, approval safety, evidence grounding, stale-task rejection, memory persistence, case completion, and real per-agent token/latency usage in API mode.
 
 See:
 
 - [Architecture](docs/architecture.md)
 - [Evaluation report](docs/eval-report.md)
+- [Multi-agent investigation report](docs/eval-report-team.md)
 - [Learned rules](docs/learned-rules.md)
 - [Interview demo](docs/DEMO.md)
 - [Project status & roadmap](docs/ROADMAP.md)

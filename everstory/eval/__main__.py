@@ -8,6 +8,7 @@ from pathlib import Path
 from ..config import build_client
 from ..llm.client import LLMClient
 from .runner import run_eval, run_long_eval, to_long_markdown, to_markdown
+from .team import run_team_eval, to_team_markdown
 
 
 def main() -> int:
@@ -25,6 +26,16 @@ def main() -> int:
         help="Measure narration contradiction rate (LLM-judge; api mode only)",
     )
     parser.add_argument("--out", default="docs/eval-report.md")
+    parser.add_argument(
+        "--team",
+        action="store_true",
+        help="Run the multi-agent investigation and cost benchmark",
+    )
+    parser.add_argument(
+        "--team-only",
+        action="store_true",
+        help="Run only the multi-agent benchmark (useful for CI and cost checks)",
+    )
     args = parser.parse_args()
 
     if args.mode == "stub":
@@ -42,10 +53,19 @@ def main() -> int:
         print(f"evaluating with strong={client.strong_model} @ {client.strong_base_url}")
         print(f"             cheap  ={client.cheap_model} @ {client.cheap_base_url}")
 
-    results = run_eval(client, provider=label)
-    markdown = to_markdown(results, mode=client.mode)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
+    if args.team_only:
+        markdown = "# EverStory Multi-Agent Evaluation Report\n\n" + to_team_markdown(
+            run_team_eval(client, provider=label)
+        )
+        out.write_text(markdown, encoding="utf-8")
+        print(markdown)
+        print(f"\nReport written to {out}")
+        return 0
+
+    results = run_eval(client, provider=label)
+    markdown = to_markdown(results, mode=client.mode)
     out.write_text(markdown, encoding="utf-8")  # persist before the long run
     if args.long:
         print(f"running long-horizon benchmark ({args.horizon} turns) ...")
@@ -56,6 +76,9 @@ def main() -> int:
             contradiction_every=5 if args.contradictions else 0,
         )
         markdown += "\n" + to_long_markdown(long_results)
+    if args.team:
+        print("running multi-agent investigation benchmark ...")
+        markdown += "\n" + to_team_markdown(run_team_eval(client, provider=label))
     out.write_text(markdown, encoding="utf-8")
     print(markdown)
     print(f"\nReport written to {out}")

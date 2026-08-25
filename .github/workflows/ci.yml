@@ -23,3 +23,6 @@ jobs:
         env:
           LLM_MODE: stub
         run: python -m unittest discover -s tests -v
+      - name: Verify multi-agent investigation benchmark
+        if: matrix.python-version == '3.12'
+        run: python -m everstory.eval --mode stub --team-only --out /tmp/everstory-team-eval.md

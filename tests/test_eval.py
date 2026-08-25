@@ -65,6 +65,59 @@ class EvalTest(unittest.TestCase):
         self.assertIn("Long-horizon memory decay", markdown)
         self.assertIn("everstory", markdown)
 
+    def test_team_eval_covers_authority_evidence_memory_and_case_completion(self):
+        from everstory.eval.team import run_team_eval
+
+        result = run_team_eval(LLMClient(mode="stub"), provider="offline-stub")
+        self.assertEqual(result.proposal_accuracy, 1.0)
+        self.assertEqual(result.approval_success, 1.0)
+        self.assertEqual(result.unauthorized_mutations, 0)
+        self.assertTrue(result.stale_task_blocked)
+        self.assertEqual(result.evidence_grounding, 1.0)
+        self.assertGreaterEqual(result.challenge_messages, 1)
+        self.assertTrue(result.case_solved)
+        self.assertTrue(result.memory_roundtrip)
+        self.assertGreater(result.memory_bytes, 0)
+        self.assertEqual(result.calls, 0)
+
+    def test_team_eval_markdown_is_resume_ready(self):
+        from everstory.eval.team import run_team_eval, to_team_markdown
+
+        markdown = to_team_markdown(run_team_eval(LLMClient(mode="stub")))
+        self.assertIn("Overall verdict: **PASS**", markdown)
+        self.assertIn("Structured proposal accuracy", markdown)
+        self.assertIn("Unauthorized world mutations", markdown)
+        self.assertIn("Per-agent model usage", markdown)
+
+    def test_team_eval_aggregates_real_mode_usage_by_agent(self):
+        from everstory.eval.team import run_team_eval
+
+        client = LLMClient(mode="api", strong_api_key="test", cheap_api_key="test")
+
+        def metered_chat(*args, **kwargs):
+            agent = kwargs.get("agent") or "unassigned"
+            client.call_history.append({
+                "agent": agent,
+                "connection_id": client.agent_routes.get(agent, "reasoning"),
+                "model": "metered-model",
+                "latency_ms": 20,
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "ok": True,
+                "error": "",
+            })
+            return "Grounded hypothesis; request player approval before action."
+
+        client.chat = metered_chat
+        result = run_team_eval(client, provider="metered")
+        self.assertEqual(result.calls, 9)
+        self.assertEqual(result.prompt_tokens, 90)
+        self.assertEqual(result.completion_tokens, 45)
+        self.assertEqual(result.per_agent["field_investigator"]["calls"], 6)
+        self.assertEqual(result.per_agent["case_director"]["calls"], 1)
+        self.assertEqual(result.per_agent["case_analyst"]["calls"], 1)
+        self.assertEqual(result.per_agent["skeptic"]["calls"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
