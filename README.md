@@ -6,9 +6,38 @@
 
 EverStory is a hybrid architecture for long-horizon AI interaction: an LLM *proposes* actions in natural language, while a deterministic state machine *decides*. The world — entities, items, locations, relationships, time, flags and quests — lives in a structured, versioned state graph that the LLM can never directly mutate.
 
-The current web experience turns that engine into **The Lost Lighthouse**, a cinematic dark-ocean adventure world: players speak naturally, the engine resolves what is actually true, and the interface visualizes the resulting world state through immersive HUDs, a 3D sea chart, atmospheric effects, inventory, quests, entities and an event log.
+The current web experience turns that engine into **The Lost Lighthouse**, a cinematic multi-agent investigation: players act as Lead Investigator, specialist agents debate and challenge hypotheses, and only player-approved checks can promote engine-backed observations into confirmed evidence.
 
 > **The core idea:** LLMs are unreliable at remembering and mutating state. **Don't let them. Separate generation from truth.**
+
+## 📷 Product tour
+
+### Cinematic, state-aware game interface
+
+![EverStory gameplay overview](docs/assets/readme/gameplay-overview.png)
+
+The current location owns the screen while the authoritative HUD exposes only the facts needed to act: location, active lead, visible objects, suggested actions, world time and turn. Players can use natural language instead of learning a command grammar.
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/assets/readme/agent-team-chat.png" alt="Named investigation agents debating in the team chat">
+      <br><strong>Multi-agent investigation room</strong><br>
+      Named agents have distinct roles and model routes. They can reply to and challenge one another, while their conclusions remain hypotheses. Structured actions stay pending until the human Lead Investigator approves them.
+    </td>
+    <td width="50%">
+      <img src="docs/assets/readme/case-evidence-board.png" alt="Case board with engine-confirmed evidence">
+      <br><strong>Engine-confirmed case board</strong><br>
+      Approved checks create evidence with type, location, source agent, task link and confirmation turn. Open actions remain visibly separated from confirmed observations.
+    </td>
+  </tr>
+</table>
+
+### Per-agent model routing and diagnostics
+
+![EverStory model control console](docs/assets/readme/model-control-console.png)
+
+Each investigation and runtime role can use an independent or shared OpenAI-compatible connection. The standard console also provides connection tests, latency, token and failure diagnostics without returning stored API keys to the browser.
 
 ## ✨ What EverStory is now
 
@@ -18,7 +47,10 @@ The current web experience turns that engine into **The Lost Lighthouse**, a cin
 - **Grounded narration** — the LLM narrates the state transition that the engine actually applied.
 - **Fact checking** — generated narration is checked against the state delta and can be retried when it contradicts the world.
 - **Cinematic web UI** — The Lost Lighthouse theme adds atmospheric ocean, fog, lighthouse beacon, storm particles, cinematic transitions, story HUD and immersive input.
-- **3D world layer** — WebGL/Three.js scene rendering provides a lighthouse, ocean, stars, fog, lighting and camera motion while the world API remains the source of truth.
+- **Multi-agent investigation room** — a Director, Field Investigator, Analyst and Skeptic discuss the case with distinct identities and can challenge one another.
+- **Human-in-the-loop action approval** — agents propose structured tasks; the player approves them before deterministic results are returned.
+- **Case evidence board** — confirmed scenes, objects and people remain separate from agent hypotheses and survive save/load.
+- **Model signal console** — configure multiple OpenAI-compatible providers, route each agent independently, test connections, and inspect latency/token diagnostics.
 - **World Inspector** — live turn/time, entities, items, quests, event log and state-oriented debugging remain available without breaking immersion.
 - **Inventory & keyboard interaction** — `I` opens inventory, `TAB` focuses world state, `ESC` closes overlays.
 - **Playable worlds** — **The Lost Lighthouse** and **The Ghost Train** demonstrate that the engine is generic and data-driven.
@@ -55,12 +87,16 @@ The UI is deliberately **not** a conventional SaaS dashboard. The world occupies
 ### Current web experience
 
 - 🌊 atmospheric ocean / night background
-- 🗼 lighthouse silhouette and animated beacon
-- 🌫 fog, storm and particle effects
+- 🗼 location-specific cinematic scene art
+- 🌫 fog, storm and rain atmosphere
 - 🎬 cinematic story transitions
 - ✍️ live natural-language story input
 - 🧭 live location / turn / time HUD
-- 🗺 interactive 3D sea chart
+- 🗺 interactive case map
+- 💬 named multi-agent group chat with mutual challenges
+- ✅ player-approved investigation tasks
+- 🧷 confirmed-evidence case board
+- 📡 per-agent API routing and diagnostics console
 - 🎒 inventory overlay
 - ⚔ quest tracker
 - 👥 character & item inspector
@@ -92,10 +128,13 @@ User input (natural language)
 6. Snapshot             Versioned world state enables rollback and branching
         |
         v
-7. Presentation         Web UI + 3D scene visualize the resulting world
+7. Team investigation   Agents debate; player approves grounded checks
+        |
+        v
+8. Presentation         Web UI visualizes story, evidence and world truth
 ```
 
-The LLM never holds or mutates authoritative state. It receives a rendering of the current state, proposes typed actions, and narrates only after the deterministic engine has decided what actually happened. The 3D layer follows the world API; it is presentation, not the source of truth.
+The LLM never holds or mutates authoritative state. It receives a rendering of the current state, proposes typed actions, and narrates only after the deterministic engine has decided what actually happened. Team discussion is also non-authoritative: an agent can suggest or challenge, but only an approved deterministic check can create a confirmed evidence record.
 
 ## 🚀 Quick start
 
@@ -152,7 +191,7 @@ wait
 
 ## ⚙️ Configuration (real LLM mode)
 
-By default EverStory runs in `stub` mode: deterministic, offline, and test-friendly. To use real models, edit `.env` (copied from `.env.example`):
+EverStory can run in deterministic offline Stub mode or Live API mode. The recommended setup is the in-app **Model Console** at `/settings`, where connections can be shared or assigned per agent and tested without exposing stored keys. Environment variables remain available as a deployment fallback:
 
 ```ini
 LLM_MODE=api
@@ -173,15 +212,19 @@ The strong role (intent parsing + consistency judging) and the cheap role (narra
 ```text
 everstory/api/static/
   index.html       immersive game shell and HUD
-  app.js           core web UI + API interaction
+  app.js           authoritative DOM rendering
+  gameplay-core.js turn lifecycle, streaming, persistence and recovery
+  team-chat.js    multi-agent discussion, task approval and evidence board
+  team-chat.css   investigation-room and case-board visual system
+  settings.html   model connection/routing/diagnostics console
   style-v5.css     primary visual system
   immersive.css    cinematic overlays and atmosphere
-  immersive.js     immersive interactions / inventory / effects
-  world3d.js       WebGL 3D world rendering
-  world-sync.js    world-state → presentation synchronization
+  ui-tweaks.css    investigation layout and responsive polish
+  immersive.js     location scenes, inventory and presentation effects
+  img/scenes/      compressed location-specific WebP scene art
 ```
 
-The browser layer is intentionally separated from the engine. The backend remains authoritative; visual state can be upgraded independently.
+The browser layer is intentionally separated from the engine. The backend remains authoritative; visual state can be upgraded independently. Save files bundle world state with investigation memory while keeping the two domains explicitly separated.
 
 ## 📊 Evaluation
 
@@ -193,6 +236,7 @@ See:
 - [Evaluation report](docs/eval-report.md)
 - [Learned rules](docs/learned-rules.md)
 - [Interview demo](docs/DEMO.md)
+- [Project status & roadmap](docs/ROADMAP.md)
 
 ## 🗂 Repository layout
 
