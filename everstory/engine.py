@@ -263,6 +263,8 @@ class WorldSession:
                 elif action.action_type == "talk":
                     self._handle_talk(action, res)
                 if res.ok:
+                    if res.message == "OK":
+                        res.message = self._success_message(action)
                     self._check_ending()
 
         if self.collect_transitions:
@@ -283,6 +285,26 @@ class WorldSession:
         self._record(res)
         self._snapshot()
         return res
+
+    def _success_message(self, action: Action) -> str:
+        """Render a deterministic fact for simple successful actions.
+
+        This message is consumed by the event log and grounded narrator, so it
+        must describe the applied post-action state rather than a generic OK.
+        """
+        if action.action_type == "move":
+            destination = self.state.entity(action.params["to"])
+            return f"You move to the {destination.name}."
+        if action.action_type == "take":
+            item = self.state.entity(action.params["item"])
+            return f"You take the {item.name}."
+        if action.action_type == "give":
+            item = self.state.entity(action.params["item"])
+            recipient = self.state.entity(action.params["recipient"])
+            return f"You give the {item.name} to {recipient.name}."
+        if action.action_type == "wait":
+            return "Time passes."
+        return f"The {action.action_type} action succeeds."
 
     def _eval_check(self, chk: Check, action: Action) -> tuple[bool, str | None]:
         st = self.state

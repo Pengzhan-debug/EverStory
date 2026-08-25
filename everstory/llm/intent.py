@@ -26,6 +26,8 @@ Rules:
 - If the player's text contains several actions, emit them in order.
 - If an action is impossible or unclear, still emit your best interpretation;
   the engine will validate it and reject it if it is not possible.
+- If the player is greeting, asking a question, or chatting (NOT requesting a
+  world action), emit {"actions": []}. Only emit actions for concrete intent.
 """
 
 
@@ -45,7 +47,13 @@ def parse_actions(
             ),
         },
     ]
-    content = client.chat(messages, model=model, json_mode=True)
+    content = client.chat(
+        messages,
+        model=model,
+        json_mode=True,
+        role="strong",
+        agent="intent_parser",
+    )
     try:
         data = json.loads(content)
         actions = data.get("actions") or []

@@ -8,6 +8,8 @@ Two modes:
 from __future__ import annotations
 
 import time
+import json
+from collections import deque
 
 from ..config import (
     LLM_CHEAP_API_KEY,
@@ -36,6 +38,8 @@ class LLMClient:
         strong_api_key: str | None = None,
         cheap_base_url: str | None = None,
         cheap_api_key: str | None = None,
+        connections: dict[str, dict] | None = None,
+        agent_routes: dict[str, str] | None = None,
     ) -> None:
         self.mode = (mode or LLM_MODE).lower()
         self.base_url = base_url or LLM_STRONG_BASE_URL
@@ -47,8 +51,78 @@ class LLMClient:
         self.strong_api_key = strong_api_key or self.api_key
         self.cheap_base_url = (cheap_base_url or self.base_url).rstrip("/")
         self.cheap_api_key = cheap_api_key or self.api_key
+        self.connections = connections or {
+            "reasoning": {
+                "name": "Reasoning API",
+                "base_url": self.strong_base_url,
+                "api_key": self.strong_api_key,
+                "model": self.strong_model,
+            },
+            "story": {
+                "name": "Story API",
+                "base_url": self.cheap_base_url,
+                "api_key": self.cheap_api_key,
+                "model": self.cheap_model,
+            },
+        }
+        self.agent_routes = agent_routes or {
+            "intent_parser": "reasoning",
+            "consistency_judge": "reasoning",
+            "case_director": "reasoning",
+            "case_analyst": "reasoning",
+            "skeptic": "reasoning",
+            "narrator": "story",
+            "npc_dialogue": "story",
+            "field_investigator": "story",
+        }
         self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+        self.call_history = deque(maxlen=200)
         self.stub_responder = None
+
+    def resolve_route(
+        self,
+        *,
+        agent: str | None = None,
+        role: str | None = None,
+        model: str | None = None,
+        connection_id: str | None = None,
+    ) -> tuple[str, str, str, str]:
+        """Resolve one call to (connection id, URL, key, model)."""
+        route_id = connection_id or (self.agent_routes.get(agent) if agent else None)
+        connection = self.connections.get(route_id or "")
+        if connection is not None:
+            return (
+                route_id or "",
+                str(connection["base_url"]).rstrip("/"),
+                str(connection.get("api_key") or ""),
+                str(connection.get("model") or model or self.cheap_model),
+            )
+        if role == "strong" or (role is None and model == self.strong_model):
+            return "reasoning", self.strong_base_url, self.strong_api_key, model or self.strong_model
+        return "story", self.cheap_base_url, self.cheap_api_key, model or self.cheap_model
+
+    def _record_call(
+        self,
+        *,
+        agent: str | None,
+        connection_id: str,
+        model: str,
+        latency_ms: int,
+        ok: bool,
+        error: str = "",
+    ) -> None:
+        self.call_history.append(
+            {
+                "agent": agent or "unassigned",
+                "connection_id": connection_id,
+                "model": model,
+                "latency_ms": latency_ms,
+                "prompt_tokens": self.last_usage["prompt_tokens"],
+                "completion_tokens": self.last_usage["completion_tokens"],
+                "ok": ok,
+                "error": error[:160],
+            }
+        )
 
     def chat(
         self,
@@ -56,15 +130,28 @@ class LLMClient:
         model: str | None = None,
         json_mode: bool = False,
         temperature: float = 0.2,
+        role: str | None = None,
+        agent: str | None = None,
+        connection_id: str | None = None,
     ) -> str:
-        model = model or self.cheap_model
+        _, _, _, model = self.resolve_route(
+            agent=agent, role=role, model=model, connection_id=connection_id
+        )
         if self.mode == "stub":
             if self.stub_responder is not None:
                 return self.stub_responder(messages, model, json_mode)
             # Short fixed reply: echoing the prompt back would let baselines
             # grow context recursively and make stub evals quadratic.
             return "[stub] ok"
-        return self._chat_api(messages, model, json_mode, temperature)
+        return self._chat_api(
+            messages,
+            model,
+            json_mode,
+            temperature,
+            role=role,
+            agent=agent,
+            connection_id=connection_id,
+        )
 
     def _chat_api(
         self,
@@ -72,17 +159,18 @@ class LLMClient:
         model: str,
         json_mode: bool,
         temperature: float,
+        role: str | None = None,
+        agent: str | None = None,
+        connection_id: str | None = None,
     ) -> str:
         try:
             import requests
         except ImportError as exc:  # pragma: no cover
             raise LLMError("requests is required for LLM API mode") from exc
-        if model == self.strong_model:
-            url = self.strong_base_url + "/chat/completions"
-            api_key = self.strong_api_key
-        else:
-            url = self.cheap_base_url + "/chat/completions"
-            api_key = self.cheap_api_key
+        route_id, base_url, api_key, model = self.resolve_route(
+            agent=agent, role=role, model=model, connection_id=connection_id
+        )
+        url = base_url + "/chat/completions"
         if not api_key:
             raise LLMError(f"API key is not set for model '{model}' (or use LLM_MODE=stub)")
         payload = {
@@ -93,6 +181,7 @@ class LLMClient:
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
         last_error: Exception | None = None
+        started = time.perf_counter()
         for attempt in range(3):  # transient network failures are common
             try:
                 resp = requests.post(
@@ -117,6 +206,15 @@ class LLMClient:
                 last_error = exc
             time.sleep(2 * (attempt + 1))
         else:
+            self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+            self._record_call(
+                agent=agent,
+                connection_id=route_id,
+                model=model,
+                latency_ms=round((time.perf_counter() - started) * 1000),
+                ok=False,
+                error=str(last_error),
+            )
             raise LLMError(f"LLM API request failed after retries: {last_error}") from last_error
         if resp.status_code != 200:
             raise LLMError(f"LLM API error {resp.status_code}: {resp.text[:300]}")
@@ -126,7 +224,131 @@ class LLMClient:
             "prompt_tokens": int(usage.get("prompt_tokens", 0)),
             "completion_tokens": int(usage.get("completion_tokens", 0)),
         }
+        self._record_call(
+            agent=agent,
+            connection_id=route_id,
+            model=model,
+            latency_ms=round((time.perf_counter() - started) * 1000),
+            ok=True,
+        )
         try:
             return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError) as exc:  # pragma: no cover
             raise LLMError(f"Unexpected LLM response: {str(data)[:300]}") from exc
+
+    def chat_stream(
+        self,
+        messages: list[dict],
+        model: str | None = None,
+        json_mode: bool = False,
+        temperature: float = 0.2,
+        role: str | None = None,
+        agent: str | None = None,
+        connection_id: str | None = None,
+    ):
+        """Stream a chat completion token-by-token (OpenAI-compatible SSE)."""
+        model = model or self.cheap_model
+        if self.mode == "stub":
+            yield self.chat(
+                messages,
+                model=model,
+                json_mode=json_mode,
+                temperature=temperature,
+                role=role,
+                agent=agent,
+                connection_id=connection_id,
+            )
+            return
+        try:
+            import requests
+        except ImportError as exc:  # pragma: no cover
+            raise LLMError("requests is required for LLM API mode") from exc
+        route_id, base_url, api_key, model = self.resolve_route(
+            agent=agent, role=role, model=model, connection_id=connection_id
+        )
+        url = base_url + "/chat/completions"
+        if not api_key:
+            raise LLMError(f"API key is not set for model '{model}' (or use LLM_MODE=stub)")
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True,
+        }
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+        last_error: Exception | None = None
+        started = time.perf_counter()
+        resp = None
+        for attempt in range(3):
+            try:
+                resp = requests.post(
+                    url,
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    stream=True,
+                    timeout=120,
+                )
+                if resp.status_code == 200:
+                    break
+                if resp.status_code < 500 and resp.status_code != 429:
+                    raise LLMError(
+                        f"LLM API error {resp.status_code}: {resp.text[:300]}"
+                    )
+                last_error = LLMError(
+                    f"LLM API error {resp.status_code}: {resp.text[:200]}"
+                )
+            except requests.exceptions.RequestException as exc:
+                last_error = exc
+            time.sleep(2 * (attempt + 1))
+        else:
+            self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+            self._record_call(
+                agent=agent,
+                connection_id=route_id,
+                model=model,
+                latency_ms=round((time.perf_counter() - started) * 1000),
+                ok=False,
+                error=str(last_error),
+            )
+            raise LLMError(f"LLM API request failed after retries: {last_error}") from last_error
+        if resp is None or resp.status_code != 200:
+            raise LLMError(f"LLM API error: {resp.status_code if resp else 'no response'}")
+        prompt_tokens = 0
+        completion_tokens = 0
+        try:
+            for raw in resp.iter_lines(decode_unicode=True):
+                if not raw or not raw.startswith("data:"):
+                    continue
+                data_str = raw[len("data:"):].strip()
+                if data_str == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data_str)
+                    usage = chunk.get("usage") or {}
+                    if usage.get("prompt_tokens"):
+                        prompt_tokens = int(usage["prompt_tokens"])
+                    if usage.get("completion_tokens"):
+                        completion_tokens = int(usage["completion_tokens"])
+                    delta = (chunk.get("choices") or [{}])[0].get("delta") or {}
+                    piece = delta.get("content")
+                    if piece:
+                        yield piece
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    continue
+        finally:
+            resp.close()
+            self.last_usage = {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+            }
+            self._record_call(
+                agent=agent,
+                connection_id=route_id,
+                model=model,
+                latency_ms=round((time.perf_counter() - started) * 1000),
+                ok=True,
+            )

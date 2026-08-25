@@ -7,6 +7,13 @@
   const $ = (s) => document.querySelector(s);
   const state = { world: null, busy: false, lastTurn: -1, lastLocation: null };
 
+  function setWorldStatus(label, tone = "stable") {
+    const status = $(".world-status");
+    if (!status) return;
+    status.className = `world-status is-${tone}`;
+    status.innerHTML = '<span class="status-dot"></span>' + label;
+  }
+
   async function request(path, options = {}) {
     const response = await fetch(path, {
       ...options,
@@ -70,40 +77,122 @@
   }
 
   async function refresh() {
-    const world = await request("/api/world");
-    syncPresentation(world);
-    // Let the original renderer remain authoritative for existing panels.
-    if (typeof window.render === "function") window.render();
-    return world;
+    setWorldStatus("WORLD CONNECTING", "busy");
+    try {
+      const world = await request("/api/world");
+      syncPresentation(world);
+      // Let the original renderer remain authoritative for existing panels.
+      if (typeof window.render === "function") window.render();
+      setWorldStatus("WORLD STABLE", "stable");
+      return world;
+    } catch (error) {
+      setWorldStatus("WORLD OFFLINE", "offline");
+      throw error;
+    }
   }
 
   async function send(text) {
     if (!text || state.busy) return;
     state.busy = true;
+    setWorldStatus("WORLD RESOLVING", "busy");
     const input = $("#input");
     const form = $("#input-form");
     if (form) form.classList.add("is-processing");
     if (input) input.disabled = true;
+
+    // Chat feel: show the player's bubble immediately, then stream the reply.
+    if (typeof addMessage === "function") {
+      addMessage("user", text);
+    }
+    if (input) input.value = "";
+    const bubble = document.createElement("div");
+    bubble.className = "msg assistant";
+    bubble.innerHTML =
+      (typeof BOT_AVATAR !== "undefined" ? BOT_AVATAR : '<span class="avatar bot-avatar">AI</span>') +
+      '<div class="bubble"></div>';
+    const bubbleText = bubble.querySelector(".bubble");
+    $("#messages").appendChild(bubble);
+    $("#messages").scrollTop = $("#messages").scrollHeight;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120000);
+    let full = "";
     try {
-      const data = await request("/api/turn", { method: "POST", body: JSON.stringify({ text }) });
-      syncPresentation(data.world);
+      const resp = await fetch("/api/turn/stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
+        body: JSON.stringify({ text }),
+        signal: controller.signal,
+      });
+      if (!resp.ok || !resp.body) {
+        let detail = "";
+        try {
+          detail = (await resp.json()).detail || "";
+        } catch (_) {}
+        throw new Error(detail || `server returned ${resp.status}`);
+      }
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let done = null;
+      for (;;) {
+        const { done: finished, value } = await reader.read();
+        if (finished) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop();
+        for (const part of parts) {
+          const line = part
+            .split("\n")
+            .find((l) => l.startsWith("data: "));
+          if (!line) continue;
+          let ev;
+          try {
+            ev = JSON.parse(line.slice(6));
+          } catch (_) {
+            continue;
+          }
+          if (ev.type === "text") {
+            full += ev.delta;
+            bubbleText.textContent = full;
+            $("#messages").scrollTop = $("#messages").scrollHeight;
+          } else if (ev.type === "replace") {
+            full = ev.text;
+            bubbleText.textContent = full;
+          } else if (ev.type === "done") {
+            done = ev;
+          } else if (ev.type === "error") {
+            throw new Error(ev.message || "stream error");
+          }
+        }
+      }
+      if (done?.world) syncPresentation(done.world);
       if (typeof window.render === "function") window.render();
-      notify(`Turn ${data.world?.turn ?? "?"} resolved`, "gold");
-      return data;
+      notify(`Turn ${done?.turn ?? "?"} resolved`, "gold");
+      return done;
     } catch (error) {
+      bubbleText.textContent =
+        error.name === "AbortError"
+          ? "(⏳ took too long — the world is thinking; try again)"
+          : `⚠ ${error.message || "request failed"}`;
       notify(`Action failed: ${error.message}`, "error");
       throw error;
     } finally {
+      clearTimeout(timer);
       state.busy = false;
       if (form) form.classList.remove("is-processing");
       if (input) input.disabled = false;
+      setWorldStatus(state.world ? "WORLD STABLE" : "WORLD OFFLINE", state.world ? "stable" : "offline");
     }
   }
 
   async function save() {
     try {
       const result = await request("/api/save", { method: "POST", body: JSON.stringify({ name: "autosave" }) });
-      notify(`World saved · turn ${result.turn ?? state.lastTurn}`, "gold");
+      notify(`Case saved · turn ${result.turn ?? state.lastTurn} · ${result.evidence ?? 0} clues`, "gold");
       pulse("save-pulse");
       window.dispatchEvent(new CustomEvent("everstory:saved", { detail: result }));
     } catch (error) { notify(`Save failed: ${error.message}`, "error"); }
@@ -115,7 +204,7 @@
       if (!saves.length) { notify("No saved world yet"); return; }
       await request("/api/load", { method: "POST", body: JSON.stringify({ path: saves[0].path }) });
       await refresh();
-      notify("Latest world restored", "gold");
+      notify(`Latest case restored · ${saves[0].evidence ?? 0} clues`, "gold");
       pulse("load-pulse");
       window.dispatchEvent(new CustomEvent("everstory:loaded", { detail: state.world }));
     } catch (error) { notify(`Load failed: ${error.message}`, "error"); }

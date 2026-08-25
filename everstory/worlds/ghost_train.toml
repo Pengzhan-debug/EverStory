@@ -22,6 +22,7 @@ location = "coach_b"
 
 [entities.attributes]
 gift_effect = { coal = "gave_coal" }
+persona = "A pale, courteous figure in a faded blue uniform who has stood on this train for longer than anyone remembers. Polite but unnervingly formal; obsessed with the timetable and the boiler. Speaks in clipped railway jargon. He cannot or will not say much about the train's true nature, but drops hints about the fire and the journey if pressed."
 
 [entities.attributes.dialogue]
 default = "The conductor tips his cap. \"The train goes nowhere until the boiler is fed, friend.\""

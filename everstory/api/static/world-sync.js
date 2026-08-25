@@ -1,1 +1,0 @@
-(()=>{async function sync(){try{const r=await fetch('/api/world');if(r.ok)window.dispatchEvent(new CustomEvent('everstory:world',{detail:await r.json()}))}catch(e){}setTimeout(sync,2200)}sync()})();

@@ -34,6 +34,8 @@ def check_consistency(
         ],
         model=model,
         json_mode=True,
+        role="strong",
+        agent="consistency_judge",
     )
     try:
         data = json.loads(content)

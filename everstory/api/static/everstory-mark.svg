@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">EverStory lighthouse mark</title>
+  <desc id="desc">A lighthouse beacon above two ocean waves.</desc>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="5" x2="56" y2="59" gradientUnits="userSpaceOnUse"><stop stop-color="#122536"/><stop offset="1" stop-color="#071019"/></linearGradient>
+    <linearGradient id="gold" x1="20" y1="14" x2="43" y2="50" gradientUnits="userSpaceOnUse"><stop stop-color="#F3D38C"/><stop offset="1" stop-color="#C9933E"/></linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="12" fill="url(#bg)"/>
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="11.25" fill="none" stroke="#DDB25D" stroke-opacity=".55" stroke-width="1.5"/>
+  <path d="M32 8v5M19 17l6.5 3M45 17l-6.5 3" fill="none" stroke="#62C9D5" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M27 17.5h10l2.5 7.5h-15l2.5-7.5Z" fill="#F0C96F" fill-opacity=".18" stroke="url(#gold)" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M28.5 25h7L39 46H25l3.5-21Z" fill="#0B1822" stroke="url(#gold)" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M24 46h16M28.3 34h7.4M27 40h10" fill="none" stroke="#DDB25D" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="32" cy="21" r="2.4" fill="#F6D98E"/>
+  <path d="M13 51c4.5-3.5 8.7-3.5 13.2 0s8.7 3.5 13.2 0 8.7-3.5 11.6 0M17 56c3.6-2.3 7-2.3 10.6 0s7 2.3 10.6 0 7-2.3 9.8 0" fill="none" stroke="#62C9D5" stroke-width="2" stroke-linecap="round" stroke-opacity=".9"/>
+</svg>

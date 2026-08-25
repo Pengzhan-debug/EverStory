@@ -1,16 +1,6 @@
 const $ = (sel) => document.querySelector(sel);
 
 let world = null;
-let busy = false;
-
-async function api(path, options = {}) {
-  const resp = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!resp.ok) throw new Error(`${path}: ${resp.status}`);
-  return resp.json();
-}
 
 function esc(s) {
   const div = document.createElement("div");
@@ -41,54 +31,15 @@ function addMessage(role, text) {
   $("#messages").scrollTop = $("#messages").scrollHeight;
 }
 
-function setTyping(on) {
-  let t = $("#typing");
-  if (on && !t) {
-    t = document.createElement("div");
-    t.id = "typing";
-    t.className = "msg assistant";
-    t.innerHTML =
-      BOT_AVATAR +
-      '<div class="bubble typing-bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
-    $("#messages").appendChild(t);
-  }
-  if (t) t.style.display = on ? "" : "none";
-  $("#messages").scrollTop = $("#messages").scrollHeight;
-}
-
-async function loadWorld() {
-  world = await api("/api/world");
-  render();
-}
-
-async function sendTurn(text) {
-  if (busy) return;
-  busy = true;
-  addMessage("user", text);
-  $("#input").value = "";
-  setTyping(true);
-  try {
-    const data = await api("/api/turn", {
-      method: "POST",
-      body: JSON.stringify({ text }),
-    });
-    world = data.world;
-    setTyping(false);
-    addMessage("assistant", data.reply);
-    render();
-  } finally {
-    setTyping(false);
-    busy = false;
-  }
-}
-
 function render() {
+  if (!world) return;
   renderPlayer(world.player);
   renderFacts(world);
   renderMap(world.locations);
   renderEntities(world);
   renderQuests(world.quests);
   renderLog(world.history);
+  renderScene(world.scene);
   $("#mode-chip").textContent = `turn ${world.turn} · time ${world.time}`;
   const locChip = $("#loc-chip");
   if (locChip) locChip.textContent = world.player.location_name;
@@ -142,249 +93,112 @@ function renderFacts(world) {
   `;
 }
 
-const map3d = {
-  canvas: null,
-  ctx: null,
-  nodes: [],
-  edges: [],
-  currentId: null,
-  yaw: -0.6,
-  pitch: 0.35,
-  dist: 3.2,
-  dragging: false,
-  lastX: 0,
-  lastY: 0,
-  initialized: false,
-};
+function renderScene(scene) {
+  if (!scene) return;
+  const objective = $("#objective-text");
+  if (objective) objective.textContent = scene.objective || "Follow the evidence";
 
-const imgCache = {};
+  const presence = $("#scene-presence");
+  if (presence) {
+    const characters = (scene.characters || []).map(
+      (character) => `
+        <button class="presence-card character" type="button" data-command="talk to ${esc(character.id)}">
+          <span class="presence-glyph">${esc(character.name.slice(0, 1))}</span>
+          <span><strong>${esc(character.name)}</strong><small>${esc(character.description || "Someone waits here.")}</small></span>
+        </button>`
+    );
+    const items = (scene.items || []).map(
+      (item) => `
+        <button class="presence-card item" type="button" data-command="${item.locked ? `open ${esc(item.id)}` : `take ${esc(item.id)}`}">
+          <span class="presence-glyph">◇</span>
+          <span><strong>${esc(item.name)}</strong><small>${esc(item.description || (item.locked ? "It is locked." : "Available to inspect."))}</small></span>
+        </button>`
+    );
+    presence.innerHTML = [...characters, ...items].join("");
+  }
 
-function loadLocationImage(id) {
-  if (imgCache[id] !== undefined) return imgCache[id];
-  const img = new Image();
-  img.src = `/static/img/locations/${id}.png`;
-  imgCache[id] = img;
-  return img;
+  const actions = $("#action-suggestions");
+  if (actions) {
+    actions.innerHTML = (scene.suggestions || [])
+      .map(
+        (action, index) => `
+          <button class="action-choice" type="button" data-command="${esc(action.command)}">
+            <span>${index + 1}</span>${esc(action.label)}
+          </button>`
+      )
+      .join("");
+  }
 }
 
-function roundRectPath(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function initMap3D() {
-  const host = $("#map");
-  host.innerHTML = "";
-  const canvas = document.createElement("canvas");
-  canvas.className = "map3d";
-  host.appendChild(canvas);
-  map3d.canvas = canvas;
-  map3d.ctx = canvas.getContext("2d");
-
-  const resize = () => {
-    const rect = host.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(220, Math.round(rect.width * dpr));
-    canvas.height = 220 * dpr;
-  };
-  resize();
-  window.addEventListener("resize", resize);
-
-  canvas.addEventListener("pointerdown", (e) => {
-    map3d.dragging = true;
-    map3d.lastX = e.clientX;
-    map3d.lastY = e.clientY;
-    canvas.setPointerCapture(e.pointerId);
-  });
-  canvas.addEventListener("pointermove", (e) => {
-    if (!map3d.dragging) return;
-    const dx = e.clientX - map3d.lastX;
-    const dy = e.clientY - map3d.lastY;
-    map3d.lastX = e.clientX;
-    map3d.lastY = e.clientY;
-    map3d.yaw += dx * 0.008;
-    map3d.pitch = Math.max(-1.2, Math.min(1.2, map3d.pitch + dy * 0.008));
-  });
-  canvas.addEventListener("pointerup", () => {
-    map3d.dragging = false;
-  });
-  canvas.addEventListener("pointerleave", () => {
-    map3d.dragging = false;
-  });
-  canvas.addEventListener(
-    "wheel",
-    (e) => {
-      e.preventDefault();
-      map3d.dist = Math.max(2.1, Math.min(5.0, map3d.dist + e.deltaY * 0.002));
-    },
-    { passive: false }
-  );
-
-  map3d.initialized = true;
-  requestAnimationFrame(mapLoop);
-}
-
-function mapLoop() {
-  if (!map3d.dragging) map3d.yaw += 0.003;
-  drawMap3D();
-  requestAnimationFrame(mapLoop);
+function toggleJournal() {
+  let modal = $("#journal-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "journal-modal";
+    modal.innerHTML = `
+      <div class="modal-backdrop"></div>
+      <section class="journal-sheet" role="dialog" aria-modal="true" aria-labelledby="journal-title">
+        <button class="modal-close" type="button" aria-label="Close journal">×</button>
+        <div class="eyebrow">INVESTIGATION RECORD</div>
+        <h2 id="journal-title">The Keeper's Journal</h2>
+        <div id="journal-content"></div>
+      </section>`;
+    document.body.appendChild(modal);
+    modal.querySelector(".modal-backdrop").addEventListener("click", toggleJournal);
+    modal.querySelector(".modal-close").addEventListener("click", toggleJournal);
+  }
+  const opening = !modal.classList.contains("open");
+  if (opening && world) {
+    const quests = (world.quests || [])
+      .map((quest) => `<li class="${quest.done ? "done" : ""}"><span>${quest.done ? "✓" : "○"}</span>${esc(quest.name)}</li>`)
+      .join("");
+    const history = [...(world.history || [])]
+      .reverse()
+      .slice(0, 12)
+      .map((entry) => `<li><span>#${entry.turn}</span>${esc(entry.message)}</li>`)
+      .join("");
+    modal.querySelector("#journal-content").innerHTML = `
+      <h3>Current lead</h3><p>${esc(world.scene?.objective || "Follow the evidence")}</p>
+      <h3>Case objectives</h3><ul class="journal-quests">${quests || "<li>No objectives recorded.</li>"}</ul>
+      <h3>Recent findings</h3><ul class="journal-history">${history || "<li>The investigation has just begun.</li>"}</ul>`;
+  }
+  modal.classList.toggle("open", opening);
 }
 
 function renderMap(locations) {
-  if (!map3d.initialized) initMap3D();
-  const n = locations.length || 1;
-  map3d.nodes = locations.map((loc, i) => {
-    // Fibonacci sphere: spread locations evenly in 3D space.
-    const y = 1 - (2 * (i + 0.5)) / n;
-    const r = Math.sqrt(Math.max(0, 1 - y * y));
-    const theta = i * 2.399963;
-    return {
-      id: loc.id,
-      name: loc.name,
-      current: loc.current,
-      x: r * Math.cos(theta),
-      y,
-      z: r * Math.sin(theta),
-    };
-  });
-  const byId = {};
-  locations.forEach((l) => (byId[l.id] = l));
-  map3d.edges = [];
-  const seen = new Set();
-  locations.forEach((loc) => {
-    (loc.connections || []).forEach((c) => {
-      const key = [loc.id, c].sort().join("|");
-      if (seen.has(key) || !byId[c]) return;
-      seen.add(key);
-      map3d.edges.push([loc.id, c]);
-    });
-  });
-  const current = locations.find((l) => l.current);
-  map3d.currentId = current ? current.id : null;
-  locations.forEach((loc) => loadLocationImage(loc.id));
-}
-
-function drawMap3D() {
-  const canvas = map3d.canvas;
-  const ctx = map3d.ctx;
-  if (!canvas) return;
-  const W = canvas.width;
-  const H = canvas.height;
-  ctx.clearRect(0, 0, W, H);
-  const cx = W / 2;
-  const cy = H / 2;
-  const R = Math.min(W, H) * 0.36;
-  const { yaw, pitch, dist } = map3d;
-  const cyaw = Math.cos(yaw);
-  const syaw = Math.sin(yaw);
-  const cp = Math.cos(pitch);
-  const sp = Math.sin(pitch);
-
-  const project = (node) => {
-    const x1 = node.x * cyaw + node.z * syaw;
-    const z1 = -node.x * syaw + node.z * cyaw;
-    const y2 = node.y * cp - z1 * sp;
-    const z2 = node.y * sp + z1 * cp;
-    const persp = dist / (dist - z2);
-    if (persp <= 0) return null;
-    return { x: cx + x1 * R * persp, y: cy - y2 * R * persp, z: z2, p: persp };
-  };
-
-  const proj = {};
-  map3d.nodes.forEach((node) => {
-    proj[node.id] = { node, p: project(node) };
-  });
-
-  // Edges (connections), drawn as projected lines.
-  ctx.lineWidth = 1.3;
-  ctx.strokeStyle = "rgba(76,201,240,0.45)";
-  map3d.edges.forEach(([a, b]) => {
-    const pa = proj[a] && proj[a].p;
-    const pb = proj[b] && proj[b].p;
-    if (!pa || !pb) return;
-    ctx.beginPath();
-    ctx.moveTo(pa.x, pa.y);
-    ctx.lineTo(pb.x, pb.y);
-    ctx.stroke();
-  });
-
-  // Nodes far -> near.
-  const visible = Object.values(proj)
-    .filter((p) => p.p)
-    .sort((a, b) => b.p.p - a.p.p);
-  visible.forEach(({ node, p }) => {
-    const isCurrent = node.id === map3d.currentId;
-    const img = imgCache[node.id];
-    const imgLoaded = img && img.complete && img.naturalWidth > 0;
-    const alpha = Math.max(0.25, Math.min(1, (p.p - 0.7) / 0.6));
-    if (imgLoaded) {
-      // Real-scene card: a rounded photo floating in 3D space.
-      const size = (isCurrent ? 82 : 64) * (0.65 + p.p * 0.5);
-      const x = p.x - size / 2;
-      const y = p.y - size / 2;
-      if (isCurrent) {
-        ctx.shadowColor = "rgba(246,195,107,0.8)";
-        ctx.shadowBlur = 18;
-      }
-      ctx.save();
-      roundRectPath(ctx, x, y, size, size, 11);
-      ctx.clip();
-      ctx.drawImage(img, x, y, size, size);
-      ctx.restore();
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = isCurrent ? 2.5 : 1.5;
-      ctx.strokeStyle = isCurrent
-        ? "#f6c36b"
-        : "rgba(76,201,240,0.75)";
-      roundRectPath(ctx, x, y, size, size, 11);
-      ctx.stroke();
-      ctx.fillStyle = isCurrent
-        ? "#f6c36b"
-        : `rgba(243,240,232,${alpha.toFixed(2)})`;
-      ctx.font = `600 ${Math.round(11 * p.p)}px "Segoe UI", sans-serif`;
-      ctx.textAlign = "center";
-      ctx.fillText(
-        node.name.length > 18 ? node.name.slice(0, 17) + "…" : node.name,
-        p.x,
-        y + size + 15
-      );
-    } else {
-      // Fallback: abstract node while the scene image loads (or if missing).
-      const rad = (isCurrent ? 9 : 6) * (0.7 + p.p * 0.35);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
-      if (isCurrent) {
-        ctx.shadowColor = "rgba(246,195,107,0.9)";
-        ctx.shadowBlur = 16;
-        ctx.fillStyle = "rgba(246,195,107,0.25)";
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = "#f6c36b";
-        ctx.lineWidth = 2.2;
-      } else {
-        ctx.fillStyle = "#0e2b47";
-        ctx.strokeStyle = "rgba(76,201,240,0.7)";
-        ctx.lineWidth = 1.5;
-      }
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = isCurrent
-        ? "#f6c36b"
-        : `rgba(243,240,232,${alpha.toFixed(2)})`;
-      ctx.font = `600 ${Math.round(10 * p.p)}px "Segoe UI", sans-serif`;
-      ctx.textAlign = "center";
-      ctx.fillText(
-        node.name.length > 18 ? node.name.slice(0, 17) + "…" : node.name,
-        p.x,
-        p.y - rad - 5
-      );
-    }
-  });
+  const host = $("#map");
+  const current = locations.find((location) => location.current);
+  if (!host || !current) return;
+  const byId = Object.fromEntries(locations.map((location) => [location.id, location]));
+  const routes = (current.connections || [])
+    .map((id) => byId[id])
+    .filter(Boolean)
+    .map(
+      (location) => `
+        <button class="route-card" type="button" data-command="move to ${esc(location.id)}">
+          <span class="route-direction">ROUTE</span>
+          <strong>${esc(location.name)}</strong>
+          <span class="route-arrow">→</span>
+        </button>`
+    )
+    .join("");
+  const known = locations
+    .filter((location) => !location.current && !(current.connections || []).includes(location.id))
+    .map((location) => `<li>${esc(location.name)}</li>`)
+    .join("");
+  host.innerHTML = `
+    <div class="case-map">
+      <div class="map-current">
+        <span class="map-pin">⌖</span>
+        <span><small>CURRENT POSITION</small><strong>${esc(current.name)}</strong></span>
+      </div>
+      <div class="map-route-line"></div>
+      <div class="map-routes">${routes || '<span class="muted">No route from here.</span>'}</div>
+      <details class="known-locations">
+        <summary>Other charted locations</summary>
+        <ul>${known || '<li>None</li>'}</ul>
+      </details>
+    </div>`;
 }
 
 function renderEntities(world) {
@@ -449,41 +263,34 @@ function renderLog(history) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  $("#input-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const t = $("#input").value.trim();
-    if (t) sendTurn(t);
+  window.addEventListener("everstory:world", (event) => {
+    world = event.detail;
+    render();
   });
-  $("#reset-btn").addEventListener("click", async () => {
-    await api("/api/reset", { method: "POST" });
-    $("#messages").innerHTML = "";
-    addMessage("system", "A new world begins…");
-    await loadWorld();
+  document.addEventListener("click", (event) => {
+    const action = event.target.closest("[data-command]");
+    if (!action) return;
+    const command = action.dataset.command;
+    if (command && window.EverStory) window.EverStory.send(command).catch(() => {});
   });
-  $("#save-btn").addEventListener("click", async () => {
-    const res = await api("/api/save", {
-      method: "POST",
-      body: JSON.stringify({ name: "autosave" }),
-    });
-    addMessage("system", `Saved — turn ${res.turn}.`);
-  });
-  $("#load-btn").addEventListener("click", async () => {
-    const { saves } = await api("/api/saves");
-    if (!saves.length) {
-      addMessage("system", "No saves yet — play a little, then Save.");
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && $("#journal-modal")?.classList.contains("open")) {
+      toggleJournal();
       return;
     }
-    await api("/api/load", {
-      method: "POST",
-      body: JSON.stringify({ path: saves[0].path }),
-    });
-    $("#messages").innerHTML = "";
-    addMessage("system", "Loaded the latest save.");
-    await loadWorld();
+    if (/input|textarea/i.test(document.activeElement?.tagName || "")) return;
+    const number = Number(event.key);
+    if (number >= 1 && number <= 6) {
+      const choice = document.querySelectorAll(".action-choice")[number - 1];
+      if (choice) {
+        event.preventDefault();
+        choice.click();
+      }
+    }
   });
+  $("#journal-btn")?.addEventListener("click", toggleJournal);
   addMessage(
     "system",
     "Welcome to The Lost Lighthouse. Type anything — e.g. “move to the cave”."
   );
-  loadWorld();
 });
