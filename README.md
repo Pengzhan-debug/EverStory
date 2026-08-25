@@ -48,9 +48,11 @@ Each investigation and runtime role can use an independent or shared OpenAI-comp
 - **Fact checking** — generated narration is checked against the state delta and can be retried when it contradicts the world.
 - **Cinematic web UI** — The Lost Lighthouse theme adds atmospheric ocean, fog, lighthouse beacon, storm particles, cinematic transitions, story HUD and immersive input.
 - **Multi-agent investigation room** — a Director, Field Investigator, Analyst and Skeptic discuss the case with distinct identities and can challenge one another.
-- **Human-in-the-loop action approval** — agents propose structured tasks; the player approves them before deterministic results are returned.
+- **Human-in-the-loop action approval** — agents propose typed `travel`, `interview`, `examine`, and `accuse` actions; nothing changes until the player approves, then the deterministic engine validates and executes the action.
 - **Case evidence board** — confirmed scenes, objects and people remain separate from agent hypotheses and survive save/load.
+- **Complete mystery loop** — three suspects, contradictory testimony, physical clues, evidence-gated accusations, and a deterministic culprit/confession make the lighthouse case solvable rather than merely conversational.
 - **Model signal console** — configure multiple OpenAI-compatible providers, route each agent independently, test connections, and inspect latency/token diagnostics.
+- **Shared Chinese / English interface** — the game shell and model console share one locale preference; HUD, maps, objectives, known items and the investigation room update immediately without changing engine IDs.
 - **World Inspector** — live turn/time, entities, items, quests, event log and state-oriented debugging remain available without breaking immersion.
 - **Inventory & keyboard interaction** — `I` opens inventory, `TAB` focuses world state, `ESC` closes overlays.
 - **Playable worlds** — **The Lost Lighthouse** and **The Ghost Train** demonstrate that the engine is generic and data-driven.
@@ -95,6 +97,8 @@ The UI is deliberately **not** a conventional SaaS dashboard. The world occupies
 - 🗺 interactive case map
 - 💬 named multi-agent group chat with mutual challenges
 - ✅ player-approved investigation tasks
+- 🔎 executable travel / interview / examine / accuse actions
+- 🕵️ evidence-gated sabotage mystery and final confrontation
 - 🧷 confirmed-evidence case board
 - 📡 per-agent API routing and diagnostics console
 - 🎒 inventory overlay
@@ -165,6 +169,8 @@ python -m unittest discover -s tests -v
 everstory-learn
 ```
 
+The suite includes a full offline acceptance path: agent-proposed travel, two interviews, two physical-evidence examinations, and an evidence-gated final accusation. It requires no API key.
+
 ### Try the world
 
 ```text
@@ -228,12 +234,13 @@ The browser layer is intentionally separated from the engine. The backend remain
 
 ## 📊 Evaluation
 
-EverStory includes an evaluation harness that runs the same scripted episodes against three architectures — pure-LLM, summary-memory, and EverStory — measuring recall, rejection and token metrics. The repository also contains symbolic world-model induction from trajectories and a generated learned-rules report.
+EverStory includes an evaluation harness that runs the same scripted episodes against three architectures — pure-LLM, summary-memory, and EverStory — measuring recall, rejection and token metrics. A second deterministic multi-agent benchmark measures proposal accuracy, approval safety, evidence grounding, stale-task rejection, memory persistence, case completion, and real per-agent token/latency usage in API mode.
 
 See:
 
 - [Architecture](docs/architecture.md)
 - [Evaluation report](docs/eval-report.md)
+- [Multi-agent investigation report](docs/eval-report-team.md)
 - [Learned rules](docs/learned-rules.md)
 - [Interview demo](docs/DEMO.md)
 - [Project status & roadmap](docs/ROADMAP.md)

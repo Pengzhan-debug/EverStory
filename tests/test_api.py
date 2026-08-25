@@ -35,6 +35,15 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(world["scene"]["location"]["name"], "Keeper's Cottage")
         self.assertGreater(len(world["scene"]["suggestions"]), 1)
 
+    def test_game_shell_exposes_shared_chinese_english_locale(self):
+        page = self.client.get("/").text
+        locale = self.client.get("/static/i18n.js").text
+        self.assertIn('id="game-language"', page)
+        self.assertIn('data-i18n="worldStable"', page)
+        self.assertIn('src="/static/i18n.js?v=1"', page)
+        self.assertIn('localStorage.getItem("everstory_locale")', locale)
+        self.assertIn("证明灯塔遭到人为破坏", locale)
+
     def test_signal_console_and_session_settings(self):
         self.assertEqual(self.client.get("/settings").status_code, 200)
         initial = self.client.get("/api/llm/settings").json()
@@ -177,6 +186,106 @@ class ApiTest(unittest.TestCase):
 
         repeated = self.client.post(f"/api/agents/tasks/{task['id']}/approve")
         self.assertEqual(repeated.status_code, 400)
+
+    def test_approved_agent_travel_executes_world_action(self):
+        before = self.client.get("/api/world").json()
+        proposal = self.client.post(
+            "/api/agents/chat",
+            json={"text": "@field travel to Dock with the team."},
+        ).json()
+        task = proposal["tasks"][0]
+        self.assertEqual(task["type"], "travel")
+        self.assertEqual(task["action"], {"type": "move", "params": {"to": "dock"}})
+        self.assertEqual(self.client.get("/api/world").json()["turn"], before["turn"])
+
+        approved = self.client.post(f"/api/agents/tasks/{task['id']}/approve").json()
+        self.assertTrue(approved["action_result"]["ok"])
+        self.assertEqual(approved["world"]["player"]["location_id"], "dock")
+        self.assertEqual(approved["world"]["turn"], before["turn"] + 1)
+        evidence = next(item for item in approved["evidence"] if item["task_id"] == task["id"])
+        self.assertEqual(evidence["type"], "scene")
+
+    def test_approved_agent_examine_and_interview_record_evidence(self):
+        examine = self.client.post(
+            "/api/agents/chat",
+            json={"text": "@field examine the lantern."},
+        ).json()["tasks"][0]
+        self.assertEqual(examine["type"], "examine")
+        examined = self.client.post(f"/api/agents/tasks/{examine['id']}/approve").json()
+        self.assertIn("cold and dark", examined["action_result"]["message"])
+        self.assertTrue(any(item["type"] == "item" for item in examined["evidence"]))
+
+        self.client.post("/api/turn", json={"text": "move to lighthouse_ground"})
+        interview = self.client.post(
+            "/api/agents/chat",
+            json={"text": "@field interview Mara."},
+        ).json()["tasks"][-1]
+        self.assertEqual(interview["type"], "interview")
+        interviewed = self.client.post(f"/api/agents/tasks/{interview['id']}/approve").json()
+        self.assertIn("sea has grown restless", interviewed["action_result"]["message"])
+        self.assertTrue(any(item["type"] == "testimony" for item in interviewed["evidence"]))
+
+    def test_stale_agent_action_requires_fresh_proposal(self):
+        proposal = self.client.post(
+            "/api/agents/chat", json={"text": "@field travel to Dock."}
+        ).json()["tasks"][0]
+        self.client.post("/api/turn", json={"text": "move to lighthouse_ground"})
+        before = self.client.get("/api/world").json()["turn"]
+        response = self.client.post(f"/api/agents/tasks/{proposal['id']}/approve")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("fresh proposal", response.json()["error"])
+        self.assertEqual(self.client.get("/api/world").json()["turn"], before)
+
+    def test_director_can_propose_authoritative_accusation(self):
+        self.client.post("/api/turn", json={"text": "move to dock"})
+        proposal = self.client.post(
+            "/api/agents/chat",
+            json={"text": "@director accuse Elias Ward using the current case."},
+        ).json()
+        task = proposal["tasks"][0]
+        self.assertEqual(task["agent_id"], "case_director")
+        self.assertEqual(task["type"], "accuse")
+        self.assertEqual(task["action"]["params"]["target"], "elias")
+        approved = self.client.post(f"/api/agents/tasks/{task['id']}/approve").json()
+        self.assertEqual(approved["action_result"]["type"], "accuse")
+        self.assertFalse(approved["world"]["flags"]["case_solved"])
+        self.assertIn("required evidence", approved["action_result"]["message"])
+
+    def test_complete_multi_agent_sabotage_case_via_approval_pipeline(self):
+        def propose_and_approve(text, task_type):
+            proposal = self.client.post("/api/agents/chat", json={"text": text}).json()
+            task = next(
+                item for item in reversed(proposal["tasks"])
+                if item["status"] == "proposed" and item["type"] == task_type
+            )
+            response = self.client.post(f"/api/agents/tasks/{task['id']}/approve")
+            self.assertEqual(response.status_code, 200, response.text)
+            return response.json()
+
+        propose_and_approve("@field travel to Dock.", "travel")
+        propose_and_approve("@field interview Elias Ward.", "interview")
+        for command in (
+            "move to cottage", "move to lighthouse_ground",
+        ):
+            self.client.post("/api/turn", json={"text": command})
+        propose_and_approve("@field interview Mara.", "interview")
+        for command in ("move to lighthouse_tower", "move to lantern_room"):
+            self.client.post("/api/turn", json={"text": command})
+        propose_and_approve("@field examine the severed fuel line.", "examine")
+        for command in (
+            "move to lighthouse_tower", "move to lighthouse_ground",
+            "move to cottage", "move to dock", "move to boat_shed",
+        ):
+            self.client.post("/api/turn", json={"text": command})
+        propose_and_approve("@field examine the salvage ledger.", "examine")
+        self.client.post("/api/turn", json={"text": "move to dock"})
+        solved = propose_and_approve("@director accuse Elias Ward.", "accuse")
+
+        self.assertTrue(solved["world"]["flags"]["case_solved"])
+        self.assertEqual(solved["world"]["flags"]["accused"], "elias")
+        evidence_types = {item["type"] for item in solved["evidence"]}
+        self.assertTrue({"scene", "testimony", "item", "conclusion"} <= evidence_types)
+        self.assertIn("Elias Ward breaks", solved["action_result"]["message"])
 
     def test_team_chat_is_isolated_between_browser_sessions(self):
         other = TestClient(self.client.app)

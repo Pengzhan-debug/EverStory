@@ -19,6 +19,8 @@ Allowed action types and params:
 - use: {"item": "<item name>", "target": "<target name>"}
 - open: {"target": "<container or door name>"}
 - talk: {"target": "<character name>"}
+- examine: {"target": "<visible item name>"}
+- accuse: {"target": "<present suspect name>"}
 - wait: {} (no params)
 
 Rules:

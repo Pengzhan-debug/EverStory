@@ -107,6 +107,8 @@
 .evidence-summary div { padding: 10px 5px; border: 1px solid rgba(255,255,255,.07); background: #08161e; text-align: center; }
 .evidence-summary strong { display: block; color: #e0bc6e; font: 500 17px var(--display); }
 .evidence-summary span { color: #65767b; font: 6px var(--mono); text-transform: uppercase; }
+.evidence-card.testimony { border-left-color: #6d91bd; }
+.evidence-card.conclusion { border-left-color: #d5a84f; background: linear-gradient(135deg, rgba(213,168,79,.09), #08161e 56%); }
 .case-board-section { margin-top: 16px; }
 .case-board-heading { display: flex; justify-content: space-between; margin-bottom: 9px; color: #718187; font: 7px var(--mono); letter-spacing: 1.1px; }
 .case-board-heading b { color: #bc9854; font-weight: 400; }

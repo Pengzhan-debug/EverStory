@@ -159,6 +159,32 @@ class RuleEngine:
                     ],
                     effects=[Effect("advance_time", value=1)],
                 ),
+                "examine": ActionRule(
+                    action_type="examine",
+                    description="Closely examine an item that is here or in your inventory.",
+                    checks=[
+                        Check(
+                            "accessible",
+                            subject="$param.target",
+                            target="$actor",
+                            message="That isn't available to examine.",
+                        ),
+                    ],
+                    effects=[Effect("advance_time", value=1)],
+                ),
+                "accuse": ActionRule(
+                    action_type="accuse",
+                    description="Confront a present suspect with the confirmed case evidence.",
+                    checks=[
+                        Check(
+                            "same_location",
+                            subject="$param.target",
+                            target="$actor",
+                            message="The suspect must be present for a formal accusation.",
+                        ),
+                    ],
+                    effects=[Effect("advance_time", value=1)],
+                ),
                 "wait": ActionRule(
                     action_type="wait",
                     description="Wait; time passes.",
@@ -262,6 +288,10 @@ class WorldSession:
                     self._handle_give(action, res)
                 elif action.action_type == "talk":
                     self._handle_talk(action, res)
+                elif action.action_type == "examine":
+                    self._handle_examine(action, res)
+                elif action.action_type == "accuse":
+                    self._handle_accuse(action, res)
                 if res.ok:
                     if res.message == "OK":
                         res.message = self._success_message(action)
@@ -333,6 +363,14 @@ class WorldSession:
         if chk.kind == "connected":
             loc = st.entity(subj)
             return tgt in loc.attributes.get("connections", []), None
+        if chk.kind == "accessible":
+            if subj is None or tgt is None or subj not in st.entities or tgt not in st.entities:
+                return False, "I don't know what that refers to."
+            item, actor = st.entity(subj), st.entity(tgt)
+            return (
+                item.location_id == actor.location_id
+                or (item.owner_id == tgt and item.location_id == INVENTORY_ID)
+            ), None
         if chk.kind == "attribute":
             return st.entity(subj).attributes.get(chk.attr) == chk.value, None
         if chk.kind == "flag":
@@ -448,6 +486,47 @@ class WorldSession:
             and not st.flags.get("learned_secret")
         ):
             st.flags["learned_secret"] = True
+        talk_flag = target.attributes.get("talk_flag")
+        if talk_flag:
+            st.flags[talk_flag] = True
+            res.effects.append(f"flag:{talk_flag}")
+
+    def _handle_examine(self, action: Action, res: ActionResult) -> None:
+        """Return an authoritative observation without inventing hidden facts."""
+        target = self.state.entity(action.params["target"])
+        detail = target.attributes.get("examine_text") or target.description
+        res.message = f"You examine the {target.name}. {detail}".strip()
+        examine_flag = target.attributes.get("examine_flag")
+        if examine_flag:
+            self.state.flags[examine_flag] = True
+            res.effects.append(f"flag:{examine_flag}")
+
+    def _handle_accuse(self, action: Action, res: ActionResult) -> None:
+        """Resolve the case only when the configured evidence chain is complete."""
+        suspect = self.state.entity(action.params["target"])
+        required = list(suspect.attributes.get("accusation_requires", []))
+        missing = [flag for flag in required if not self.state.flags.get(flag)]
+        if not suspect.attributes.get("culprit"):
+            res.message = (
+                f"You accuse {suspect.name}, but the confirmed evidence does not support the charge. "
+                "The investigation remains open."
+            )
+            return
+        if missing:
+            res.message = (
+                f"You confront {suspect.name}, but {len(missing)} required evidence link(s) are still missing. "
+                "The accusation does not hold."
+            )
+            return
+        self.state.flags["case_solved"] = True
+        self.state.flags["accused"] = suspect.id
+        res.effects.extend(["flag:case_solved", f"accused:{suspect.id}"])
+        res.message = str(
+            suspect.attributes.get(
+                "confession",
+                f"The evidence closes around {suspect.name}. The case is solved.",
+            )
+        )
 
     def _check_ending(self) -> bool:
         st = self.state

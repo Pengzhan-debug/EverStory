@@ -150,6 +150,45 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(self.s.resolve_name("iron"), "chest")
         self.assertIsNone(self.s.resolve_name("nonexistent"))
 
+    def test_examine_visible_item_advances_time_and_returns_grounded_detail(self):
+        before_time = self.s.state.time
+        res = act(self.s, "examine", target="lantern")
+        self.assertTrue(res.ok, res.message)
+        self.assertIn("cold and dark", res.message)
+        self.assertEqual(self.s.state.time, before_time + 1)
+
+    def test_examine_remote_item_is_rejected(self):
+        res = act(self.s, "examine", target="rusty_key")
+        self.assertFalse(res.ok)
+        self.assertIn("isn't available", res.message)
+
+    def test_sabotage_case_requires_complete_evidence_chain(self):
+        act(self.s, "move", to="dock")
+        early = act(self.s, "accuse", target="elias")
+        self.assertTrue(early.ok)
+        self.assertFalse(self.s.state.flags["case_solved"])
+        self.assertIn("required evidence", early.message)
+
+        act(self.s, "talk", target="elias")
+        act(self.s, "move", to="cottage")
+        act(self.s, "move", to="lighthouse_ground")
+        act(self.s, "talk", target="mara")
+        act(self.s, "move", to="lighthouse_tower")
+        act(self.s, "move", to="lantern_room")
+        act(self.s, "examine", target="cut_fuel_line")
+        act(self.s, "move", to="lighthouse_tower")
+        act(self.s, "move", to="lighthouse_ground")
+        act(self.s, "move", to="cottage")
+        act(self.s, "move", to="dock")
+        act(self.s, "move", to="boat_shed")
+        act(self.s, "examine", target="salvage_ledger")
+        act(self.s, "move", to="dock")
+        solved = act(self.s, "accuse", target="elias")
+        self.assertTrue(solved.ok, solved.message)
+        self.assertTrue(self.s.state.flags["case_solved"])
+        self.assertEqual(self.s.state.flags["accused"], "elias")
+        self.assertIn("Elias Ward breaks", solved.message)
+
     def test_full_quest_walkthrough(self):
         steps = [
             ("move", {"to": "lighthouse_ground"}),

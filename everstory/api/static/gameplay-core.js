@@ -5,13 +5,19 @@
   // The existing app.js still owns the basic DOM rendering; this module owns
   // resilient persistence, turn lifecycle, scene transitions and recovery UI.
   const $ = (s) => document.querySelector(s);
+  const zh = () => window.EverStoryI18n?.locale() === "zh-CN";
+  const tv = (value) => window.EverStoryI18n?.value(value) || value;
   const state = { world: null, busy: false, lastTurn: -1, lastLocation: null };
 
   function setWorldStatus(label, tone = "stable") {
     const status = $(".world-status");
     if (!status) return;
     status.className = `world-status is-${tone}`;
-    status.innerHTML = '<span class="status-dot"></span>' + label;
+    const translated = zh() ? ({
+      "WORLD CONNECTING": "正在连接世界", "WORLD STABLE": "世界状态稳定",
+      "WORLD OFFLINE": "世界离线", "WORLD RESOLVING": "世界正在裁决",
+    }[label] || label) : label;
+    status.innerHTML = '<span class="status-dot"></span>' + translated;
   }
 
   async function request(path, options = {}) {
@@ -54,14 +60,14 @@
       if (layer) {
         const title = layer.querySelector(".cinematic-title");
         const sub = layer.querySelector(".cinematic-sub");
-        if (title) title.textContent = location;
-        if (sub) sub.textContent = "The world rearranges itself around you.";
+        if (title) title.textContent = tv(location);
+        if (sub) sub.textContent = zh() ? "世界状态随着你的行动重新排列。" : "The world rearranges itself around you.";
         layer.classList.remove("show");
         void layer.offsetWidth;
         layer.classList.add("show");
         setTimeout(() => layer.classList.remove("show"), 2400);
       }
-      notify(`Entered ${location}`, "gold");
+      notify(zh() ? `已进入${tv(location)}` : `Entered ${location}`, "gold");
     }
     state.lastLocation = location;
   }
@@ -254,6 +260,13 @@
     interceptUI();
     expose();
     refresh().catch((error) => notify(`World connection failed: ${error.message}`, "error"));
+    window.addEventListener("everstory:locale", () => {
+      if (state.world) {
+        state.lastLocation = null;
+        announceLocation(state.world);
+        setWorldStatus("WORLD STABLE", "stable");
+      }
+    });
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

@@ -2,6 +2,8 @@
   "use strict";
 
   const $ = (s, root = document) => root.querySelector(s);
+  const zh = () => window.EverStoryI18n?.locale() === "zh-CN";
+  const tv = (value) => window.EverStoryI18n?.value(value) || value;
   let lastWorld = null;
   let audioCtx = null;
   let ambience = null;
@@ -90,13 +92,15 @@
     document.body.classList.toggle("lighthouse-lit", Boolean(world.flags?.lighthouse_lit));
     updateLocationScene(world.player?.location_name);
     const title = $(".scene-title");
-    if (title && world.player?.location_name) title.textContent = world.player.location_name;
+    if (title && world.player?.location_name) title.textContent = tv(world.player.location_name);
     const time = $("#hud-time");
     const turn = $("#hud-turn");
     if (time) time.textContent = world.time ?? "—";
     if (turn) turn.textContent = world.turn ?? "—";
     const chip = $("#mode-chip");
-    if (chip) chip.textContent = `TURN ${world.turn ?? 0} · TIME ${world.time ?? 0}`;
+    if (chip) chip.textContent = zh()
+      ? `回合 ${world.turn ?? 0} · 时间 ${world.time ?? 0}`
+      : `TURN ${world.turn ?? 0} · TIME ${world.time ?? 0}`;
   }
 
   function createInventory() {
@@ -237,6 +241,7 @@
     introCinematic();
     cinematic("The Lost Lighthouse", "A world that cannot lie.");
     watchWorld();
+    window.addEventListener("everstory:locale", () => lastWorld && updateAtmosphere(lastWorld));
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

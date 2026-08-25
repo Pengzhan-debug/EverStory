@@ -20,6 +20,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from ..agents import TeamChatSession
 from ..config import build_client
 from ..engine import WorldSession
+from ..models import Action
 from .. import persistence
 from ..llm.settings import client_payload, update_client
 from ..pipeline import TurnPipeline
@@ -427,7 +428,27 @@ def create_app() -> FastAPI:
 
         def approve_locked():
             with slot.lock:
-                return slot.team_chat.approve_task(task_id, world_payload(slot.session))
+                def execute(action_spec: dict):
+                    result = slot.session.act(
+                        Action(
+                            action_spec["type"],
+                            slot.session.player_id(),
+                            dict(action_spec.get("params") or {}),
+                        )
+                    )
+                    return (
+                        {
+                            "type": result.action.action_type,
+                            "ok": result.ok,
+                            "message": result.message,
+                            "effects": list(result.effects),
+                        },
+                        world_payload(slot.session),
+                    )
+
+                return slot.team_chat.approve_task(
+                    task_id, world_payload(slot.session), executor=execute
+                )
 
         try:
             return await run_in_threadpool(approve_locked)
