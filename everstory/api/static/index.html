@@ -1,1 +1,222 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#05080d"/><title>EverStory — The Lost Lighthouse</title><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/><link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/><link rel="stylesheet" href="/static/style-v5.css?v=5"/><link rel="stylesheet" href="/static/immersive.css?v=4"/></head><body><div class="world-backdrop" aria-hidden="true"><div class="moon"></div><div class="lighthouse-silhouette"><span class="beacon"></span></div><div class="fog fog-a"></div><div class="fog fog-b"></div><div class="ocean ocean-a"></div><div class="ocean ocean-b"></div><div class="vignette"></div></div><header class="topbar"><div class="brand"><span class="logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l4.2 7H7.8L12 3z"/><rect x="9" y="10" width="6" height="10" rx="1"/><path d="M3 15l5-2.2M21 15l-5-2.2M12 20v2.5"/></svg></span><div><div class="brand-name">EVERSTORY</div><div class="brand-sub">THE LOST LIGHTHOUSE</div></div></div><div class="world-status"><span class="status-dot"></span>WORLD STABLE</div><div class="controls"><span id="mode-chip" class="chip mono">TURN 0 · TIME 0</span><button id="save-btn" class="btn-ghost">Save</button><button id="load-btn" class="btn-ghost">Load</button><button id="reset-btn" class="btn-ghost">New world</button></div></header><main class="game-shell"><section id="chat" class="panel chat-panel"><div class="world-hud top-left"><div class="eyebrow">A WORLD THAT CANNOT LIE</div><div class="scene-title">The Lost Lighthouse</div><div class="scene-rule"></div><div class="scene-location"><span>◈</span><span id="loc-chip">…</span></div></div><div class="world-hud top-right"><div class="hud-line"><span>WORLD TIME</span><strong id="hud-time">—</strong></div><div class="hud-line"><span>TURN</span><strong id="hud-turn">—</strong></div><div class="weather"><span class="weather-dot"></span> STORM APPROACHING</div></div><div class="chat-head"><span class="status-dot"></span><span class="chat-title">LIVE STORY</span><span class="chat-hint">Speak freely · the engine decides what is true</span></div><div id="messages"></div><div id="ending-banner" class="ending-banner" hidden></div><div class="story-prompt">WHAT WILL YOU DO?</div><form id="input-form" class="input-bar"><span class="input-mark">›</span><input id="input" type="text" placeholder='Try: "walk toward the lighthouse" or "take the rusty key"…' autocomplete="off"/><button type="submit" class="send-btn" aria-label="Send">→</button></form><div class="input-hint"><span>ENTER</span> to act · <span>FREE TEXT</span> is understood by EverStory</div></section><aside id="inspector" class="panel inspector"><div class="inspector-title"><div><span class="eyebrow">WORLD INSPECTOR</span><h2>Keepers' Record</h2></div><span class="chip mono">LIVE</span></div><div id="player-card" class="card"></div><div id="facts-card" class="card"></div><div id="map-card" class="card"><div class="card-head"><h3>Sea Chart</h3><span class="chip">3D</span></div><div id="map"></div><div class="map-hint">drag to orbit · scroll to zoom · auto-rotates</div></div><div id="entities-card" class="card"></div><div id="quests-card" class="card"></div><div id="log-card" class="card"><div class="card-head"><h3>Ship's Log</h3><span class="chip mono">EVENTS</span></div><div id="log"></div></div></aside></main><div class="corner-hud bottom-left"><span class="keycap">I</span> INVENTORY</div><div class="corner-hud bottom-right"><span class="keycap">TAB</span> WORLD STATE</div><script src="https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.min.js"></script><script src="/static/app.js?v=8"></script><script src="/static/immersive.js?v=4"></script><script src="/static/world3d.js?v=2"></script><script src="/static/world-sync.js?v=1"></script><script src="/static/gameplay-core.js?v=1"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#05080d"/>
+<title>EverStory — The Lost Lighthouse</title>
+<link rel="icon" href="/static/everstory-mark.svg" type="image/svg+xml"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/static/style-v5.css?v=6"/>
+<link rel="stylesheet" href="/static/immersive.css?v=4"/>
+<link rel="stylesheet" href="/static/ui-tweaks.css?v=14"/>
+<link rel="stylesheet" href="/static/team-chat.css?v=1"/>
+</head>
+<body>
+<div id="intro-layer">
+<div class="intro-scene" aria-hidden="true">
+<div class="scene-stars">
+</div>
+<div class="scene-moon">
+</div>
+<div class="scene-lighthouse">
+</div>
+<div class="scene-sea">
+</div>
+</div>
+<div class="intro-title">EVERSTORY<span>THE LOST LIGHTHOUSE</span>
+</div>
+<div class="intro-sub">A world that cannot lie</div>
+<button id="intro-skip" type="button">ENTER ›</button>
+</div>
+<div class="world-backdrop" aria-hidden="true">
+<div class="moon">
+</div>
+<div class="lighthouse-silhouette">
+<span class="beacon">
+</span>
+</div>
+<div class="fog fog-a">
+</div>
+<div class="fog fog-b">
+</div>
+<div class="ocean ocean-a">
+</div>
+<div class="ocean ocean-b">
+</div>
+<div class="vignette">
+</div>
+</div>
+<header class="topbar">
+<div class="brand">
+<span class="logo" aria-hidden="true">
+<img src="/static/everstory-mark.svg" alt=""/>
+</span>
+<div>
+<div class="brand-name">EVERSTORY</div>
+<div class="brand-sub">THE LOST LIGHTHOUSE</div>
+</div>
+</div>
+<div class="world-status" role="status" aria-live="polite">
+<span class="status-dot">
+</span>WORLD STABLE</div>
+<div class="controls">
+<span id="mode-chip" class="chip mono">TURN 0 · TIME 0</span>
+<a id="settings-btn" class="btn-ghost" href="/settings" aria-label="Open API signal console">API</a>
+<button id="team-btn" class="btn-ghost" type="button" aria-expanded="false" aria-controls="team-panel">Team</button>
+<button id="journal-btn" class="btn-ghost" type="button">Journal</button>
+<button id="inventory-btn" class="btn-ghost" type="button">Inventory</button>
+<button id="debug-btn" class="btn-ghost" type="button" aria-expanded="false" aria-controls="inspector">World truth</button>
+<button id="save-btn" class="btn-ghost">Save</button>
+<button id="load-btn" class="btn-ghost">Load</button>
+<button id="reset-btn" class="btn-ghost">New world</button>
+</div>
+</header>
+<main class="game-shell">
+<section id="chat" class="panel chat-panel">
+<div id="world-scene" aria-hidden="true">
+<div class="scene-stars">
+</div>
+<div class="scene-moon">
+</div>
+<div class="scene-clouds">
+</div>
+<div class="scene-lighthouse">
+</div>
+<div class="scene-sea">
+</div>
+</div>
+<div class="world-hud top-left">
+<div class="eyebrow">A WORLD THAT CANNOT LIE</div>
+<div class="scene-title">The Lost Lighthouse</div>
+<div class="scene-rule">
+</div>
+<div class="scene-location">
+<span>◈</span>
+<span id="loc-chip">…</span>
+</div>
+</div>
+<div class="world-hud top-right">
+<div class="hud-line">
+<span>WORLD TIME</span>
+<strong id="hud-time">—</strong>
+</div>
+<div class="hud-line">
+<span>TURN</span>
+<strong id="hud-turn">—</strong>
+</div>
+<div class="weather">
+<span class="weather-dot">
+</span> STORM APPROACHING</div>
+</div>
+<div class="case-objective">
+<span>ACTIVE LEAD</span>
+<strong id="objective-text">Follow the evidence</strong>
+</div>
+<div class="chat-head">
+<span class="status-dot">
+</span>
+<span class="chat-title">LIVE STORY</span>
+<span class="chat-hint">Speak freely · the engine decides what is true</span>
+</div>
+<div id="messages">
+</div>
+<div id="scene-presence" class="scene-presence" aria-live="polite">
+</div>
+<div id="ending-banner" class="ending-banner" hidden>
+</div>
+<div id="action-suggestions" class="action-suggestions" aria-label="Suggested actions">
+</div>
+<div class="story-prompt">WHAT WILL YOU DO?</div>
+<form id="input-form" class="input-bar">
+<span class="input-mark">›</span>
+<input id="input" type="text" placeholder='Try: "walk toward the lighthouse" or "take the rusty key"…' autocomplete="off"/>
+<button type="submit" class="send-btn" aria-label="Send">→</button>
+</form>
+<div class="input-hint">
+<span>ENTER</span> to act · <span>FREE TEXT</span> is understood by EverStory</div>
+</section>
+<div id="panel-divider" class="panel-divider" role="separator" aria-orientation="vertical" title="Drag to resize">
+</div>
+<aside id="inspector" class="panel inspector">
+<div class="inspector-title">
+<div>
+<span class="eyebrow">WORLD INSPECTOR</span>
+<h2>Keepers' Record</h2>
+</div>
+<div class="inspector-actions">
+<span class="chip mono">LIVE</span>
+<button id="inspector-close" class="inspector-close" type="button" aria-label="Close world truth">×</button>
+</div>
+</div>
+<div id="player-card" class="card">
+</div>
+<div id="facts-card" class="card">
+</div>
+<div id="map-card" class="card">
+<div class="card-head">
+<h3>Sea Chart</h3>
+<span class="chip">CASE MAP</span>
+</div>
+<div id="map">
+</div>
+<div class="map-hint">select a connected route to travel</div>
+</div>
+<div id="entities-card" class="card">
+</div>
+<div id="quests-card" class="card">
+</div>
+<div id="log-card" class="card">
+<div class="card-head">
+<h3>Ship's Log</h3>
+<span class="chip mono">EVENTS</span>
+</div>
+<div id="log">
+</div>
+</div>
+</aside>
+</main>
+<section id="team-panel" class="team-panel" aria-label="Investigation team chat" aria-hidden="true">
+  <header class="team-panel-head">
+    <div><span class="team-kicker">SECURE TEAM CHANNEL</span><h2>Investigation Room</h2></div>
+    <button id="team-close" type="button" aria-label="Close team chat">×</button>
+  </header>
+  <div id="team-members" class="team-members" aria-label="Team members"></div>
+  <div class="team-view-tabs" role="tablist" aria-label="Investigation room view">
+    <button type="button" class="active" data-team-view="chat" role="tab" aria-selected="true">Discussion</button>
+    <button type="button" data-team-view="evidence" role="tab" aria-selected="false">Case board <span id="team-board-count">0</span></button>
+  </div>
+  <div class="team-boundary"><span>FACT BOUNDARY</span> Agent claims remain hypotheses until confirmed by the world. <strong id="team-evidence-count">0 confirmed</strong></div>
+  <div class="team-content">
+    <div id="team-messages" class="team-messages" aria-live="polite"></div>
+    <div id="team-evidence-board" class="team-evidence-board" role="tabpanel" aria-label="Case evidence board"></div>
+  </div>
+  <div class="team-mentions" aria-label="Mention a team member">
+    <button type="button" data-mention="@analyst">@ Analyst</button>
+    <button type="button" data-mention="@skeptic">@ Skeptic</button>
+    <button type="button" data-mention="@field">@ Field</button>
+  </div>
+  <form id="team-form" class="team-form">
+    <span class="team-self-avatar">YOU</span>
+    <textarea id="team-input" maxlength="1200" rows="2" placeholder="Message the investigation team…"></textarea>
+    <button type="submit" aria-label="Send team message">Send</button>
+  </form>
+  <div id="team-status" class="team-status">You are the Lead Investigator.</div>
+</section>
+<div id="team-backdrop" class="team-backdrop" aria-hidden="true"></div>
+<div class="corner-hud bottom-left">
+<span class="keycap">I</span> INVENTORY</div>
+<div class="corner-hud bottom-right">
+<span class="keycap">V</span> WORLD TRUTH</div>
+<script src="/static/app.js?v=12">
+</script>
+<script src="/static/immersive.js?v=13">
+</script>
+<script src="/static/gameplay-core.js?v=3">
+</script>
+<script src="/static/team-chat.js?v=3">
+</script>
+</body>
+</html>

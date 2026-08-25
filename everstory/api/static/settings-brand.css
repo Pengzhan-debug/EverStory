@@ -1,0 +1,15 @@
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  display: block;
+  flex: none;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
