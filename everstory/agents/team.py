@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from ..llm.language import ensure_output_locale
+
 
 MEMBERS = {
     "player": {
@@ -132,6 +134,7 @@ class TeamChatSession:
             "messages": list(self.messages),
             "tasks": list(self.tasks.values()),
             "evidence": list(self.evidence.values()),
+            "case_readiness": self.case_readiness(),
         }
 
     def to_dict(self) -> dict:
@@ -313,6 +316,59 @@ class TeamChatSession:
         }
         return [evidence_id]
 
+    def _record_review_evidence(
+        self, task: dict, result: str, world_view: dict
+    ) -> list[str]:
+        evidence_id = f"review:{task['id']}"
+        self.evidence[evidence_id] = {
+            "id": evidence_id,
+            "title": "Analyst review: evidence chain corroborated",
+            "detail": result,
+            "type": "conclusion",
+            "location_id": world_view["scene"]["location"]["id"],
+            "location_name": world_view["scene"]["location"]["name"],
+            "source_agent_id": task["agent_id"],
+            "task_id": task["id"],
+            "confirmed_at_turn": world_view["turn"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        return [evidence_id]
+
+    def case_readiness(self, *, require_review: bool = True) -> dict:
+        """Return the board-level evidence gate for a formal accusation."""
+        required = [
+            ("item", "severed fuel line", "Severed fuel line examination"),
+            ("item", "salvage ledger", "Salvage ledger examination"),
+            ("item", "annotated tide chart", "Annotated tide-chart examination"),
+            ("testimony", "elias ward", "Elias Ward testimony"),
+            ("testimony", "mara", "Mara testimony"),
+            ("testimony", "dr. celia thorne", "Dr. Celia Thorne testimony"),
+        ]
+        records = list(self.evidence.values())
+        missing = []
+        for evidence_type, needle, label in required:
+            found = any(
+                record.get("type") == evidence_type
+                and needle in str(record.get("title", "")).casefold()
+                for record in records
+            )
+            if not found:
+                missing.append(label)
+        if require_review and not any(
+            record.get("type") == "conclusion"
+            and record.get("source_agent_id") == "case_analyst"
+            and str(record.get("id", "")).startswith("review:")
+            for record in records
+        ):
+            missing.append("Case Analyst corroboration")
+        total = len(required) + (1 if require_review else 0)
+        return {
+            "ready": not missing,
+            "completed": total - len(missing),
+            "total": total,
+            "missing": missing,
+        }
+
     def _record_scene_evidence(
         self, world_view: dict, agent_id: str, task_id: str
     ) -> list[str]:
@@ -383,6 +439,14 @@ class TeamChatSession:
             if executor is None:
                 raise ValueError("No authoritative action executor is available.")
             self._validate_executable_task(task, world_view)
+            if task["action"].get("type") == "accuse":
+                readiness = self.case_readiness()
+                if not readiness["ready"]:
+                    raise ValueError(
+                        "The case board is not ready for a formal accusation. Missing: "
+                        + ", ".join(readiness["missing"])
+                        + "."
+                    )
             action_result, updated_world = executor(task["action"])
             if not action_result["ok"]:
                 raise ValueError(action_result["message"])
@@ -408,12 +472,21 @@ class TeamChatSession:
                 f"{len(scene['exits'])} confirmed route(s). This is advice, not an executed world action."
             )
         else:
+            readiness = self.case_readiness(require_review=False)
+            if not readiness["ready"]:
+                raise ValueError(
+                    "The analyst cannot corroborate an incomplete evidence chain. Missing: "
+                    + ", ".join(readiness["missing"])
+                    + "."
+                )
             objective = world_view["scene"]["objective"]
             result = (
                 f"Case review complete. Active objective: {objective}. "
                 f"The record contains {len(world_view['history'])} world event(s) and "
-                f"{len(self.evidence)} confirmed evidence record(s)."
+                f"{len(self.evidence)} confirmed evidence record(s). The physical evidence, "
+                "timeline, and three testimonies form a corroborated chain ready for director review."
             )
+            evidence_ids = self._record_review_evidence(task, result, world_view)
 
         task["status"] = "completed"
         task["approved_at"] = datetime.now(timezone.utc).isoformat()
@@ -450,7 +523,18 @@ class TeamChatSession:
             for message in self.messages[-limit:]
         )
 
-    def _stub_reply(self, agent_id: str, player_text: str, previous: dict | None) -> str:
+    def _stub_reply(
+        self, agent_id: str, player_text: str, previous: dict | None, locale: str = "en"
+    ) -> str:
+        if locale == "zh-CN":
+            if agent_id == "field_investigator":
+                return "我可以勘查当前位置，但在玩家批准前，这仍只是行动提案，不是调查发现。我们应当优先检查哪个可见物品或路线？"
+            if agent_id == "case_analyst":
+                return "当前假设是：这条线索还需要与灯塔故障建立可验证的联系。我建议对照调查日志、物品和已确认地点逐项核验。"
+            if agent_id == "skeptic":
+                challenged = previous["sender_name"] if previous else "当前推测"
+                return f"我质疑 {challenged} 的假设：缺少其他解释并不等于证据。哪一条已确认观察能够证伪这个假设？"
+            return "请继续区分事实与假设。我建议先批准一项有明确目标的调查，再由团队复核结果。"
         if agent_id == "field_investigator":
             return (
                 "I can examine the location, but that is still a proposed action—not a finding. "
@@ -478,6 +562,7 @@ class TeamChatSession:
         world_context: str,
         client,
         previous: dict | None,
+        locale: str = "en",
     ) -> str:
         member = MEMBERS[agent_id]
         challenge = ""
@@ -486,11 +571,12 @@ class TeamChatSession:
                 f"\nThe previous teammate reply was from {previous['sender_name']}: "
                 f"{previous['text']}\nCritically assess it; do not accept it automatically."
             )
-        return client.chat(
+        content = client.chat(
             [
                 {
                     "role": "system",
-                    "content": SYSTEM.format(name=member["name"], role=member["role"]),
+                    "content": SYSTEM.format(name=member["name"], role=member["role"])
+                    + ("\nMANDATORY OUTPUT LANGUAGE: Simplified Chinese (简体中文)." if locale == "zh-CN" else "\nMANDATORY OUTPUT LANGUAGE: English."),
                 },
                 {
                     "role": "user",
@@ -498,6 +584,7 @@ class TeamChatSession:
                         f"AUTHORITATIVE WORLD FACTS:\n{world_context}\n\n"
                         f"RECENT TEAM CHAT:\n{self._recent_transcript()}\n\n"
                         f"Lead Investigator says: {player_text}{challenge}"
+                        + ("\n\n只用简体中文回应。" if locale == "zh-CN" else "\n\nReply in English only.")
                     ),
                 },
             ],
@@ -505,8 +592,21 @@ class TeamChatSession:
             role="strong",
             agent=agent_id,
         ).strip()
+        return ensure_output_locale(
+            client,
+            content,
+            locale,
+            agent=agent_id,
+            fallback=(
+                "目前还没有足够的已确认线索形成结论；我建议先核验一项具体观察。"
+                if locale == "zh-CN"
+                else "There is not enough confirmed evidence for a conclusion; verify one concrete observation first."
+            ),
+        )
 
-    def post(self, text: str, world_context: str, world_view: dict, client) -> dict:
+    def post(
+        self, text: str, world_context: str, world_view: dict, client, locale: str = "en"
+    ) -> dict:
         text = text.strip()
         if not text:
             raise ValueError("Message cannot be empty.")
@@ -516,9 +616,11 @@ class TeamChatSession:
         previous = None
         for index, agent_id in enumerate(self._select_responders(text)):
             if client.mode == "stub":
-                reply = self._stub_reply(agent_id, text, previous)
+                reply = self._stub_reply(agent_id, text, previous, locale=locale)
             else:
-                reply = self._api_reply(agent_id, text, world_context, client, previous)
+                reply = self._api_reply(
+                    agent_id, text, world_context, client, previous, locale=locale
+                )
             task = self._propose_task(agent_id, world_view, text) if index == 0 else None
             message = self._append(
                 agent_id,

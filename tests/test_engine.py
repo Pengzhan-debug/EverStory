@@ -90,7 +90,7 @@ class EngineTest(unittest.TestCase):
         res = act(self.s, "move", to="cave")
         self.assertFalse(res.ok)
         self.assertIn("can't go that way", res.message.lower())
-        self.assertEqual(self.s.state.entity(self.p).location_id, "cottage")
+        self.assertEqual(self.s.state.entity(self.p).location_id, "storm_shore")
 
     def test_take_item_not_here_rejected(self):
         res = act(self.s, "take", item="rusty_key")
@@ -151,6 +151,7 @@ class EngineTest(unittest.TestCase):
         self.assertIsNone(self.s.resolve_name("nonexistent"))
 
     def test_examine_visible_item_advances_time_and_returns_grounded_detail(self):
+        act(self.s, "move", to="cottage")
         before_time = self.s.state.time
         res = act(self.s, "examine", target="lantern")
         self.assertTrue(res.ok, res.message)
@@ -171,6 +172,8 @@ class EngineTest(unittest.TestCase):
 
         act(self.s, "talk", target="elias")
         act(self.s, "move", to="cottage")
+        act(self.s, "talk", target="celia")
+        act(self.s, "examine", target="tide_chart")
         act(self.s, "move", to="lighthouse_ground")
         act(self.s, "talk", target="mara")
         act(self.s, "move", to="lighthouse_tower")

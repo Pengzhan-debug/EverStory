@@ -161,8 +161,16 @@ def run_team_eval(client, provider: str = "default") -> TeamEvalResult:
 
     approve(propose("@field travel to Dock.", {"type": "move", "params": {"to": "dock"}}))
     approve(propose("@field interview Elias Ward.", {"type": "talk", "params": {"target": "elias"}}))
-    for destination in ("cottage", "lighthouse_ground"):
-        assert session.act(Action("move", session.player_id(), {"to": destination})).ok
+    assert session.act(Action("move", session.player_id(), {"to": "cottage"})).ok
+    approve(propose(
+        "@field interview Dr. Celia Thorne.",
+        {"type": "talk", "params": {"target": "celia"}},
+    ))
+    approve(propose(
+        "@field examine the annotated tide chart.",
+        {"type": "examine", "params": {"target": "tide_chart"}},
+    ))
+    assert session.act(Action("move", session.player_id(), {"to": "lighthouse_ground"})).ok
     approve(propose("@field interview Mara.", {"type": "talk", "params": {"target": "mara"}}))
     for destination in ("lighthouse_tower", "lantern_room"):
         assert session.act(Action("move", session.player_id(), {"to": destination})).ok
@@ -179,6 +187,17 @@ def run_team_eval(client, provider: str = "default") -> TeamEvalResult:
         {"type": "examine", "params": {"target": "salvage_ledger"}},
     ))
     assert session.act(Action("move", session.player_id(), {"to": "dock"})).ok
+    review_payload = team.post(
+        "@analyst review the confirmed case record.",
+        session.visible_summary(session.player_id()),
+        _world_view(session),
+        client,
+    )
+    review_task = next(
+        task for task in reversed(review_payload["tasks"])
+        if task["status"] == "proposed" and task["type"] == "review_case"
+    )
+    team.approve_task(review_task["id"], _world_view(session), executor=_executor(session))
     approve(propose(
         "@director accuse Elias Ward.",
         {"type": "accuse", "params": {"target": "elias"}},

@@ -102,6 +102,9 @@ class PersistenceTest(unittest.TestCase):
         res = act(s, "talk", target="mara")
         self.assertIn("last one disappeared", res.message)
         self.assertTrue(s.state.flags["learned_secret"])
+        self.assertFalse(s.state.flags.get("ending"))
+        s.state.flags["case_solved"] = True
+        act(s, "wait")
         self.assertTrue(s.state.flags["ending"])
 
 

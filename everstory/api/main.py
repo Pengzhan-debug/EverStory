@@ -148,6 +148,8 @@ def world_payload(session: WorldSession) -> dict:
         for exit_ in exits[:3]
     )
     active_quest = next((quest["name"] for quest in quests if not quest["done"]), None)
+    if loc.id == "storm_shore" and st.turn == 0:
+        active_quest = "Reach shelter and establish contact with the investigation team"
     return {
         "title": session.title,
         "time": st.time,
@@ -182,7 +184,7 @@ def world_payload(session: WorldSession) -> dict:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="EverStory", version="0.1.0")
+    app = FastAPI(title="EverStory", version="1.0.0")
     app.add_middleware(GZipMiddleware, minimum_size=500)
     runtimes: dict[str, RuntimeSlot] = {}
     runtimes_lock = RLock()
@@ -347,7 +349,10 @@ def create_app() -> FastAPI:
                     slot.session,
                     name,
                     saves_dir=saves_dir_for(request),
-                    extra={"team_chat": slot.team_chat.to_dict()},
+                    extra={
+                        "team_chat": slot.team_chat.to_dict(),
+                        "pipeline": slot.pipeline.memory_payload(),
+                    },
                 )
                 return path, slot.session.state.turn, len(slot.team_chat.evidence)
 
@@ -378,9 +383,11 @@ def create_app() -> FastAPI:
         with runtimes_lock:
             current = runtimes.get(request.state.session_id)
             client = current.pipeline.client if current else build_client()
+            pipeline = TurnPipeline(session, client)
+            pipeline.restore_memory(extra.get("pipeline"))
             runtimes[request.state.session_id] = RuntimeSlot(
                 session=session,
-                pipeline=TurnPipeline(session, client),
+                pipeline=pipeline,
                 team_chat=team_chat,
             )
         return world_payload(session)
@@ -397,11 +404,18 @@ def create_app() -> FastAPI:
         with slot.lock:
             return slot.team_chat.payload()
 
+    @app.get("/api/conversation")
+    def conversation_history(request: Request):
+        slot = slot_for(request)
+        with slot.lock:
+            return {"messages": list(slot.pipeline.transcript)}
+
     @app.post("/api/agents/chat")
     async def agent_chat_post(request: Request):
         slot = slot_for(request)
         body = await request.json()
         text = str(body.get("text") or "").strip()
+        locale = "zh-CN" if body.get("locale") == "zh-CN" else "en"
         if not text:
             return JSONResponse(status_code=400, content={"error": "empty message"})
 
@@ -410,7 +424,9 @@ def create_app() -> FastAPI:
                 actor = slot.session.player_id()
                 context = slot.session.visible_summary(actor)
                 view = world_payload(slot.session)
-                return slot.team_chat.post(text, context, view, slot.pipeline.client)
+                return slot.team_chat.post(
+                    text, context, view, slot.pipeline.client, locale=locale
+                )
 
         try:
             return await run_in_threadpool(discuss_locked)
@@ -460,6 +476,7 @@ def create_app() -> FastAPI:
         slot = slot_for(request)
         body = await request.json()
         text = (body.get("text") or "").strip()
+        locale = "zh-CN" if body.get("locale") == "zh-CN" else "en"
         if not text:
             with slot.lock:
                 return {
@@ -471,7 +488,7 @@ def create_app() -> FastAPI:
         # blocks health checks or other sessions.
         def process_locked():
             with slot.lock:
-                result = slot.pipeline.process(text)
+                result = slot.pipeline.process(text, locale=locale)
                 return result, world_payload(slot.session)
 
         result, current_world = await run_in_threadpool(process_locked)
@@ -496,6 +513,7 @@ def create_app() -> FastAPI:
         slot = slot_for(request)
         body = await request.json()
         text = (body.get("text") or "").strip()
+        locale = "zh-CN" if body.get("locale") == "zh-CN" else "en"
         if not text:
             return JSONResponse(status_code=400, content={"error": "empty text"})
 
@@ -503,7 +521,7 @@ def create_app() -> FastAPI:
             try:
                 with slot.lock:
                     for ev in slot.pipeline.process_stream(
-                        text, world_renderer=world_payload
+                        text, world_renderer=world_payload, locale=locale
                     ):
                         yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
             except Exception as exc:  # surface errors to the client

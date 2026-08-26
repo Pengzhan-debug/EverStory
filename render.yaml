@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: everstory
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: LLM_MODE
+        value: stub

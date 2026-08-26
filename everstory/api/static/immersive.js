@@ -3,6 +3,7 @@
 
   const $ = (s, root = document) => root.querySelector(s);
   const zh = () => window.EverStoryI18n?.locale() === "zh-CN";
+  const t = (key) => window.EverStoryI18n?.t(key) || key;
   const tv = (value) => window.EverStoryI18n?.value(value) || value;
   let lastWorld = null;
   let audioCtx = null;
@@ -11,6 +12,7 @@
   let sceneRequest = 0;
 
   const LOCATION_SCENES = [
+    { match: ["storm shore", "shore"], url: "/static/img/scenes/dock.webp" },
     { match: ["keeper's cottage", "cottage"], url: "/static/img/scenes/cottage.webp" },
     { match: ["boat shed", "dock"], url: "/static/img/scenes/dock.webp" },
     { match: ["sea cave", "cliff path", "cave", "cliff"], url: "/static/img/scenes/cliff-cave.webp" },
@@ -107,8 +109,9 @@
     if ($("#inventory-modal")) return;
     const modal = document.createElement("div");
     modal.id = "inventory-modal";
-    modal.innerHTML = `<div class="modal-backdrop"></div><section class="inventory-sheet"><button class="modal-close" aria-label="Close">×</button><div class="eyebrow">PERSONAL EFFECTS</div><h2>Inventory</h2><div id="inventory-grid"></div><div class="modal-footer">Press <b>I</b> or <b>ESC</b> to close</div></section>`;
+    modal.innerHTML = `<div class="modal-backdrop"></div><section class="inventory-sheet"><button class="modal-close" aria-label="Close">×</button><div class="eyebrow" data-i18n="personalEffects">${t("personalEffects")}</div><h2 data-i18n="inventory">${t("inventory")}</h2><div id="inventory-grid"></div><div class="modal-footer" data-i18n="closeInventoryHint">${t("closeInventoryHint")}</div></section>`;
     document.body.appendChild(modal);
+    window.EverStoryI18n?.apply();
     $(".modal-backdrop", modal).addEventListener("click", closeInventory);
     $(".modal-close", modal).addEventListener("click", closeInventory);
   }
@@ -117,7 +120,9 @@
     createInventory();
     const grid = $("#inventory-grid");
     const items = lastWorld?.player?.inventory || [];
-    grid.innerHTML = items.length ? items.map((item, i) => `<div class="inventory-item"><div class="item-glyph">${["◈","✦","◇","†","○"][i % 5]}</div><div><strong>${safe(item)}</strong><small>Carried item</small></div></div>`).join("") : '<div class="inventory-empty">Your pack is empty.</div>';
+    grid.innerHTML = items.length
+      ? items.map((item, i) => `<div class="inventory-item"><div class="item-glyph">${["◈","✦","◇","†","○"][i % 5]}</div><div><strong>${safe(tv(item))}</strong><small>${t("carriedItem")}</small></div></div>`).join("")
+      : `<div class="inventory-empty">${t("packEmpty")}</div>`;
     $("#inventory-modal").classList.add("open");
   }
 
@@ -130,7 +135,10 @@
     if (!inspector) return;
     const open = document.body.classList.toggle("truth-open");
     $("#debug-btn")?.setAttribute("aria-expanded", String(open));
-    toast(open ? "World truth revealed" : "World truth concealed");
+    $("#truth-backdrop")?.setAttribute("aria-hidden", String(!open));
+    toast(open
+      ? (zh() ? "世界真相档案已展开" : "World truth revealed")
+      : (zh() ? "世界真相档案已收起" : "World truth concealed"));
   }
 
   function initAudio() {
@@ -201,7 +209,10 @@
 
   function bindShortcuts() {
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeInventory();
+      if (e.key === "Escape") {
+        closeInventory();
+        if (document.body.classList.contains("truth-open")) toggleInspector();
+      }
       if (e.key.toLowerCase() === "i" && !/input|textarea/i.test(document.activeElement?.tagName || "")) {
         e.preventDefault(); openInventory();
       }
@@ -213,18 +224,27 @@
     ["pointerdown", "keydown"].forEach((event) => window.addEventListener(event, () => { initAudio(); }, { once: true }));
     const send = $("#input-form");
     send?.addEventListener("submit", () => setTimeout(() => actionTone(true), 50));
-    $("#save-btn")?.addEventListener("click", () => toast("World snapshot saved", "gold"));
-    $("#load-btn")?.addEventListener("click", () => toast("Latest world snapshot loaded"));
-    $("#reset-btn")?.addEventListener("click", () => cinematic("A New World", "The story begins again."));
+    $("#save-btn")?.addEventListener("click", () => toast(zh() ? "世界快照已保存" : "World snapshot saved", "gold"));
+    $("#load-btn")?.addEventListener("click", () => toast(zh() ? "最近的世界快照已读取" : "Latest world snapshot loaded"));
+    $("#reset-btn")?.addEventListener("click", () => cinematic(zh() ? "新的案件" : "A New World", zh() ? "故事再次开始。" : "The story begins again."));
     $("#inventory-btn")?.addEventListener("click", openInventory);
     $("#debug-btn")?.addEventListener("click", toggleInspector);
     $("#inspector-close")?.addEventListener("click", toggleInspector);
+    $("#truth-backdrop")?.addEventListener("click", toggleInspector);
   }
 
   function introCinematic() {
     const layer = $("#intro-layer");
     if (!layer) return;
+    const returning = new URLSearchParams(window.location.search).get("resume") === "1";
+    if (returning || sessionStorage.getItem("everstory-intro-seen") === "1") {
+      sessionStorage.setItem("everstory-intro-seen", "1");
+      if (returning) history.replaceState({}, "", "/");
+      layer.remove();
+      return;
+    }
     const finish = () => {
+      sessionStorage.setItem("everstory-intro-seen", "1");
       layer.classList.add("done");
       setTimeout(() => layer.remove(), 1200);
     };
@@ -239,7 +259,9 @@
     bindShortcuts();
     createInventory();
     introCinematic();
-    cinematic("The Lost Lighthouse", "A world that cannot lie.");
+    if (sessionStorage.getItem("everstory-intro-seen") !== "1") {
+      cinematic(zh() ? "失落灯塔" : "The Lost Lighthouse", zh() ? "一个不会说谎的世界。" : "A world that cannot lie.");
+    }
     watchWorld();
     window.addEventListener("everstory:locale", () => lastWorld && updateAtmosphere(lastWorld));
   }

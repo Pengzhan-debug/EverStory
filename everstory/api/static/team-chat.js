@@ -34,9 +34,9 @@
       .filter((member) => !member.human)
       .map(
         (member) => `
-          <div class="team-member" title="${esc(member.role)}">
+          <div class="team-member" title="${esc(tv(member.role))}">
             <span class="team-avatar ${esc(member.color)}">${esc(member.initials)}</span>
-            <span><span class="team-member-name">${esc(member.name)}</span><small>${esc(member.role)}</small></span>
+            <span><span class="team-member-name">${esc(member.name)}</span><small>${esc(tv(member.role))}</small></span>
           </div>`
       )
       .join("");
@@ -68,12 +68,12 @@
       <section class="team-task-card ${complete ? "completed" : "proposed"}" data-task-id="${esc(task.id)}">
         <div class="team-task-kicker"><span>${complete ? t("approvedResult") : t("actionProposal")}</span><b>${complete ? t("complete") : t("awaiting")}</b></div>
         <strong class="team-task-title">${esc(localizedTitle)}</strong>
-        <p>${esc(task.description)}</p>
+        <p>${esc(tv(task.description))}</p>
         <div class="team-task-foot">
-          <span>${zh() ? "目标" : "Target"} · ${esc(tv(task.target))} · ${changesWorld ? t("consumesTurn") : t("caseOnly")}</span>
+          <span>${t("target")} · ${esc(tv(task.target))} · ${changesWorld ? t("consumesTurn") : t("caseOnly")}</span>
           ${complete
-            ? `<span class="team-task-done">✓ ${evidence ? `${evidence} ${t(evidence === 1 ? "clue" : "clues")}` : (zh() ? "已记录复核" : "review recorded")}</span>`
-            : `<button type="button" class="team-task-approve" data-approve-task="${esc(task.id)}" aria-label="Approve task ${esc(task.title)}">${t("approve")}</button>`}
+            ? `<span class="team-task-done">✓ ${evidence ? `${evidence} ${t(evidence === 1 ? "clue" : "clues")}` : t("reviewRecorded")}</span>`
+            : `<button type="button" class="team-task-approve" data-approve-task="${esc(task.id)}" aria-label="${t("approve")} ${esc(localizedTitle)}">${t("approve")}</button>`}
         </div>
       </section>`;
   }
@@ -85,16 +85,16 @@
       .map((message) => {
         const replied = message.reply_to ? byId[message.reply_to] : null;
         const reply = replied
-          ? `<div class="team-message-reply">↳ replying to ${esc(replied.sender_name)}</div>`
+          ? `<div class="team-message-reply">↳ ${t("replyingTo")} ${esc(tv(replied.sender_name))}</div>`
           : "";
         return `
           <article class="team-message ${message.human ? "player" : ""} ${esc(message.kind)}">
-            <span class="team-avatar ${esc(message.color)}">${esc(message.initials)}</span>
+            <span class="team-avatar ${esc(message.color)}">${esc(message.human ? t("youShort") : message.initials)}</span>
             <div class="team-message-body">
-              <div class="team-message-meta"><strong>${esc(message.sender_name)}</strong><span>${esc(message.sender_role)} · ${esc(timeLabel(message.created_at))}</span></div>
+              <div class="team-message-meta"><strong>${esc(tv(message.sender_name))}</strong><span>${esc(tv(message.sender_role))} · ${esc(timeLabel(message.created_at))}</span></div>
               ${reply}
-              <div class="team-bubble">${esc(message.text)}</div>
-              ${message.kind === "challenge" ? '<span class="team-kind">challenge / hypothesis check</span>' : ""}
+              <div class="team-bubble">${esc(message.human ? message.text : tv(message.text))}</div>
+              ${message.kind === "challenge" ? `<span class="team-kind">${t("challengeCheck")}</span>` : ""}
               ${message.task_id && message.kind !== "task_result" ? renderTask(tasksById[message.task_id]) : ""}
             </div>
           </article>`;
@@ -105,6 +105,7 @@
 
   function renderEvidence() {
     const evidence = chat.evidence || [];
+    const readiness = chat.case_readiness || { ready: false, completed: 0, total: 7, missing: [] };
     const tasks = chat.tasks || [];
     const membersById = Object.fromEntries(chat.participants.map((member) => [member.id, member]));
     const tasksById = Object.fromEntries(tasks.map((task) => [task.id, task]));
@@ -115,17 +116,24 @@
     }, {});
     const summary = `
       <div class="evidence-summary">
-        <div><strong>${evidence.length}</strong><span>Confirmed</span></div>
-        <div><strong>${counts.scene || 0}</strong><span>Scenes</span></div>
-        <div><strong>${counts.item || 0}</strong><span>Objects</span></div>
-        <div><strong>${counts.character || 0}</strong><span>People</span></div>
-      </div>`;
+        <div><strong>${evidence.length}</strong><span>${t("confirmed")}</span></div>
+        <div><strong>${counts.scene || 0}</strong><span>${t("scenes")}</span></div>
+        <div><strong>${counts.item || 0}</strong><span>${t("objects")}</span></div>
+        <div><strong>${counts.character || 0}</strong><span>${t("people")}</span></div>
+      </div>
+      <section class="case-readiness ${readiness.ready ? "ready" : "building"}">
+        <div><span>${zh() ? "指控证据链" : "ACCUSATION GATE"}</span><strong>${readiness.completed}/${readiness.total}</strong></div>
+        <div class="readiness-track"><i style="width:${Math.round((readiness.completed / Math.max(readiness.total, 1)) * 100)}%"></i></div>
+        <p>${readiness.ready
+          ? (zh() ? "证据链与分析复核均已完成，可以请求案件主管正式指控。" : "Evidence and analyst corroboration are complete. The Case Director may propose a formal accusation.")
+          : (zh() ? `仍需：${(readiness.missing || []).map(tv).join("、")}` : `Still required: ${(readiness.missing || []).join(", ")}`)}</p>
+      </section>`;
     const pendingHtml = pending.length
-      ? `<section class="case-board-section"><div class="case-board-heading"><span>OPEN ACTIONS</span><b>${pending.length}</b></div>${pending.map((task) => `
+      ? `<section class="case-board-section"><div class="case-board-heading"><span>${t("openActions")}</span><b>${pending.length}</b></div>${pending.map((task) => `
           <article class="case-lead-card">
-            <span>${esc(task.agent_name)} · ${esc(task.target)}</span>
-            <strong>${esc(task.title)}</strong>
-            <button type="button" data-approve-task="${esc(task.id)}">Approve from board</button>
+            <span>${esc(task.agent_name)} · ${esc(tv(task.target))}</span>
+            <strong>${esc(tv(task.title))}</strong>
+            <button type="button" data-approve-task="${esc(task.id)}">${t("approveFromBoard")}</button>
           </article>`).join("")}</section>`
       : "";
     const evidenceHtml = evidence.length
@@ -134,14 +142,14 @@
           const member = membersById[item.source_agent_id];
           return `
             <article class="evidence-card ${esc(item.type)}">
-              <div class="evidence-card-top"><span>${esc(item.type)} · CONFIRMED</span><b>TURN ${esc(item.confirmed_at_turn)}</b></div>
-              <strong>${esc(item.title)}</strong>
-              <p>${esc(item.detail || "No additional description recorded.")}</p>
-              <div class="evidence-source"><span>${member ? esc(member.initials) : "AI"}</span><div>Verified by ${esc(member?.name || item.source_agent_id)}<small>${esc(item.location_name)}${task ? ` · ${esc(task.title)}` : ""}</small></div></div>
+              <div class="evidence-card-top"><span>${esc(tv(item.type))} · ${t("confirmed")}</span><b>${t("turnLabel")} ${esc(item.confirmed_at_turn)}</b></div>
+              <strong>${esc(tv(item.title))}</strong>
+              <p>${esc(tv(item.detail || t("noDescription")))}</p>
+              <div class="evidence-source"><span>${member ? esc(member.initials) : "AI"}</span><div>${t("verifiedBy")} ${esc(member?.name || item.source_agent_id)}<small>${esc(tv(item.location_name))}${task ? ` · ${esc(tv(task.title))}` : ""}</small></div></div>
             </article>`;
         }).join("")
-      : `<div class="evidence-empty"><span>◇</span><strong>No confirmed evidence yet</strong><p>Ask the Field Investigator to inspect the current scene, then approve the proposed action.</p></div>`;
-    evidenceHost.innerHTML = `${summary}${pendingHtml}<section class="case-board-section"><div class="case-board-heading"><span>CONFIRMED EVIDENCE</span><b>${evidence.length}</b></div>${evidenceHtml}</section>`;
+      : `<div class="evidence-empty"><span>◇</span><strong>${t("noEvidenceTitle")}</strong><p>${t("noEvidenceHelp")}</p></div>`;
+    evidenceHost.innerHTML = `${summary}${pendingHtml}<section class="case-board-section"><div class="case-board-heading"><span>${t("confirmedEvidence")}</span><b>${evidence.length}</b></div>${evidenceHtml}</section>`;
   }
 
   function setView(view) {
@@ -216,7 +224,7 @@
       const response = await fetch("/api/agents/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, locale: window.EverStoryI18n?.locale() || "en" }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Team response failed.");

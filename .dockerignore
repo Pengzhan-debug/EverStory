@@ -1,0 +1,14 @@
+.git
+.github
+.env
+everstory-env
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.ruff_cache
+saves
+reports
+server.log
+server.err.log

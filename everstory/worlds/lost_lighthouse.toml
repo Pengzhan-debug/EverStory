@@ -12,7 +12,7 @@ kind = "character"
 name = "You"
 is_player = true
 description = "A castaway who washed up on Saltrock Island."
-location = "cottage"
+location = "storm_shore"
 
 [[entities]]
 id = "mara"
@@ -41,8 +41,8 @@ location = "dock"
 [entities.attributes]
 talk_flag = "interviewed_elias"
 culprit = true
-accusation_requires = ["found_cut_line", "found_salvage_ledger", "interviewed_elias", "interviewed_mara"]
-confession = "Faced with the cut fuel line, the salvage ledger, and both testimonies, Elias Ward breaks. He extinguished the lighthouse to drive a cargo ship onto Saltrock reef, then hid the wreck's cargo through his salvage office. The sabotage case is solved."
+accusation_requires = ["found_cut_line", "found_salvage_ledger", "verified_tide_timeline", "interviewed_elias", "interviewed_mara", "interviewed_celia"]
+confession = "Faced with the cut fuel line, the salvage ledger, Celia's tide timeline, and all three testimonies, Elias Ward breaks. He extinguished the lighthouse to drive a cargo ship onto Saltrock reef, then hid the wreck's cargo through his salvage office. The sabotage case is solved."
 persona = "Saltrock's controlled, defensive harbormaster. He denies entering the lighthouse and insists every salvaged crate was legally abandoned. When challenged, he focuses on procedure and avoids the night the lamp failed."
 
 [entities.attributes.dialogue]
@@ -63,11 +63,18 @@ persona = "A precise coastal researcher who records times, tides, and weather ob
 default = "Celia taps her tide chart. \"The storm arrived after midnight. The lighthouse fuel line was already failing before the first squall—and I saw Elias's launch leave the dock at eleven.\""
 
 [[entities]]
+id = "storm_shore"
+kind = "location"
+name = "Storm Shore"
+description = "Rain lashes a black-stone beach where the sea has just thrown you ashore. Above the cliffs, a dead lighthouse cuts through the lightning; three paths lead toward shelter, the dock, and the tower."
+attributes = { connections = ["cottage", "dock", "lighthouse_ground"] }
+
+[[entities]]
 id = "lighthouse_ground"
 kind = "location"
 name = "Lighthouse Ground Floor"
 description = "A damp stone room. A spiral staircase climbs into the tower, and a logbook lies on a table."
-attributes = { connections = ["lighthouse_tower", "cottage", "cliff_path"] }
+attributes = { connections = ["lighthouse_tower", "cottage", "cliff_path", "storm_shore"] }
 
 [[entities]]
 id = "lighthouse_tower"
@@ -88,14 +95,14 @@ id = "cottage"
 kind = "location"
 name = "Keeper's Cottage"
 description = "A tidy cottage with a cold fireplace. A lantern hangs by the door."
-attributes = { connections = ["lighthouse_ground", "dock"] }
+attributes = { connections = ["lighthouse_ground", "dock", "storm_shore"] }
 
 [[entities]]
 id = "dock"
 kind = "location"
 name = "Dock"
 description = "A rotting wooden dock. A rowboat rocks in the surf."
-attributes = { connections = ["cottage", "boat_shed"] }
+attributes = { connections = ["cottage", "boat_shed", "storm_shore"] }
 
 [[entities]]
 id = "boat_shed"

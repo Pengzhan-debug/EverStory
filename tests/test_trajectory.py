@@ -37,7 +37,7 @@ class TrajectoryTest(unittest.TestCase):
         action = Action("use", self.p, {"item": "oil_can", "target": "lantern"})
         facts, _ = extract_facts(self.s.state, action)
         self.assertIn("at($item,boat_shed)", facts)  # oil can is at the boat shed
-        self.assertIn("at($target,$here)", facts)  # lantern is here in the cottage
+        self.assertIn("at($target,cottage)", facts)  # lantern is in the cottage, not on the shore
         self.assertIn("unowned($item)", facts)
         self.assertIn("not_filled($target)", facts)
 
