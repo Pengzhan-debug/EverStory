@@ -107,6 +107,14 @@
 .evidence-summary div { padding: 10px 5px; border: 1px solid rgba(255,255,255,.07); background: #08161e; text-align: center; }
 .evidence-summary strong { display: block; color: #e0bc6e; font: 500 17px var(--display); }
 .evidence-summary span { color: #65767b; font: 6px var(--mono); text-transform: uppercase; }
+.case-readiness { margin: -6px 0 18px; padding: 13px 14px; border: 1px solid rgba(213,168,79,.22); background: linear-gradient(110deg, rgba(213,168,79,.08), #08161e 58%); }
+.case-readiness > div:first-child { display: flex; justify-content: space-between; color: #8d9b9e; font: 7px var(--mono); letter-spacing: 1px; }
+.case-readiness > div:first-child strong { color: #e0bc6e; font-size: 11px; }
+.readiness-track { height: 3px; margin: 9px 0; background: rgba(255,255,255,.07); overflow: hidden; }
+.readiness-track i { display: block; height: 100%; background: linear-gradient(90deg, #887044, #e0bc6e); transition: width .3s ease; }
+.case-readiness.ready { border-color: rgba(92,196,147,.35); }
+.case-readiness.ready .readiness-track i { background: #5cc493; }
+.case-readiness p { margin: 0; color: #7d8c90; font: 8px/1.55 var(--sans); }
 .evidence-card.testimony { border-left-color: #6d91bd; }
 .evidence-card.conclusion { border-left-color: #d5a84f; background: linear-gradient(135deg, rgba(213,168,79,.09), #08161e 56%); }
 .case-board-section { margin-top: 16px; }
@@ -195,4 +203,74 @@
 
 @media (prefers-reduced-motion: reduce) {
   .team-panel, .team-backdrop { transition: none; }
+}
+
+/* Wide investigation workspace */
+@media (min-width: 801px) {
+  .team-backdrop {
+    z-index: 58;
+    background: rgba(0, 3, 6, .76);
+    backdrop-filter: blur(8px);
+  }
+
+  .team-panel {
+    z-index: 59;
+    top: 92px;
+    right: 24px;
+    bottom: 24px;
+    width: min(1180px, calc(100vw - 48px));
+    border: 1px solid rgba(228, 182, 93, .25);
+    border-radius: 5px;
+    box-shadow: 0 34px 100px rgba(0, 0, 0, .8), inset 0 1px rgba(255,255,255,.025);
+    transform: translateY(18px) scale(.985);
+    opacity: 0;
+    visibility: hidden;
+    transition: transform .26s ease, opacity .2s ease, visibility .2s ease;
+  }
+
+  .team-panel.open { transform: none; opacity: 1; visibility: visible; }
+  .team-panel-head { min-height: 88px; padding: 18px 28px; }
+  .team-kicker { font-size: 10px; letter-spacing: 2px; }
+  .team-panel-head h2 { font-size: 25px; }
+  .team-panel-head button { width: 38px; height: 38px; }
+  .team-members { gap: 24px; padding: 15px 28px; }
+  .team-member { min-width: 145px; gap: 11px; }
+  .team-member-name { font-size: 12px; }
+  .team-member small { font-size: 9px; }
+  .team-avatar, .team-self-avatar { width: 40px; height: 40px; font-size: 10px; }
+  .team-view-tabs { padding-inline: 28px; }
+  .team-view-tabs button { padding: 13px 8px 11px; font-size: 10px; }
+  .team-boundary { margin: 12px 28px 0; padding: 10px 13px; font-size: 10px; }
+  .team-messages { gap: 22px; padding: 28px max(32px, 7vw); }
+  .team-message { grid-template-columns: 42px minmax(0,1fr); gap: 14px; }
+  .team-message.player { grid-template-columns: minmax(0,1fr) 42px; }
+  .team-message-meta { margin-bottom: 7px; }
+  .team-message-meta strong { font-size: 13px; }
+  .team-message-meta span, .team-message-reply { font-size: 10px; }
+  .team-bubble { max-width: 760px; padding: 14px 17px; font-size: 14px; line-height: 1.72; }
+  .team-kind { font-size: 9px; }
+  .team-task-card { width: min(760px, 100%); padding: 15px 17px; }
+  .team-task-kicker, .team-task-foot { font-size: 9px; }
+  .team-task-title { font-size: 13px; }
+  .team-task-card p { font-size: 12px; }
+  .team-mentions { padding: 9px max(32px, 7vw) 0; }
+  .team-mentions button { padding: 7px 11px; font-size: 10px; }
+  .team-form { grid-template-columns: 42px minmax(0,1fr) auto; gap: 12px; padding: 13px max(32px, 7vw) 8px; }
+  .team-form textarea { min-height: 60px; padding: 13px 15px; font-size: 14px; }
+  .team-form button { height: 60px; min-width: 88px; font-size: 11px; }
+  .team-status { padding: 0 max(32px, 7vw) 12px calc(max(32px, 7vw) + 54px); font-size: 10px; }
+  .team-evidence-board { padding: 24px max(32px, 6vw) 32px; }
+  .evidence-summary { gap: 12px; }
+  .evidence-summary div { padding: 14px 8px; }
+  .evidence-summary strong { font-size: 22px; }
+  .evidence-summary span { font-size: 8px; }
+  .case-readiness > div:first-child { font-size: 9px; }
+  .case-readiness p { font-size: 10px; }
+  .case-board-section { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+  .case-board-heading { grid-column: 1 / -1; margin-bottom: 0; font-size: 9px; }
+  .case-lead-card, .evidence-card { margin-bottom: 0; padding: 16px; }
+  .case-lead-card span, .evidence-card-top { font-size: 9px; }
+  .case-lead-card strong, .evidence-card > strong { font-size: 13px; }
+  .evidence-card > p { font-size: 11px; }
+  .evidence-source { font-size: 10px; }
 }

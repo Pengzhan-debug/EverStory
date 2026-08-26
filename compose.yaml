@@ -1,0 +1,19 @@
+services:
+  everstory:
+    build: .
+    ports:
+      - "8123:8123"
+    environment:
+      LLM_MODE: ${LLM_MODE:-stub}
+      LLM_STRONG_BASE_URL: ${LLM_STRONG_BASE_URL:-https://api.deepseek.com}
+      LLM_STRONG_API_KEY: ${LLM_STRONG_API_KEY:-}
+      LLM_STRONG_MODEL: ${LLM_STRONG_MODEL:-deepseek-chat}
+      LLM_CHEAP_BASE_URL: ${LLM_CHEAP_BASE_URL:-https://api.deepseek.com}
+      LLM_CHEAP_API_KEY: ${LLM_CHEAP_API_KEY:-}
+      LLM_CHEAP_MODEL: ${LLM_CHEAP_MODEL:-deepseek-chat}
+    volumes:
+      - everstory_saves:/app/saves
+    restart: unless-stopped
+
+volumes:
+  everstory_saves:

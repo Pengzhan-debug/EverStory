@@ -464,7 +464,76 @@ body.truth-open .inspector { transform: translateX(0); }
   font: 14px/1.75 var(--serif);
   font-style: normal;
 }
-.msg.user { display: none; }
+.msg.user {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: stretch;
+  width: min(82%, 760px);
+  margin-left: auto;
+  gap: 0;
+}
+.msg.user .avatar {
+  grid-column: 2;
+  grid-row: 1;
+  order: initial;
+  width: 44px;
+  height: 100%;
+  min-height: 66px;
+  border-radius: 0;
+  background: rgba(82,183,201,.14);
+  border-color: rgba(101,201,217,.38);
+  color: #a9ecf3;
+}
+.user-message-content {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+.user-speaker {
+  height: 28px;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
+  border: 1px solid rgba(101,201,217,.22);
+  border-right: 0;
+  border-bottom: 0;
+  background: rgba(3,13,19,.9);
+}
+.user-speaker strong {
+  color: #b8edf1;
+  font: 600 11px var(--display);
+  letter-spacing: .5px;
+}
+.user-speaker span {
+  color: #80999e;
+  font: 9px var(--mono);
+  letter-spacing: 1px;
+}
+.msg.user .bubble {
+  max-width: none;
+  min-height: 38px;
+  padding: 12px 18px;
+  border: 1px solid rgba(101,201,217,.22);
+  border-right: 0;
+  border-left: 1px solid rgba(101,201,217,.22);
+  border-radius: 0;
+  background: linear-gradient(270deg, rgba(5,22,29,.95), rgba(4,14,21,.8));
+  color: #dceced;
+  font: 14px/1.65 var(--sans) !important;
+  font-style: normal !important;
+  text-align: right;
+}
+.msg.assistant.is-pending .bubble {
+  color: #93a0a2;
+  font-style: italic;
+  animation: narration-pulse 1.2s ease-in-out infinite;
+}
+@keyframes narration-pulse {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
 .msg.system .sys-pill {
   background: rgba(3,10,15,.64);
   backdrop-filter: blur(8px);
@@ -1105,6 +1174,247 @@ body.location-cave #world-scene {
   .input-bar input { font-size: 13px !important; }
 }
 
+/* World truth becomes a full dossier workspace on desktop. */
+.truth-backdrop {
+  position: fixed;
+  inset: 70px 0 0;
+  z-index: 38;
+  visibility: hidden;
+  opacity: 0;
+  background: rgba(0, 3, 6, .74);
+  backdrop-filter: blur(8px);
+  transition: opacity .22s ease, visibility .22s ease;
+}
+body.truth-open .truth-backdrop { visibility: visible; opacity: 1; }
+
+@media (min-width: 801px) {
+  body.truth-open .inspector {
+    top: 92px;
+    right: 24px;
+    bottom: 24px;
+    width: min(1180px, calc(100vw - 48px));
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-content: start;
+    gap: 16px;
+    padding: 0 26px 28px;
+    border: 1px solid rgba(228,182,93,.26);
+    border-radius: 5px;
+    box-shadow: 0 34px 100px rgba(0,0,0,.82), inset 0 1px rgba(255,255,255,.03);
+    transform: translateX(0);
+  }
+
+  body.truth-open .inspector::before { display: none; }
+  body.truth-open .inspector-title {
+    grid-column: 1 / -1;
+    top: 0;
+    margin: 0 -26px 2px;
+    padding: 20px 26px 18px;
+  }
+  body.truth-open .inspector-title h2 { font-size: 26px; }
+  body.truth-open .card { margin: 0; padding: 19px; }
+  body.truth-open .card h3 { font-size: 11px; }
+  body.truth-open #player-card { grid-column: span 1; }
+  body.truth-open #facts-card { grid-column: span 2; }
+  body.truth-open #map-card { grid-column: span 2; }
+  body.truth-open #entities-card { grid-column: span 1; grid-row: span 2; }
+  body.truth-open #quests-card { grid-column: span 1; }
+  body.truth-open #log-card { grid-column: span 2; }
+  body.truth-open .player-name { font-size: 16px; }
+  body.truth-open .player-loc,
+  body.truth-open .facts,
+  body.truth-open .entity-name,
+  body.truth-open .quest-title { font-size: 12px; }
+  body.truth-open .muted,
+  body.truth-open .quest-desc,
+  body.truth-open .entity-meta,
+  body.truth-open .log-entry { font-size: 10px; }
+  body.truth-open .label,
+  body.truth-open .stat-label,
+  body.truth-open .map-hint { font-size: 9px; }
+  body.truth-open .stat-num { font-size: 19px; }
+  body.truth-open .map3d,
+  body.truth-open #map { min-height: 300px; height: 300px; }
+}
+
+@media (max-width: 800px) {
+  .truth-backdrop { inset: 64px 0 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   #world-scene { animation: none !important; transform: none !important; }
+}
+
+/* ---------- Main scene readability: separate intel rail from dialogue ---------- */
+@media (min-width: 801px) {
+  .chat-panel .chat-head {
+    min-height: 34px;
+    font-size: 11px;
+  }
+
+  .chat-panel .chat-title { font-size: 11px; }
+  .chat-panel .chat-hint { font-size: 10px; }
+  .chat-panel .top-left { left: 40px; top: 86px; }
+  .chat-panel .top-left .eyebrow {
+    color: #aab6b8;
+    font-size: 11px;
+    letter-spacing: 2.4px;
+  }
+  .chat-panel .scene-title {
+    margin-top: 9px;
+    font-size: clamp(28px, 2.45vw, 36px);
+  }
+  .chat-panel .scene-location {
+    color: #f1cd83;
+    font-size: 12px;
+    letter-spacing: .8px;
+  }
+
+  .chat-panel .top-right { min-width: 190px; padding: 12px 14px; }
+  .chat-panel .hud-line { padding: 7px 0; font-size: 10px; }
+  .chat-panel .weather { font-size: 10px; }
+
+  .case-objective {
+    left: 40px;
+    top: 205px;
+    width: 320px;
+    min-height: 70px;
+    padding: 14px 17px;
+    background: linear-gradient(90deg, rgba(4,12,17,.95), rgba(4,12,17,.72) 82%, rgba(4,12,17,.2));
+  }
+  .case-objective span {
+    color: #9aa8ab;
+    font-size: 9px;
+    letter-spacing: 2px;
+  }
+  .case-objective strong {
+    max-width: 250px;
+    margin-top: 8px;
+    color: #f0e7d5;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  .scene-presence {
+    left: clamp(390px, 31vw, 470px);
+    right: 220px;
+    top: 72px;
+    width: auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 9px;
+  }
+  .scene-presence:empty,
+  .scene-presence:not(:has(.presence-card)) { display: none; }
+  .scene-presence::before {
+    content: "SCENE INTERACTIONS";
+    margin-bottom: 1px;
+    color: #9ca9ac;
+    font: 600 10px var(--mono);
+    letter-spacing: 1.8px;
+    white-space: nowrap;
+  }
+  html[lang="zh-CN"] .scene-presence::before { content: "场景交互"; }
+  .presence-card {
+    flex: 1 1 0;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 12px;
+    min-height: 66px;
+    padding: 9px 14px 9px 9px;
+    background: linear-gradient(90deg, rgba(3,12,18,.96), rgba(3,12,18,.76));
+  }
+  .presence-glyph { width: 42px; height: 42px; font-size: 15px; }
+  .presence-card strong { font-size: 12px; }
+  .presence-card small {
+    display: -webkit-box;
+    margin-top: 5px;
+    overflow: hidden;
+    color: #9aa7a9;
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: normal;
+    text-overflow: clip;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  #messages {
+    left: 11%;
+    right: 11%;
+    bottom: 216px;
+    max-height: 245px;
+    gap: 10px;
+  }
+  #messages .msg:not(:last-child) { opacity: .74; }
+  .msg.assistant { grid-template-columns: 48px minmax(0, 1fr); }
+  .msg.assistant .avatar { width: 48px; min-height: 76px; font-size: 9px; }
+  .msg.assistant .bubble {
+    min-height: 76px;
+    padding: 16px 20px;
+    font-size: 16px;
+    line-height: 1.8;
+  }
+  .msg.assistant .named-avatar::after { display: none; }
+  .msg.user { grid-template-columns: minmax(0, 1fr) 48px; }
+  .msg.user .avatar { width: 48px; min-height: 68px; font-size: 9px; }
+  .msg.user .bubble { padding: 14px 18px; font-size: 14px !important; }
+  .assistant-content { min-width: 0; }
+  .assistant-speaker {
+    height: 29px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 13px;
+    border: 1px solid rgba(228,182,93,.22);
+    border-bottom: 0;
+    background: rgba(3,10,15,.9);
+  }
+  .assistant-speaker strong {
+    color: #f0d797;
+    font: 600 11px var(--display);
+    letter-spacing: .5px;
+  }
+  .assistant-speaker span {
+    color: #859397;
+    font: 9px var(--mono);
+    letter-spacing: 1px;
+  }
+  .msg.system .sys-pill { padding: 7px 14px; font-size: 10px; }
+
+  .action-choice { font-size: 11px; }
+  .story-prompt { font-size: 10px; }
+  .input-hint { color: #78868a; font-size: 9px; }
+}
+
+@media (min-width: 801px) and (max-width: 1050px) {
+  .chat-panel .top-left,
+  .case-objective { left: 24px; }
+  .case-objective { width: 276px; }
+  .scene-presence { left: 320px; right: 178px; }
+  .scene-presence::before { display: none; }
+  #messages { left: 7%; right: 7%; }
+  .msg.assistant .bubble { font-size: 14px; }
+}
+
+@media (max-height: 760px) and (min-width: 801px) {
+  .chat-panel .top-left { top: 75px; }
+  .chat-panel .scene-title { font-size: 28px; }
+  .case-objective { top: 178px; min-height: 64px; }
+  .scene-presence { top: 70px; }
+  .presence-card { min-height: 58px; }
+  .presence-card small { -webkit-line-clamp: 1; }
+  #messages { bottom: 207px; max-height: 210px; }
+}
+
+@media (max-width: 800px) {
+  .scene-presence { display: none; }
+  .case-objective span { font-size: 9px; }
+  .case-objective strong { font-size: 14px; line-height: 1.45; }
+  #messages { top: 250px; bottom: 225px; max-height: none; }
+  .msg.assistant .bubble { font-size: 14px; }
+  .msg.user { width: 92%; grid-template-columns: minmax(0, 1fr) 38px; }
+  .msg.user .avatar { width: 38px; min-height: 60px; }
+  .user-speaker { height: 25px; }
+  .msg.user .bubble { padding: 10px 13px; font-size: 13px !important; text-align: left; }
 }

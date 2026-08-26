@@ -13,8 +13,8 @@
     <div class="brand"><span class="brand-mark"><img src="/static/everstory-mark.svg" alt=""/></span><div><strong>EverStory</strong><small data-i18n="console">模型控制台</small></div></div>
     <div class="header-actions">
       <span id="service-status" class="status"><i></i><span data-i18n="online">服务正常</span></span>
-      <select id="language" aria-label="Language"><option value="zh-CN">中文</option><option value="en-US">English</option></select>
-      <a href="/" class="secondary" data-i18n="back">返回游戏</a>
+      <select id="language" aria-label="Language"><option value="zh-CN">中文</option><option value="en">English</option></select>
+      <a id="back-to-game" href="/?resume=1" class="secondary" data-i18n="back">返回游戏</a>
     </div>
   </header>
   <div class="app-layout">
@@ -30,13 +30,13 @@
     <main class="content">
       <section id="overview" class="page-head">
         <div><h1 data-i18n="title">模型与智能体</h1><p data-i18n="subtitle">管理模型连接、角色分配和运行指标。</p></div>
-        <div class="mode-field"><label data-i18n="mode">运行模式</label><select id="mode"><option value="api">Live API</option><option value="stub">Offline Stub</option></select></div>
+        <div class="mode-field"><label data-i18n="mode">运行模式</label><select id="mode"><option value="api" data-i18n="liveApi">在线 API</option><option value="stub" data-i18n="offlineStub">离线模拟</option></select></div>
       </section>
       <section class="metrics" aria-label="Diagnostics overview">
-        <article><span data-i18n="calls">调用次数</span><strong id="metric-calls">0</strong><small id="metric-success">0 successful</small></article>
-        <article><span data-i18n="tokens">Token 总量</span><strong id="metric-tokens">0</strong><small id="metric-token-detail">0 in / 0 out</small></article>
+        <article><span data-i18n="calls">调用次数</span><strong id="metric-calls">0</strong><small id="metric-success">0 次成功</small></article>
+        <article><span data-i18n="tokens">Token 总量</span><strong id="metric-tokens">0</strong><small id="metric-token-detail">0 输入 / 0 输出</small></article>
         <article><span data-i18n="latency">平均延迟</span><strong id="metric-latency">0 ms</strong><small data-i18n="last200">最近 200 次调用</small></article>
-        <article><span data-i18n="failures">失败调用</span><strong id="metric-failures">0</strong><small id="metric-health">No failures</small></article>
+        <article><span data-i18n="failures">失败调用</span><strong id="metric-failures">0</strong><small id="metric-health">无失败</small></article>
       </section>
       <section id="connections" class="panel">
         <div class="panel-head"><div><h2 data-i18n="connections">API 连接</h2><p data-i18n="connectionsHelp">连接可被多个智能体复用，密钥不需要重复填写。</p></div><div class="toolbar"><select id="new-provider"><option value="deepseek">DeepSeek</option><option value="qwen">Qwen / DashScope</option><option value="custom">Custom</option></select><button id="add-connection" class="secondary" type="button" data-i18n="addConnection">添加连接</button></div></div>
@@ -54,6 +54,6 @@
     </main>
   </div>
   <footer class="save-bar"><span id="save-message" data-i18n="loaded">配置已载入。</span><button id="save-settings" class="primary" type="button" data-i18n="save">保存并应用</button></footer>
-  <script src="/static/settings.js?v=2"></script>
+  <script src="/static/settings.js?v=4"></script>
 </body>
 </html>

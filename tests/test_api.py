@@ -32,7 +32,8 @@ class ApiTest(unittest.TestCase):
         self.assertIn("locations", world)
         self.assertIn("player", world)
         self.assertIn("scene", world)
-        self.assertEqual(world["scene"]["location"]["name"], "Keeper's Cottage")
+        self.assertEqual(world["scene"]["location"]["name"], "Storm Shore")
+        self.assertIn("investigation team", world["scene"]["objective"])
         self.assertGreater(len(world["scene"]["suggestions"]), 1)
 
     def test_game_shell_exposes_shared_chinese_english_locale(self):
@@ -40,9 +41,97 @@ class ApiTest(unittest.TestCase):
         locale = self.client.get("/static/i18n.js").text
         self.assertIn('id="game-language"', page)
         self.assertIn('data-i18n="worldStable"', page)
-        self.assertIn('src="/static/i18n.js?v=1"', page)
+        self.assertIn('src="/static/i18n.js?v=6"', page)
         self.assertIn('localStorage.getItem("everstory_locale")', locale)
         self.assertIn("证明灯塔遭到人为破坏", locale)
+        self.assertIn('"lighthouse_lit": "灯塔已点亮"', locale)
+        self.assertIn("You move to the", locale)
+
+    def test_chinese_locale_controls_runtime_and_team_outputs(self):
+        turn = self.client.post(
+            "/api/turn",
+            json={"text": "move to lighthouse_ground", "locale": "zh-CN"},
+        )
+        self.assertEqual(turn.status_code, 200)
+        self.assertIn("你", turn.json()["reply"])
+
+        team = self.client.post(
+            "/api/agents/chat",
+            json={"text": "检查当前位置", "locale": "zh-CN"},
+        )
+        self.assertEqual(team.status_code, 200)
+        agent_messages = [
+            item["text"] for item in team.json()["new_messages"] if not item["human"]
+        ]
+        self.assertTrue(agent_messages)
+        self.assertTrue(any("我" in text or "假设" in text for text in agent_messages))
+
+        gameplay = self.client.get("/static/gameplay-core.js").text
+        team_script = self.client.get("/static/team-chat.js").text
+        self.assertIn("EverStoryI18n?.locale()", gameplay)
+        self.assertIn("EverStoryI18n?.locale()", team_script)
+
+    def test_console_navigation_preserves_the_game_tab(self):
+        game = self.client.get("/").text
+        console = self.client.get("/settings").text
+        gameplay = self.client.get("/static/gameplay-core.js").text
+        settings = self.client.get("/static/settings.js").text
+
+        self.assertIn('target="_blank"', game)
+        self.assertIn('rel="opener"', game)
+        self.assertNotIn('window.open("/settings"', gameplay)
+        self.assertIn('id="back-to-game"', console)
+        self.assertIn('href="/?resume=1"', console)
+        self.assertIn("window.opener.focus()", settings)
+        self.assertIn("window.close()", settings)
+
+    def test_large_workspace_shells_are_available(self):
+        page = self.client.get("/").text
+        team_css = self.client.get("/static/team-chat.css").text
+        ui_css = self.client.get("/static/ui-tweaks.css").text
+
+        self.assertIn('id="truth-backdrop"', page)
+        self.assertIn("width: min(1180px, calc(100vw - 48px))", team_css)
+        self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr))", ui_css)
+
+    def test_main_dialogue_is_separated_from_the_intel_rail(self):
+        page = self.client.get("/").text
+        ui_css = self.client.get("/static/ui-tweaks.css").text
+
+        self.assertIn('ui-tweaks.css?v=19', page)
+        self.assertIn("left: clamp(390px, 31vw, 470px)", ui_css)
+        self.assertIn("#messages { left: 7%; right: 7%; }", ui_css)
+        self.assertIn(".scene-presence:not(:has(.presence-card))", ui_css)
+        self.assertIn("left: 11%", ui_css)
+        self.assertIn("font-size: 16px", ui_css)
+        gameplay = self.client.get("/static/gameplay-core.js").text
+        app_script = self.client.get("/static/app.js").text
+        self.assertIn("worldNarrator", gameplay)
+        self.assertIn("assistant-speaker", gameplay)
+        self.assertNotIn('<rect x="4" y="8"', app_script)
+
+    def test_main_chat_shows_player_and_humanizes_shortcut_commands(self):
+        page = self.client.get("/").text
+        ui_css = self.client.get("/static/ui-tweaks.css").text
+        gameplay = self.client.get("/static/gameplay-core.js").text
+        app_script = self.client.get("/static/app.js").text
+
+        self.assertNotIn(".msg.user { display: none; }", ui_css)
+        self.assertIn(".user-message-content", ui_css)
+        self.assertIn("data-player-speaker", app_script)
+        self.assertIn("data-display", app_script)
+        self.assertIn("send(text, displayText = text)", gameplay)
+        self.assertIn('addMessage("user", displayText)', gameplay)
+        self.assertIn('gameplay-core.js?v=8', page)
+
+    def test_console_and_game_share_the_same_locale_values(self):
+        console = self.client.get("/settings").text
+        settings = self.client.get("/static/settings.js").text
+
+        self.assertIn('<option value="en">English</option>', console)
+        self.assertNotIn('<option value="en-US">', console)
+        self.assertIn('storedLocale==="en-US"?"en"', settings)
+        self.assertIn("window.opener.EverStoryI18n?.setLocale(locale)", settings)
 
     def test_signal_console_and_session_settings(self):
         self.assertEqual(self.client.get("/settings").status_code, 200)
@@ -206,6 +295,7 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(evidence["type"], "scene")
 
     def test_approved_agent_examine_and_interview_record_evidence(self):
+        self.client.post("/api/turn", json={"text": "move to cottage"})
         examine = self.client.post(
             "/api/agents/chat",
             json={"text": "@field examine the lantern."},
@@ -246,10 +336,21 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(task["agent_id"], "case_director")
         self.assertEqual(task["type"], "accuse")
         self.assertEqual(task["action"]["params"]["target"], "elias")
-        approved = self.client.post(f"/api/agents/tasks/{task['id']}/approve").json()
-        self.assertEqual(approved["action_result"]["type"], "accuse")
-        self.assertFalse(approved["world"]["flags"]["case_solved"])
-        self.assertIn("required evidence", approved["action_result"]["message"])
+        approved = self.client.post(f"/api/agents/tasks/{task['id']}/approve")
+        self.assertEqual(approved.status_code, 400)
+        self.assertIn("case board is not ready", approved.json()["error"])
+        self.assertFalse(self.client.get("/api/world").json()["flags"]["case_solved"])
+
+    def test_main_chat_routes_authoritative_evidence_to_team(self):
+        self.client.post("/api/turn", json={"text": "move to cottage"})
+        before = self.client.get("/api/world").json()
+        blocked = self.client.post(
+            "/api/turn", json={"text": "examine the annotated tide chart", "locale": "en"}
+        ).json()
+        self.assertFalse(blocked["events"][0]["ok"])
+        self.assertIn("Investigation Room", blocked["events"][0]["message"])
+        self.assertEqual(blocked["world"]["turn"], before["turn"])
+        self.assertFalse(blocked["world"]["flags"].get("verified_tide_timeline", False))
 
     def test_complete_multi_agent_sabotage_case_via_approval_pipeline(self):
         def propose_and_approve(text, task_type):
@@ -264,10 +365,10 @@ class ApiTest(unittest.TestCase):
 
         propose_and_approve("@field travel to Dock.", "travel")
         propose_and_approve("@field interview Elias Ward.", "interview")
-        for command in (
-            "move to cottage", "move to lighthouse_ground",
-        ):
-            self.client.post("/api/turn", json={"text": command})
+        self.client.post("/api/turn", json={"text": "move to cottage"})
+        propose_and_approve("@field interview Dr. Celia Thorne.", "interview")
+        propose_and_approve("@field examine the annotated tide chart.", "examine")
+        self.client.post("/api/turn", json={"text": "move to lighthouse_ground"})
         propose_and_approve("@field interview Mara.", "interview")
         for command in ("move to lighthouse_tower", "move to lantern_room"):
             self.client.post("/api/turn", json={"text": command})
@@ -279,6 +380,8 @@ class ApiTest(unittest.TestCase):
             self.client.post("/api/turn", json={"text": command})
         propose_and_approve("@field examine the salvage ledger.", "examine")
         self.client.post("/api/turn", json={"text": "move to dock"})
+        reviewed = propose_and_approve("@analyst review the confirmed case record.", "review_case")
+        self.assertTrue(reviewed["case_readiness"]["ready"])
         solved = propose_and_approve("@director accuse Elias Ward.", "accuse")
 
         self.assertTrue(solved["world"]["flags"]["case_solved"])
@@ -315,7 +418,7 @@ class ApiTest(unittest.TestCase):
         data = self.client.post("/api/turn", json={"text": "move to cave"}).json()
         self.assertFalse(data["events"][0]["ok"])
         self.assertEqual(
-            data["world"]["player"]["location_name"], "Keeper's Cottage"
+            data["world"]["player"]["location_name"], "Storm Shore"
         )
 
     def test_turn_applies_valid_action(self):
@@ -381,7 +484,7 @@ class ApiTest(unittest.TestCase):
         self.client.post("/api/reset")
         world = self.client.get("/api/world").json()
         self.assertEqual(world["turn"], 0)
-        self.assertEqual(world["player"]["location_name"], "Keeper's Cottage")
+        self.assertEqual(world["player"]["location_name"], "Storm Shore")
 
     def test_save_and_load(self):
         import tempfile
@@ -408,6 +511,27 @@ class ApiTest(unittest.TestCase):
                     "/api/load", json={"path": saves[0]["path"]}
                 ).json()
                 self.assertGreater(loaded["turn"], 0)
+            finally:
+                persistence.SAVES_DIR = original
+
+    def test_save_and_load_restores_main_conversation(self):
+        import tempfile
+        import everstory.persistence as persistence
+
+        original = persistence.SAVES_DIR
+        with tempfile.TemporaryDirectory() as tmp:
+            persistence.SAVES_DIR = tmp
+            try:
+                self.client.post("/api/turn", json={"text": "move to cottage"})
+                before = self.client.get("/api/conversation").json()["messages"]
+                self.assertEqual([item["role"] for item in before], ["user", "assistant"])
+                self.assertEqual(before[1]["speaker_id"], "world_narrator")
+                self.client.post("/api/save", json={"name": "conversation"})
+                self.client.post("/api/turn", json={"text": "wait"})
+                save_path = self.client.get("/api/saves").json()["saves"][0]["path"]
+                self.client.post("/api/load", json={"path": save_path})
+                restored = self.client.get("/api/conversation").json()["messages"]
+                self.assertEqual(restored, before)
             finally:
                 persistence.SAVES_DIR = original
 

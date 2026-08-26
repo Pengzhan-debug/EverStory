@@ -36,9 +36,15 @@ Rules:
 def parse_actions(
     text: str, world_summary: str, client, model: str | None = None
 ) -> list[dict]:
+    # UI shortcuts and explicit command syntax are already unambiguous. Parse
+    # them deterministically in every mode instead of paying for an LLM call
+    # that can rename an ID or reinterpret a valid route.
+    structured = parse_structured(text)
+    if structured:
+        return structured
     model = model or LLM_STRONG_MODEL
     if client.mode == "stub":
-        return parse_structured(text)
+        return []
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {

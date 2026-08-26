@@ -11,10 +11,32 @@ function esc(s) {
 }
 
 const BOT_AVATAR =
-  '<span class="avatar bot-avatar">' +
-  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-  '<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8"/><circle cx="9" cy="13" r="1" fill="currentColor"/><circle cx="15" cy="13" r="1" fill="currentColor"/></svg>' +
-  "</span>";
+  '<span class="avatar bot-avatar named-avatar">ES</span>';
+
+function actionText(kind, label) {
+  const localized = tv(label);
+  const chinese = window.EverStoryI18n?.locale() === "zh-CN";
+  const formats = chinese
+    ? { talk: `与 ${localized} 交谈`, take: `拿取${localized}`, open: `打开${localized}`, move: `前往${localized}` }
+    : { talk: `Talk to ${localized}`, take: `Take ${localized}`, open: `Open ${localized}`, move: `Travel to ${localized}` };
+  return formats[kind] || localized;
+}
+
+function displayForCommand(command) {
+  const suggestion = world?.scene?.suggestions?.find((item) => item.command === command);
+  if (suggestion) return tv(suggestion.label);
+  const match = String(command || "").match(/^(talk to|move to|take|open)\s+(.+)$/i);
+  if (!match) return command;
+  const kind = { "talk to": "talk", "move to": "move", take: "take", open: "open" }[match[1].toLowerCase()];
+  const id = match[2];
+  const entity = kind === "talk"
+    ? world?.characters?.find((item) => item.id === id)
+    : kind === "move"
+      ? world?.locations?.find((item) => item.id === id)
+      : world?.items?.find((item) => item.id === id);
+  return entity ? actionText(kind, entity.name) : command;
+}
+window.displayForCommand = displayForCommand;
 
 function addMessage(role, text) {
   const el = document.createElement("div");
@@ -23,14 +45,21 @@ function addMessage(role, text) {
     el.innerHTML = `<div class="sys-pill">${esc(text)}</div>`;
   } else {
     el.className = `msg ${role}`;
-    const avatar =
-      role === "assistant"
-        ? BOT_AVATAR
-        : '<span class="avatar user-avatar">YOU</span>';
-    el.innerHTML = `${avatar}<div class="bubble">${esc(text)}</div>`;
+    if (role === "user") {
+      el.innerHTML = `
+        <div class="user-message-content">
+          <div class="user-speaker" data-player-speaker="true"><span>${tr("leadInvestigator")}</span><strong>${tr("you")}</strong></div>
+          <div class="bubble">${esc(text)}</div>
+        </div>
+        <span class="avatar user-avatar named-avatar">${tr("youShort")}</span>`;
+    } else {
+      el.innerHTML = `${BOT_AVATAR}<div class="bubble">${esc(text)}</div>`;
+    }
+    el.querySelector(".bubble").dataset.rawText = text;
   }
   $("#messages").appendChild(el);
   $("#messages").scrollTop = $("#messages").scrollHeight;
+  return el;
 }
 
 function render() {
@@ -42,16 +71,18 @@ function render() {
   renderQuests(world.quests);
   renderLog(world.history);
   renderScene(world.scene);
-  $("#mode-chip").textContent = `${tr("turn")} ${world.turn} · ${tr("time")} ${world.time}`;
+  $("#mode-chip").textContent = window.EverStoryI18n?.locale() === "zh-CN"
+    ? `回合 ${world.turn} · 时间 ${world.time}`
+    : `TURN ${world.turn} · TIME ${world.time}`;
   const locChip = $("#loc-chip");
   if (locChip) locChip.textContent = tv(world.player.location_name);
   const banner = $("#ending-banner");
   if (banner) {
     if (world.flags && world.flags.ending) {
       banner.hidden = false;
-      banner.innerHTML =
-        `★ Ending unlocked — the lighthouse burns again and the keeper's secret is told. ` +
-        `Completed in <b>${world.turn}</b> turns.`;
+      banner.innerHTML = window.EverStoryI18n?.locale() === "zh-CN"
+        ? `★ 案件终章——破坏者已经认罪，灯塔重新燃起，守塔人的秘密也终于揭晓。共用 <b>${world.turn}</b> 回合完成。`
+        : `★ Case closed — the saboteur has confessed, the lighthouse burns again, and the keeper's secret is finally known. Completed in <b>${world.turn}</b> turns.`;
     } else {
       banner.hidden = true;
     }
@@ -64,9 +95,9 @@ function renderPlayer(player) {
     .join("");
   $("#player-card").innerHTML = `
     <div class="player-row">
-      <span class="avatar user-avatar big">YOU</span>
+      <span class="avatar user-avatar big">${tr("youShort")}</span>
       <div class="player-info">
-        <div class="player-name">${esc(player.name)}</div>
+        <div class="player-name">${esc(tv(player.name))}</div>
         <div class="player-loc">📍 ${esc(tv(player.location_name))}</div>
       </div>
     </div>
@@ -77,11 +108,24 @@ function renderPlayer(player) {
 }
 
 function renderFacts(world) {
+  const english = window.EverStoryI18n?.locale() === "en";
+  const entityName = (id) => {
+    if (id === "player") return tv(world.player?.name || "You");
+    return tv(world.characters?.find((item) => item.id === id)?.name || id);
+  };
   const flags = Object.entries(world.flags || {})
-    .map(([k, v]) => `<li><b>${esc(k)}</b>: ${esc(String(v))}</li>`)
+    .map(([k, v]) => {
+      const label = english
+        ? k.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase())
+        : tv(k);
+      const value = typeof v === "boolean"
+        ? (v ? tr("yes") : tr("no"))
+        : entityName(String(v));
+      return `<li><b>${esc(label)}</b>: ${esc(value)}</li>`;
+    })
     .join("");
   const rels = (world.relationships || [])
-    .map((r) => `<li><span class="rel-type">${esc(r.type)}</span> ${esc(r.from)} → ${esc(r.to)}</li>`)
+    .map((r) => `<li><span class="rel-type">${esc(tv(r.type))}</span> ${esc(entityName(r.from))} → ${esc(entityName(r.to))}</li>`)
     .join("");
   $("#facts-card").innerHTML = `
     <div class="card-head"><h3>${tr("worldState")}</h3><span class="chip mono">${esc(world.state_hash)}</span></div>
@@ -104,16 +148,16 @@ function renderScene(scene) {
   if (presence) {
     const characters = (scene.characters || []).map(
       (character) => `
-        <button class="presence-card character" type="button" data-command="talk to ${esc(character.id)}">
+        <button class="presence-card character" type="button" data-command="talk to ${esc(character.id)}" data-display="${esc(actionText("talk", character.name))}">
           <span class="presence-glyph">${esc(character.name.slice(0, 1))}</span>
-          <span><strong>${esc(character.name)}</strong><small>${esc(character.description || tr("someoneWaits"))}</small></span>
+          <span><strong>${esc(character.name)}</strong><small>${esc(tv(character.description || tr("someoneWaits")))}</small></span>
         </button>`
     );
     const items = (scene.items || []).map(
       (item) => `
-        <button class="presence-card item" type="button" data-command="${item.locked ? `open ${esc(item.id)}` : `take ${esc(item.id)}`}">
+        <button class="presence-card item" type="button" data-command="${item.locked ? `open ${esc(item.id)}` : `take ${esc(item.id)}`}" data-display="${esc(actionText(item.locked ? "open" : "take", item.name))}">
           <span class="presence-glyph">◇</span>
-          <span><strong>${esc(tv(item.name))}</strong><small>${esc(item.description || (item.locked ? tr("itIsLocked") : tr("availableInspect")))}</small></span>
+          <span><strong>${esc(tv(item.name))}</strong><small>${esc(tv(item.description || (item.locked ? tr("itIsLocked") : tr("availableInspect"))))}</small></span>
         </button>`
     );
     presence.innerHTML = [...characters, ...items].join("");
@@ -124,7 +168,7 @@ function renderScene(scene) {
     actions.innerHTML = (scene.suggestions || [])
       .map(
         (action, index) => `
-          <button class="action-choice" type="button" data-command="${esc(action.command)}">
+          <button class="action-choice" type="button" data-command="${esc(action.command)}" data-display="${esc(tv(action.label))}">
             <span>${index + 1}</span>${esc(tv(action.label))}
           </button>`
       )
@@ -141,8 +185,8 @@ function toggleJournal() {
       <div class="modal-backdrop"></div>
       <section class="journal-sheet" role="dialog" aria-modal="true" aria-labelledby="journal-title">
         <button class="modal-close" type="button" aria-label="Close journal">×</button>
-        <div class="eyebrow">INVESTIGATION RECORD</div>
-        <h2 id="journal-title">The Keeper's Journal</h2>
+        <div class="eyebrow" data-i18n="investigationRecord">${tr("investigationRecord")}</div>
+        <h2 id="journal-title" data-i18n="keepersJournal">${tr("keepersJournal")}</h2>
         <div id="journal-content"></div>
       </section>`;
     document.body.appendChild(modal);
@@ -157,7 +201,7 @@ function toggleJournal() {
     const history = [...(world.history || [])]
       .reverse()
       .slice(0, 12)
-      .map((entry) => `<li><span>#${entry.turn}</span>${esc(entry.message)}</li>`)
+      .map((entry) => `<li><span>#${entry.turn}</span>${esc(tv(entry.message))}</li>`)
       .join("");
     modal.querySelector("#journal-content").innerHTML = `
       <h3>${tr("activeLead")}</h3><p>${esc(tv(world.scene?.objective || "Follow the evidence"))}</p>
@@ -177,7 +221,7 @@ function renderMap(locations) {
     .filter(Boolean)
     .map(
       (location) => `
-        <button class="route-card" type="button" data-command="move to ${esc(location.id)}">
+        <button class="route-card" type="button" data-command="move to ${esc(location.id)}" data-display="${esc(actionText("move", location.name))}">
           <span class="route-direction">${tr("route")}</span>
           <strong>${esc(tv(location.name))}</strong>
           <span class="route-arrow">→</span>
@@ -206,10 +250,11 @@ function renderMap(locations) {
 function renderEntities(world) {
   const byId = {};
   world.locations.forEach((l) => (byId[l.id] = l.name));
+  world.items.forEach((item) => (byId[item.id] = item.name));
   const chars = world.characters
     .map(
       (c) =>
-        `<li><span class="dot char"></span><b>${esc(c.name)}</b> <span class="muted">@ ${esc(tv(byId[c.location_id] || "?"))}</span></li>`
+        `<li><span class="dot char"></span><b>${esc(tv(c.name))}</b> <span class="muted">@ ${esc(tv(byId[c.location_id] || "?"))}</span></li>`
     )
     .join("");
   const items = world.items
@@ -217,7 +262,7 @@ function renderEntities(world) {
       let where = "inventory";
       if (it.owner_id) {
         const owner = world.characters.find((c) => c.id === it.owner_id);
-        where = `${tr("ownedBy")} ${owner ? owner.name : it.owner_id}`;
+        where = `${tr("ownedBy")} ${tv(owner ? owner.name : it.owner_id)}`;
       } else if (it.location_id) {
         where = byId[it.location_id] || it.location_id;
       }
@@ -257,7 +302,7 @@ function renderLog(history) {
     .reverse()
     .map(
       (h) =>
-        `<li class="log-row ${h.ok ? "ok" : "rej"}"><span class="log-turn">#${h.turn}</span><span class="log-dot ${h.ok ? "ok" : "rej"}"></span>${esc(h.message)}</li>`
+        `<li class="log-row ${h.ok ? "ok" : "rej"}"><span class="log-turn">#${h.turn}</span><span class="log-dot ${h.ok ? "ok" : "rej"}"></span>${esc(tv(h.message))}</li>`
     )
     .join("");
   $("#log").innerHTML =
@@ -271,11 +316,24 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   window.addEventListener("everstory:locale", () => {
     render();
+    document.querySelectorAll("#messages .bubble[data-raw-text]").forEach((bubble) => {
+      bubble.textContent = tv(bubble.dataset.rawText);
+    });
+    document.querySelectorAll('[data-player-speaker="true"]').forEach((speaker) => {
+      speaker.querySelector("span").textContent = tr("leadInvestigator");
+      speaker.querySelector("strong").textContent = tr("you");
+      speaker.closest(".msg.user")?.querySelector(".user-avatar")?.replaceChildren(tr("youShort"));
+    });
+    document.querySelectorAll("#messages .msg.user[data-command]").forEach((message) => {
+      const label = displayForCommand(message.dataset.command);
+      const bubble = message.querySelector(".bubble");
+      if (bubble) bubble.textContent = label;
+    });
     const welcome = $("#messages .msg.system .sys-pill");
     if (welcome) {
       welcome.textContent = window.EverStoryI18n?.locale() === "zh-CN"
-        ? "欢迎来到《失落灯塔》。你可以自由输入，例如：前往码头。"
-        : "Welcome to The Lost Lighthouse. Type anything — e.g. “move to the cave”.";
+        ? "风暴把你冲上盐岩岛。先寻找庇护，并打开联合调查室（G）与调查员建立联系；关键证据必须由团队复核。"
+        : "The storm has cast you onto Saltrock Island. Find shelter and open the Investigation Room (G) to contact your team; critical evidence requires team review.";
     }
   });
   $("#game-language")?.addEventListener("change", (event) => {
@@ -285,7 +343,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const action = event.target.closest("[data-command]");
     if (!action) return;
     const command = action.dataset.command;
-    if (command && window.EverStory) window.EverStory.send(command).catch(() => {});
+    const displayText = action.dataset.display || action.textContent.trim().replace(/^\d+\s*/, "");
+    if (command && window.EverStory) window.EverStory.send(command, displayText).catch(() => {});
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && $("#journal-modal")?.classList.contains("open")) {
@@ -306,7 +365,7 @@ document.addEventListener("DOMContentLoaded", () => {
   addMessage(
     "system",
     window.EverStoryI18n?.locale() === "zh-CN"
-      ? "欢迎来到《失落灯塔》。你可以自由输入，例如：前往码头。"
-      : "Welcome to The Lost Lighthouse. Type anything — e.g. “move to the cave”."
+      ? "风暴把你冲上盐岩岛。先寻找庇护，并打开联合调查室（G）与调查员建立联系；关键证据必须由团队复核。"
+      : "The storm has cast you onto Saltrock Island. Find shelter and open the Investigation Room (G) to contact your team; critical evidence requires team review."
   );
 });

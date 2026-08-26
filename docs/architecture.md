@@ -21,7 +21,7 @@ precondition checks before deterministic effects are applied.
 user text / LLM intent
         |
         v
-action proposal  (typed: move/take/give/use/open/talk/wait)
+action proposal  (typed: move/take/give/use/open/talk/examine/accuse/wait)
         |
         v
 precondition checks  (declarative rule DSL)
@@ -38,7 +38,35 @@ event recorded + state snapshot (turn-versioned, rollback/branch capable)
 narration generated from the *actual* state delta (grounded, optional judge)
 ```
 
-## 4. State model
+## 4. Multi-agent investigation boundary
+
+```text
+Lead Investigator (human)
+        |
+        v
+group discussion  <---->  Director / Field / Analyst / Skeptic
+  (hypotheses only)           |      mutual challenges
+        |                     v
+        +------------ structured task proposal
+                              |
+                       player approval
+                              |
+                    scene + stale-task validation
+                              |
+                  deterministic WorldSession.act
+                              |
+          evidence record (source / task / location / turn)
+                              |
+       3 examinations + 3 testimonies + analyst corroboration
+                              |
+                  director accusation gate
+```
+
+The normal narration chat cannot execute `examine` or `accuse`; those two
+authoritative operations must pass through the investigation task protocol.
+The team chat itself never receives a world mutation handle.
+
+## 5. State model
 
 - **Entity** — id, kind (character/item/location/quest/concept), name,
   description, attributes (JSON), location, owner.
@@ -50,7 +78,7 @@ narration generated from the *actual* state delta (grounded, optional judge)
 Entities and relationships are loaded from declarative TOML world files, so a
 new world is data, not code.
 
-## 5. Rule DSL
+## 6. Rule DSL
 
 Actions are declared as rules with two parts:
 
@@ -65,7 +93,7 @@ actions (`use`, `open`) dispatch to world-driven handlers keyed on entity
 attributes (`unlock_key`, `contains`, `fill_with`, `light_with`), so new
 interactions can be authored without engine changes.
 
-## 6. Why this survives long horizons
+## 7. Why this survives long horizons
 
 - The LLM never holds state; it is given a *rendering* of it each turn.
 - Rejected actions produce deterministic reasons ("The chest is locked."),
@@ -73,13 +101,14 @@ interactions can be authored without engine changes.
 - Every turn is versioned, so contradictions are detectable and recoverable.
 - Narration is grounded in state deltas, not model memory.
 
-## 7. Implementation status
+## 8. Implementation status
 
 - **Implemented**: engine core, rule DSL, snapshots/rollback, LLM client
   (stub + OpenAI-compatible API), intent parser, grounded narrator,
-  consistency judge, entity-card/summary memory, FastAPI web UI with live
-  state inspector, a three-architecture evaluation harness, and symbolic
+  consistency judge, entity-card/summary memory, FastAPI/SSE web UI with live
+  state inspector, main/team transcript persistence, a multi-agent evidence
+  gate, a three-architecture evaluation harness, and symbolic
   world-model induction (rules learned from trajectories, with a held-out
   accuracy check and counterfactual predictions).
-- **Next**: branching from snapshots, NPC autonomy via LLM-proposed world
-  events, and persistent session storage (Postgres).
+- **Production follow-up**: durable sessions (Postgres/Redis), authentication,
+  rate limits, secret management, and multi-instance coordination.

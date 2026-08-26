@@ -533,6 +533,7 @@ class WorldSession:
         if (
             st.flags.get("lighthouse_lit")
             and st.flags.get("learned_secret")
+            and st.flags.get("case_solved")
             and not st.flags.get("ending")
         ):
             st.flags["ending"] = True

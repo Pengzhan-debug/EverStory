@@ -1,6 +1,6 @@
 # EverStory
 
-**A state-consistent, persistent AI world engine — now presented as an immersive AI RPG.**
+**A state-consistent, persistent multi-agent AI world engine — v1.0 portfolio release.**
 
 > [中文版 README](README.zh-CN.md)
 
@@ -11,6 +11,11 @@ The current web experience turns that engine into **The Lost Lighthouse**, a cin
 > **The core idea:** LLMs are unreliable at remembering and mutating state. **Don't let them. Separate generation from truth.**
 
 ## 📷 Product tour
+
+![EverStory 60-second product loop](docs/assets/readme/everstory-demo.gif)
+
+The demo above is generated from checked-in product captures with
+`python scripts/build_demo_gif.py`, so the repository preview is reproducible.
 
 ### Cinematic, state-aware game interface
 
@@ -48,9 +53,9 @@ Each investigation and runtime role can use an independent or shared OpenAI-comp
 - **Fact checking** — generated narration is checked against the state delta and can be retried when it contradicts the world.
 - **Cinematic web UI** — The Lost Lighthouse theme adds atmospheric ocean, fog, lighthouse beacon, storm particles, cinematic transitions, story HUD and immersive input.
 - **Multi-agent investigation room** — a Director, Field Investigator, Analyst and Skeptic discuss the case with distinct identities and can challenge one another.
-- **Human-in-the-loop action approval** — agents propose typed `travel`, `interview`, `examine`, and `accuse` actions; nothing changes until the player approves, then the deterministic engine validates and executes the action.
+- **Human-in-the-loop action approval** — agents propose typed `travel`, `interview`, `examine`, and `accuse` actions; critical evidence examination and formal accusations cannot bypass the Investigation Room, and every approved action is revalidated by the deterministic engine.
 - **Case evidence board** — confirmed scenes, objects and people remain separate from agent hypotheses and survive save/load.
-- **Complete mystery loop** — three suspects, contradictory testimony, physical clues, evidence-gated accusations, and a deterministic culprit/confession make the lighthouse case solvable rather than merely conversational.
+- **Complete mystery loop** — the player washes ashore, gathers three testimonies and three physical/timeline links, requests analyst corroboration, restores the lighthouse, and reaches one deterministic culprit/confession ending.
 - **Model signal console** — configure multiple OpenAI-compatible providers, route each agent independently, test connections, and inspect latency/token diagnostics.
 - **Shared Chinese / English interface** — the game shell and model console share one locale preference; HUD, maps, objectives, known items and the investigation room update immediately without changing engine IDs.
 - **World Inspector** — live turn/time, entities, items, quests, event log and state-oriented debugging remain available without breaking immersion.
@@ -142,6 +147,18 @@ The LLM never holds or mutates authoritative state. It receives a rendering of t
 
 ## 🚀 Quick start
 
+### Docker (fastest)
+
+```bash
+docker compose up --build
+# open http://127.0.0.1:8123
+```
+
+The container defaults to deterministic Stub mode. Copy `.env.example` to
+`.env` and set `LLM_MODE=api` only when you want live model calls.
+
+### Local Python
+
 ```bash
 # 0. Create a virtual environment and install the project
 python -m venv everstory-env
@@ -169,12 +186,13 @@ python -m unittest discover -s tests -v
 everstory-learn
 ```
 
-The suite includes a full offline acceptance path: agent-proposed travel, two interviews, two physical-evidence examinations, and an evidence-gated final accusation. It requires no API key.
+The suite includes a full offline acceptance path: agent-proposed travel, three interviews, three evidence examinations, analyst corroboration, and an evidence-gated final accusation. It requires no API key.
 
 ### Try the world
 
 ```text
 look
+move to cottage
 move to lighthouse_ground
 move to cliff_path
 move to cave
@@ -236,13 +254,20 @@ The browser layer is intentionally separated from the engine. The backend remain
 
 EverStory includes an evaluation harness that runs the same scripted episodes against three architectures — pure-LLM, summary-memory, and EverStory — measuring recall, rejection and token metrics. A second deterministic multi-agent benchmark measures proposal accuracy, approval safety, evidence grounding, stale-task rejection, memory persistence, case completion, and real per-agent token/latency usage in API mode.
 
+The v1.0 live DeepSeek multi-agent run passed with **100% proposal accuracy
+(8/8)**, **100% approval success (8/8)**, **100% evidence grounding (9/9)**,
+and **zero unauthorized world mutations**. It used 12 calls / 9,846 tokens at
+4.3 s average latency; the report includes per-agent usage.
+
 See:
 
 - [Architecture](docs/architecture.md)
 - [Evaluation report](docs/eval-report.md)
 - [Multi-agent investigation report](docs/eval-report-team.md)
+- [Live multi-agent model report](reports/eval-multi-agent-live.md)
 - [Learned rules](docs/learned-rules.md)
 - [Interview demo](docs/DEMO.md)
+- [Resume bullets and scope](docs/RESUME.md)
 - [Project status & roadmap](docs/ROADMAP.md)
 
 ## 🗂 Repository layout

@@ -1,46 +1,51 @@
-# EverStory project status and roadmap
+# EverStory v1.0 status and roadmap
 
-EverStory is currently a strong local portfolio prototype, not a production game service.
-This document keeps the public claims testable and makes the remaining work explicit.
+EverStory v1.0 is a GitHub- and resume-ready local portfolio release. It is a
+complete single-case game and engineering demonstration, not yet a production
+multiplayer service.
 
-## Implemented
+## v1.0 acceptance status
 
-- Deterministic world state, typed actions, validation, snapshots and rollback
-- Grounded narration plus consistency checking
-- Multi-agent investigation chat with named roles and mutual challenges
-- Human approval for structured investigation proposals
-- Engine-confirmed evidence board with task/source/turn provenance
-- Versioned save/load for both world state and investigation memory
-- Per-agent OpenAI-compatible API routing, connection tests and diagnostics
-- Offline Stub mode and 67 deterministic automated tests
-- Responsive cinematic web UI and two declarative worlds
-- Evaluation harness and symbolic rule induction from trajectories
+- [x] Storm Shore narrative opening with clear onboarding
+- [x] Deterministic world state, typed actions, validation, snapshots/rollback
+- [x] Grounded narration, language guard, and consistency checking
+- [x] Named four-agent investigation chat with mutual challenges
+- [x] Player-approved travel, interview, examination, review, and accusation
+- [x] Main chat cannot bypass critical evidence or accusation approval
+- [x] Six primary evidence links plus Case Analyst corroboration gate
+- [x] Unified ending requires case resolution, lighthouse restoration, and secret
+- [x] Conversation, team tasks, evidence, and world state survive save/load
+- [x] Per-agent OpenAI-compatible routing, tests, latency, Token diagnostics
+- [x] Shared Chinese/English UI and model-output language enforcement
+- [x] 91 deterministic tests on Python 3.11/3.12 CI
+- [x] Live DeepSeek multi-agent benchmark with per-agent cost/latency metrics
+- [x] Docker/Compose, Render blueprint, demo GIF, screenshots, resume notes
 
-## GitHub-ready milestone
+## Verified v1.0 measurements
 
-- [x] Reproducible offline quick start
-- [x] Automated CI on Python 3.11 and 3.12
-- [x] License, architecture notes, evaluation reports and interview demo
-- [x] No API keys returned to the browser or committed to the repository
-- [ ] Add a 60–90 second demo GIF/video and three annotated screenshots
-- [ ] Add Docker support or a one-command hosted demo
-- [ ] Confirm CI is green on the public repository
-- [ ] Add an architecture diagram that includes the investigation agents
+- Structured task proposal accuracy: 100% (8/8)
+- Approved action success: 100% (8/8)
+- Evidence grounding: 100% (9/9)
+- Unauthorized world mutations: 0
+- Real model usage: 12 calls, 9,846 tokens, 4.3 s average latency
 
-## Resume-ready v1 milestone
+See `reports/eval-multi-agent-live.md` for the reproducible report.
 
-- [ ] Complete one end-to-end mystery path driven by agent proposals and player approvals
-- [ ] Add approved world actions: travel, NPC interview and item examination
-- [ ] Evaluate multi-agent value against a single-agent baseline: solve rate, contradiction rate, cost and latency
-- [ ] Add long-session tests for chat/task/evidence memory and save compatibility
-- [ ] Provide a public demo with safe rate limits and server-side secret management
-- [ ] Record a concise technical walkthrough covering tradeoffs and failure cases
+## Production roadmap (not claimed as implemented)
 
-## Current limitations
+1. Replace process-local sessions and settings with Postgres/Redis storage.
+2. Add authentication, per-user quotas, server-side secret storage, and rate limits.
+3. Add browser-level Playwright CI for the full bilingual investigation path.
+4. Add branching cases and authoring tools for declarative TOML worlds.
+5. Compare the four-agent workflow with a controlled single-agent baseline on
+   solve rate, contradiction rate, cost, and player-rated usefulness.
 
-- Agent-approved tasks currently inspect or review authoritative state; they do not autonomously move characters or mutate the world.
-- Evidence extraction is deterministic and scene-oriented; richer hypothesis/evidence graphs are planned.
-- Runtime sessions are process-local and capped; production deployment needs durable storage and authentication.
-- The Live API experience depends on the configured provider's availability and rate limits.
+## Honest limitations
 
-The priority is depth and evidence of engineering judgment—not adding more agents, worlds, or visual effects before the core investigation loop is measurable.
+- One mystery has the fully authored multi-agent ending; Ghost Train remains an
+  engine-content example rather than an equally polished campaign.
+- Runtime sessions are process-local and capped, so horizontal scaling is not
+  safe without durable shared storage.
+- Live model quality and latency depend on the configured provider.
+- The checked-in Render blueprint defaults to offline Stub mode; a live public
+  deployment still needs the owner's provider key and operational safeguards.

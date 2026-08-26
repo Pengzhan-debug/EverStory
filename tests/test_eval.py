@@ -110,12 +110,12 @@ class EvalTest(unittest.TestCase):
 
         client.chat = metered_chat
         result = run_team_eval(client, provider="metered")
-        self.assertEqual(result.calls, 9)
-        self.assertEqual(result.prompt_tokens, 90)
-        self.assertEqual(result.completion_tokens, 45)
-        self.assertEqual(result.per_agent["field_investigator"]["calls"], 6)
+        self.assertEqual(result.calls, 12)
+        self.assertEqual(result.prompt_tokens, 120)
+        self.assertEqual(result.completion_tokens, 60)
+        self.assertEqual(result.per_agent["field_investigator"]["calls"], 8)
         self.assertEqual(result.per_agent["case_director"]["calls"], 1)
-        self.assertEqual(result.per_agent["case_analyst"]["calls"], 1)
+        self.assertEqual(result.per_agent["case_analyst"]["calls"], 2)
         self.assertEqual(result.per_agent["skeptic"]["calls"], 1)
 
 

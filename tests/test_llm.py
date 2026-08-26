@@ -4,11 +4,20 @@ from unittest.mock import Mock, patch
 from everstory.engine import WorldSession
 from everstory.llm.client import LLMClient
 from everstory.llm.intent import parse_actions
+from everstory.llm.language import ensure_output_locale, guarded_stream, matches_locale
 from everstory.pipeline import TurnPipeline
 from everstory.worlds import load_world
 
 
 class IntentTest(unittest.TestCase):
+    def test_explicit_command_bypasses_live_intent_model(self):
+        client = LLMClient(mode="api", api_key="unused")
+        client.chat = lambda *args, **kwargs: self.fail("explicit command called the LLM")
+        self.assertEqual(
+            parse_actions("move to cottage", "world", client),
+            [{"type": "move", "params": {"to": "cottage"}}],
+        )
+
     def setUp(self):
         self.client = LLMClient(mode="stub")
 
@@ -113,6 +122,33 @@ class IntentTest(unittest.TestCase):
         self.assertEqual(post.call_args.args[0], "https://analyst.test/v1/chat/completions")
         self.assertEqual(post.call_args.kwargs["json"]["model"], "analysis-model")
         self.assertEqual(client.call_history[-1]["prompt_tokens"], 5)
+
+
+class LanguageGuardTest(unittest.TestCase):
+    def test_detects_material_output_language(self):
+        self.assertTrue(matches_locale("灯塔外的海浪正在上涨。", "zh-CN"))
+        self.assertFalse(matches_locale("The tide is rising outside the lighthouse.", "zh-CN"))
+        self.assertTrue(matches_locale("The tide is rising outside the lighthouse.", "en"))
+
+    def test_repairs_a_wrong_language_response(self):
+        client = Mock()
+        client.chat.return_value = "潮水正在上涨。"
+        result = ensure_output_locale(
+            client, "The tide is rising.", "zh-CN", agent="narrator"
+        )
+        self.assertEqual(result, "潮水正在上涨。")
+        client.chat.assert_called_once()
+
+    def test_wrong_language_stream_is_buffered_before_repair(self):
+        client = Mock()
+        client.chat.return_value = "守塔人拒绝继续猜测。"
+        chunks = guarded_stream(
+            client,
+            iter(["The keeper ", "refuses to speculate."]),
+            "zh-CN",
+            agent="npc_dialogue",
+        )
+        self.assertEqual(list(chunks), ["守塔人拒绝继续猜测。"])
 
 
 class PipelineTest(unittest.TestCase):
