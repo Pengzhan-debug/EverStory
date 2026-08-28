@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from everstory.config import build_client
+from everstory.config import ARK_MODEL_CONNECTIONS, build_client
 
 
 class ConfigTest(unittest.TestCase):
@@ -11,6 +11,7 @@ class ConfigTest(unittest.TestCase):
             for k in os.environ
             if k.startswith("LLM_STRONG")
             or k.startswith("LLM_CHEAP")
+            or k.startswith("ARK_")
             or k in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL_STRONG", "LLM_MODEL_CHEAP")
         ]:
             del os.environ[key]
@@ -51,6 +52,25 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(client.strong_api_key, "klegacy")
         self.assertEqual(client.strong_model, "legacy-strong")
         self.assertEqual(client.cheap_model, "legacy-cheap")
+
+    def test_ark_catalog_uses_per_model_keys_and_routes_agents_by_capability(self):
+        os.environ["ARK_ENABLE_CATALOG"] = "true"
+        for index, (_, _, api_key_env, _) in enumerate(ARK_MODEL_CONNECTIONS.values()):
+            os.environ[api_key_env] = f"test-key-{index}"
+        client = build_client(mode="stub")
+        ark_connections = {
+            key: value for key, value in client.connections.items()
+            if value.get("provider") == "volcengine_ark"
+        }
+        self.assertEqual(len(ark_connections), 7)
+        self.assertEqual(len({value["api_key"] for value in ark_connections.values()}), 7)
+        self.assertEqual(ark_connections["ark_kimi_k27_code"]["model"], "kimi-k2.7-code")
+        self.assertEqual(client.agent_routes["case_director"], "ark_deepseek_v4_pro")
+        self.assertEqual(client.agent_routes["field_investigator"], "ark_doubao_seed_20_lite")
+        self.assertEqual(client.agent_routes["intent_parser"], "ark_doubao_seed_20_lite")
+        self.assertEqual(client.agent_routes["consistency_judge"], "ark_deepseek_v4_flash")
+        self.assertEqual(client.agent_routes["narrator"], "ark_minimax_m3")
+        self.assertEqual(client.agent_routes["npc_dialogue"], "ark_doubao_seed_20_lite")
 
 
 if __name__ == "__main__":

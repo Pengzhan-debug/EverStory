@@ -10,6 +10,7 @@ from __future__ import annotations
 import time
 import json
 from collections import deque
+from datetime import datetime, timezone
 
 from ..config import (
     LLM_CHEAP_API_KEY,
@@ -19,6 +20,7 @@ from ..config import (
     LLM_STRONG_API_KEY,
     LLM_STRONG_BASE_URL,
     LLM_STRONG_MODEL,
+    PLATFORM_SESSION_TOKEN_LIMIT,
 )
 
 
@@ -39,7 +41,10 @@ class LLMClient:
         cheap_base_url: str | None = None,
         cheap_api_key: str | None = None,
         connections: dict[str, dict] | None = None,
+        platform_catalog: dict[str, dict] | None = None,
         agent_routes: dict[str, str] | None = None,
+        platform_token_limit: int | None = None,
+        default_credential_source: str = "platform",
     ) -> None:
         self.mode = (mode or LLM_MODE).lower()
         self.base_url = base_url or LLM_STRONG_BASE_URL
@@ -51,19 +56,50 @@ class LLMClient:
         self.strong_api_key = strong_api_key or self.api_key
         self.cheap_base_url = (cheap_base_url or self.base_url).rstrip("/")
         self.cheap_api_key = cheap_api_key or self.api_key
-        self.connections = connections or {
+        raw_connections = connections or {
             "reasoning": {
                 "name": "Reasoning API",
                 "base_url": self.strong_base_url,
                 "api_key": self.strong_api_key,
                 "model": self.strong_model,
+                "credential_source": default_credential_source,
             },
             "story": {
                 "name": "Story API",
                 "base_url": self.cheap_base_url,
                 "api_key": self.cheap_api_key,
                 "model": self.cheap_model,
+                "credential_source": default_credential_source,
             },
+        }
+        self.connections = {
+            connection_id: {
+                **connection,
+                "credential_source": (
+                    connection.get("credential_source")
+                    or connection.get("source")
+                    or (default_credential_source if connections is None else "personal")
+                ),
+                "input_cost_per_million": float(
+                    connection.get("input_cost_per_million") or 0
+                ),
+                "output_cost_per_million": float(
+                    connection.get("output_cost_per_million") or 0
+                ),
+            }
+            for connection_id, connection in raw_connections.items()
+        }
+        raw_catalog = platform_catalog or {
+            connection_id: connection
+            for connection_id, connection in self.connections.items()
+            if str(connection.get("credential_source") or default_credential_source).lower()
+            == "platform"
+        }
+        # The catalog keeps hosted models available for session-scoped
+        # activation without ever sending their credentials to the browser.
+        self.platform_catalog = {
+            connection_id: dict(connection)
+            for connection_id, connection in raw_catalog.items()
         }
         self.agent_routes = agent_routes or {
             "intent_parser": "reasoning",
@@ -76,7 +112,16 @@ class LLMClient:
             "field_investigator": "story",
         }
         self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
-        self.call_history = deque(maxlen=200)
+        self.call_history = deque(maxlen=2000)
+        self.platform_token_limit = (
+            PLATFORM_SESSION_TOKEN_LIMIT
+            if platform_token_limit is None
+            else max(0, int(platform_token_limit))
+        )
+        self._platform_tokens_consumed = 0
+        # A personal route never falls through to a hosted credential. Retried
+        # calls stay on the same resolved endpoint and key.
+        self.allow_platform_fallback = False
         self.stub_responder = None
 
     def resolve_route(
@@ -97,9 +142,35 @@ class LLMClient:
                 str(connection.get("api_key") or ""),
                 str(connection.get("model") or model or self.cheap_model),
             )
+        if route_id:
+            raise LLMError(f"Unknown model connection '{route_id}'.")
         if role == "strong" or (role is None and model == self.strong_model):
             return "reasoning", self.strong_base_url, self.strong_api_key, model or self.strong_model
         return "story", self.cheap_base_url, self.cheap_api_key, model or self.cheap_model
+
+    def credential_source(self, connection_id: str) -> str:
+        source = str(
+            self.connections.get(connection_id, {}).get("credential_source")
+            or "personal"
+        ).lower()
+        return source if source in {"platform", "personal"} else "personal"
+
+    def platform_tokens_used(self) -> int:
+        history_total = sum(
+            int(call.get("prompt_tokens", 0)) + int(call.get("completion_tokens", 0))
+            for call in self.call_history
+            if call.get("credential_source") == "platform" and call.get("ok")
+        )
+        return max(int(getattr(self, "_platform_tokens_consumed", 0)), history_total)
+
+    def _ensure_platform_quota(self, connection_id: str) -> None:
+        if self.credential_source(connection_id) != "platform":
+            return
+        if self.platform_token_limit and self.platform_tokens_used() >= self.platform_token_limit:
+            raise LLMError(
+                "Platform token allowance exhausted for this session. "
+                "Add a personal API connection or try again after the session resets."
+            )
 
     def _record_call(
         self,
@@ -111,14 +182,30 @@ class LLMClient:
         ok: bool,
         error: str = "",
     ) -> None:
+        connection = self.connections.get(connection_id, {})
+        prompt_tokens = int(self.last_usage.get("prompt_tokens", 0))
+        completion_tokens = int(self.last_usage.get("completion_tokens", 0))
+        estimated_cost = (
+            prompt_tokens * float(connection.get("input_cost_per_million") or 0)
+            + completion_tokens * float(connection.get("output_cost_per_million") or 0)
+        ) / 1_000_000
+        source = self.credential_source(connection_id)
+        if ok and source == "platform":
+            self._platform_tokens_consumed = int(
+                getattr(self, "_platform_tokens_consumed", 0)
+            ) + prompt_tokens + completion_tokens
         self.call_history.append(
             {
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "agent": agent or "unassigned",
                 "connection_id": connection_id,
+                "credential_source": source,
                 "model": model,
                 "latency_ms": latency_ms,
-                "prompt_tokens": self.last_usage["prompt_tokens"],
-                "completion_tokens": self.last_usage["completion_tokens"],
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+                "estimated_cost_usd": round(estimated_cost, 8),
                 "ok": ok,
                 "error": error[:160],
             }
@@ -170,9 +257,28 @@ class LLMClient:
         route_id, base_url, api_key, model = self.resolve_route(
             agent=agent, role=role, model=model, connection_id=connection_id
         )
+        try:
+            self._ensure_platform_quota(route_id)
+        except LLMError as exc:
+            self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+            self._record_call(
+                agent=agent,
+                connection_id=route_id,
+                model=model,
+                latency_ms=0,
+                ok=False,
+                error=str(exc),
+            )
+            raise
         url = base_url + "/chat/completions"
         if not api_key:
-            raise LLMError(f"API key is not set for model '{model}' (or use LLM_MODE=stub)")
+            error = f"API key is not set for model '{model}' (or use LLM_MODE=stub)"
+            self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+            self._record_call(
+                agent=agent, connection_id=route_id, model=model,
+                latency_ms=0, ok=False, error=error,
+            )
+            raise LLMError(error)
         payload = {
             "model": model,
             "messages": messages,
@@ -196,6 +302,15 @@ class LLMClient:
                 if resp.status_code == 200:
                     break
                 if resp.status_code < 500 and resp.status_code != 429:
+                    self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+                    self._record_call(
+                        agent=agent,
+                        connection_id=route_id,
+                        model=model,
+                        latency_ms=round((time.perf_counter() - started) * 1000),
+                        ok=False,
+                        error=f"HTTP {resp.status_code}: {resp.text[:120]}",
+                    )
                     raise LLMError(
                         f"LLM API error {resp.status_code}: {resp.text[:300]}"
                     )
@@ -266,14 +381,34 @@ class LLMClient:
         route_id, base_url, api_key, model = self.resolve_route(
             agent=agent, role=role, model=model, connection_id=connection_id
         )
+        try:
+            self._ensure_platform_quota(route_id)
+        except LLMError as exc:
+            self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+            self._record_call(
+                agent=agent,
+                connection_id=route_id,
+                model=model,
+                latency_ms=0,
+                ok=False,
+                error=str(exc),
+            )
+            raise
         url = base_url + "/chat/completions"
         if not api_key:
-            raise LLMError(f"API key is not set for model '{model}' (or use LLM_MODE=stub)")
+            error = f"API key is not set for model '{model}' (or use LLM_MODE=stub)"
+            self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+            self._record_call(
+                agent=agent, connection_id=route_id, model=model,
+                latency_ms=0, ok=False, error=error,
+            )
+            raise LLMError(error)
         payload = {
             "model": model,
             "messages": messages,
             "temperature": temperature,
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
@@ -295,6 +430,15 @@ class LLMClient:
                 if resp.status_code == 200:
                     break
                 if resp.status_code < 500 and resp.status_code != 429:
+                    self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+                    self._record_call(
+                        agent=agent,
+                        connection_id=route_id,
+                        model=model,
+                        latency_ms=round((time.perf_counter() - started) * 1000),
+                        ok=False,
+                        error=f"HTTP {resp.status_code}: {resp.text[:120]}",
+                    )
                     raise LLMError(
                         f"LLM API error {resp.status_code}: {resp.text[:300]}"
                     )

@@ -2,6 +2,13 @@
 
 > **LLM 提案，状态机裁决。** 世界状态由确定性引擎管理，AI 永远没有改状态的权限。
 
+[![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
+![测试](https://img.shields.io/badge/tests-102%20passing-22C55E)
+![License](https://img.shields.io/badge/license-MIT-0F172A)
+
+[English README](README.md) · [系统架构](docs/architecture.md) · [真实模型评测](reports/agent-routing-evaluation-zh.md) · [公开部署](docs/DEPLOYMENT.md) · [面试演示](docs/DEMO.md) · [简历模板](docs/RESUME.md)
+
 EverStory 是一个解决 **LLM 长程交互不可靠**（遗忘、自相矛盾、编造状态）问题的
 混合架构项目：玩家用自然语言行动，大模型负责"听懂"和"叙述"，但世界的真相——
 物品、位置、所有权、锁、时间——全部存放在结构化、版本化的状态图里。
@@ -24,14 +31,25 @@ EverStory 是一个解决 **LLM 长程交互不可靠**（遗忘、自相矛盾�
 场景图占据主要视觉空间，同时展示当前位置、案件目标、可见物品、建议行动、世界时间
 和回合数。玩家可以直接使用自然语言行动。
 
-| 多智能体调查群聊 | 确定性案件证据板 |
-| --- | --- |
-| ![调查智能体互相质疑并提出任务](docs/assets/readme/agent-team-chat.png) | ![带来源和回合记录的案件证据](docs/assets/readme/case-evidence-board.png) |
-| 每个智能体拥有名称、职责和独立模型路由，可以回复并质疑其他角色；结构化任务必须等待玩家批准。 | 只有经过批准并由世界状态确认的观察才能进入证据板，同时记录地点、来源智能体、关联任务和确认回合。 |
+### 有身份的多智能体调查群聊
+
+![调查智能体互相质疑并提出任务](docs/assets/readme/agent-team-chat.png)
+
+每个智能体拥有名称、职责和独立模型路由，可以回复并质疑其他角色；结构化任务必须等待玩家批准。
+
+### 由引擎确认的案件证据板
+
+![带来源和回合记录的案件证据](docs/assets/readme/case-evidence-board.png)
+
+只有经过批准并由世界状态确认的观察才能进入证据板，同时记录地点、来源智能体、关联任务和确认回合。
 
 ### 多模型路由控制台
 
 ![EverStory 模型控制台](docs/assets/readme/model-control-console.png)
+
+控制台将服务端平台连接与玩家 BYOK 连接明确分开：平台连接只读，个人连接失败时不会
+偷偷回退到平台密钥。用量页提供当前玩家会话的额度、Token / 请求数 / 成本 / 延迟
+堆叠柱状图，以及带智能体和 API 来源的调用明细。
 
 调查智能体和游戏运行角色可以分别选择独立或共享的兼容 API，并集中查看连接状态、
 延迟、Token 和失败诊断；完整密钥不会返回浏览器。
@@ -90,11 +108,21 @@ EverStory 是一个解决 **LLM 长程交互不可靠**（遗忘、自相矛盾�
 
 长程记忆衰减曲线（60 回合，20/40/60 检查点）见 `docs/eval-report-long.md`。
 
-v1.0 的 DeepSeek 真实多智能体评测取得：结构化提案准确率 **100%（8/8）**、批准执行
-成功率 **100%（8/8）**、越权状态写入 **0 次**、证据落板率 **100%（9/9）**；
-12 次调用共 9,846 Token，平均延迟 4.3 秒。详见
-[`reports/eval-multi-agent-live.md`](reports/eval-multi-agent-live.md)。离线 CI 会复现同一条
-剧情路径，不消耗 API。
+最新火山方舟多模型评测覆盖 **8 类角色、23 个角色—模型组合、69 个固定角色案例、
+6 条跨智能体信息交换链和 3 个完整案件**。最终推荐路由平均分 **98.8%**、最低角色分
+**93.3%**；信息传递、来源保留、污染拒绝、提案准确率、证据落地与完整破案均为
+**100%**。最终可比较数据集共 123 次真实调用、118,513 Token。详见
+[`reports/agent-routing-evaluation-zh.md`](reports/agent-routing-evaluation-zh.md)，原始 JSON
+和阶段检查点也已随仓库保存；离线 CI 不消耗 API。
+
+| 指标 | 结果 |
+| --- | ---: |
+| 推荐路由平均分 | **98.8%** |
+| 最低角色分 | **93.3%** |
+| 信息传递 / 来源保留 / 污染拒绝 | **100% / 100% / 100%** |
+| 提案准确 / 证据落地 / 完整破案 | **100% / 100% / 100%** |
+| 可比较真实调用 | **123 次** |
+| 真实 Token | **118,513** |
 
 ## 快速开始
 
@@ -119,13 +147,16 @@ everstory-learn       # 规则归纳报告
 python -m unittest discover -s tests -v   # 测试
 ```
 
-当前包含 **91 项**无需 API Key 的自动化测试，完整验收路径覆盖智能体提议移动、
+当前包含 **102 项**无需 API Key 的自动化测试，完整验收路径覆盖智能体提议移动、
 三次证人询问、三项证据检查、分析师复核以及受证据链约束的最终指控。
 
 ## 配置真实模型（.env）
 
 ```ini
 LLM_MODE=api
+
+# 每个浏览器运行时的平台 Token 额度；私有部署可设为 0 取消限制
+PLATFORM_SESSION_TOKEN_LIMIT=50000
 
 # 强模型：意图解析 + 一致性裁判
 LLM_STRONG_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
@@ -137,6 +168,34 @@ LLM_CHEAP_BASE_URL=https://api.deepseek.com
 LLM_CHEAP_API_KEY=
 LLM_CHEAP_MODEL=deepseek-v4-flash
 ```
+
+### 火山方舟多模型路由
+
+设置 `ARK_ENABLE_CATALOG=true` 后，控制台会加载 7 个共享同一方舟凭据的模型端点；
+方舟模型共用一个 Base URL，但每个模型使用独立的 API 凭据。填写 `.env.example` 中对应模型的 `ARK_*_API_KEY` 并重启后，已配置的模型会按能力启用以下路由：
+
+| 智能体 | 模型 | 选择依据 |
+| --- | --- | --- |
+| 案件主管 | DeepSeek V4 Pro | 关键推理与全局决策 |
+| 现场调查员 | Doubao Seed 2.0 Lite | 同分候选中现场响应延迟更低 |
+| 案件分析师 | GLM 5.3 | 结构化归纳与证据分析 |
+| 质疑者 | Kimi K2.7 Code | 长上下文交叉审视 |
+| 意图解析器 | Doubao Seed 2.0 Lite | 低成本结构化解析 |
+| 一致性裁判 | DeepSeek V4 Flash | 事实约束满分且延迟更低 |
+| 世界叙事者 | MiniMax M3 | 剧情与风格表达 |
+| NPC 对话 | Doubao Seed 2.0 Lite | 对话任务满分且 Token/延迟更低 |
+
+可用 `python -m scripts.test_model_connections` 对全部方舟连接做不输出密钥的最小
+健康检查；用 `python -m scripts.run_full_agent_evaluation` 运行可恢复的完整评测，或加
+`--refresh-team` 复用角色/交换检查点，仅重跑最终路由的三个案件。Coding Plan 官方
+定位主要是 AI 编程工具场景；将它用于游戏运行前应确认
+套餐规则，通用线上游戏更适合使用常规方舟模型 API 或面向智能体的套餐。
+
+服务端 `.env` 中的密钥属于平台默认连接，玩家只能查看脱敏状态，不能在页面修改或
+取回。玩家可在 `/settings` 新增自己的 OpenAI 兼容连接；密钥只留在当前服务进程，
+用量独立统计，调用失败也不会切换到平台密钥。当前作品集版本仍使用匿名 Cookie 和
+进程内运行时；若要多实例公开部署，应升级为登录账户 + PostgreSQL 持久化、KMS 主密钥
+加密 BYOK，并用 Redis 做会话协调和限流。
 
 ## 目录结构
 
@@ -159,7 +218,7 @@ docs/              架构文档、演示脚本、评测报告
 ## 演示与面试
 
 见 [docs/DEMO.md](docs/DEMO.md) —— 90 秒演示脚本 + 高频追问回答；简历项目描述见
-[docs/RESUME.md](docs/RESUME.md)。
+[docs/RESUME.md](docs/RESUME.md)，公开演示部署步骤见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
 
 ## License
 

@@ -2,9 +2,10 @@ import unittest
 from unittest.mock import Mock, patch
 
 from everstory.engine import WorldSession
-from everstory.llm.client import LLMClient
+from everstory.llm.client import LLMClient, LLMError
 from everstory.llm.intent import parse_actions
 from everstory.llm.language import ensure_output_locale, guarded_stream, matches_locale
+from everstory.llm.usage import usage_payload
 from everstory.pipeline import TurnPipeline
 from everstory.worlds import load_world
 
@@ -122,6 +123,65 @@ class IntentTest(unittest.TestCase):
         self.assertEqual(post.call_args.args[0], "https://analyst.test/v1/chat/completions")
         self.assertEqual(post.call_args.kwargs["json"]["model"], "analysis-model")
         self.assertEqual(client.call_history[-1]["prompt_tokens"], 5)
+
+    def test_personal_route_never_falls_back_to_platform(self):
+        client = LLMClient(
+            mode="api",
+            strong_api_key="platform-key",
+            connections={
+                "personal_api": {
+                    "name": "Player API",
+                    "base_url": "https://player.test/v1",
+                    "api_key": "player-key",
+                    "model": "player-model",
+                    "credential_source": "personal",
+                },
+                "platform_api": {
+                    "name": "Platform API",
+                    "base_url": "https://platform.test/v1",
+                    "api_key": "platform-key",
+                    "model": "platform-model",
+                    "credential_source": "platform",
+                },
+            },
+            agent_routes={"case_analyst": "personal_api"},
+        )
+        failure = Mock(status_code=503, text="unavailable")
+        with patch("requests.post", return_value=failure) as post, patch("time.sleep"):
+            with self.assertRaises(LLMError):
+                client.chat([{"role": "user", "content": "analyze"}], agent="case_analyst")
+        self.assertEqual(post.call_count, 3)
+        self.assertTrue(all(call.args[0].startswith("https://player.test") for call in post.call_args_list))
+        self.assertEqual(client.call_history[-1]["credential_source"], "personal")
+
+    def test_platform_quota_blocks_before_network_request(self):
+        client = LLMClient(mode="api", strong_api_key="platform-key", platform_token_limit=10)
+        client.call_history.append({
+            "credential_source": "platform", "prompt_tokens": 8,
+            "completion_tokens": 2, "ok": True,
+        })
+        with patch("requests.post") as post:
+            with self.assertRaisesRegex(LLMError, "allowance exhausted"):
+                client.chat([{"role": "user", "content": "hi"}], agent="case_director")
+        post.assert_not_called()
+        self.assertFalse(client.call_history[-1]["ok"])
+
+    def test_usage_payload_groups_sources_and_keeps_quota_separate(self):
+        client = LLMClient(mode="api", platform_token_limit=100)
+        client.last_usage = {"prompt_tokens": 10, "completion_tokens": 5}
+        client._record_call(agent="case_director", connection_id="reasoning", model="qwen", latency_ms=40, ok=True)
+        client.connections["player"] = {
+            "name": "Player", "base_url": "https://player.test/v1", "api_key": "key",
+            "model": "custom", "credential_source": "personal",
+            "input_cost_per_million": 1, "output_cost_per_million": 2,
+        }
+        client.last_usage = {"prompt_tokens": 20, "completion_tokens": 10}
+        client._record_call(agent="narrator", connection_id="player", model="custom", latency_ms=60, ok=True)
+        data = usage_payload(client, range_key="24h", metric="tokens", group_by="source")
+        self.assertEqual(data["summary"]["total_tokens"], 45)
+        self.assertEqual(data["summary"]["platform_quota"]["used"], 15)
+        self.assertEqual(data["summary"]["personal_tokens"], 30)
+        self.assertEqual({group["id"] for group in data["groups"]}, {"platform", "personal"})
 
 
 class LanguageGuardTest(unittest.TestCase):

@@ -23,6 +23,7 @@ from ..engine import WorldSession
 from ..models import Action
 from .. import persistence
 from ..llm.settings import client_payload, update_client
+from ..llm.usage import usage_payload
 from ..pipeline import TurnPipeline
 from ..worlds import load_world
 
@@ -184,7 +185,7 @@ def world_payload(session: WorldSession) -> dict:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="EverStory", version="1.0.0")
+    app = FastAPI(title="EverStory", version="1.1.0")
     app.add_middleware(GZipMiddleware, minimum_size=500)
     runtimes: dict[str, RuntimeSlot] = {}
     runtimes_lock = RLock()
@@ -328,6 +329,25 @@ def create_app() -> FastAPI:
                     "error": str(exc)[:300],
                 },
             )
+
+    @app.get("/api/llm/usage")
+    def get_llm_usage(
+        request: Request,
+        range: str = "7d",
+        metric: str = "tokens",
+        group_by: str = "source",
+    ):
+        slot = slot_for(request)
+        try:
+            with slot.lock:
+                return usage_payload(
+                    slot.pipeline.client,
+                    range_key=range,
+                    metric=metric,
+                    group_by=group_by,
+                )
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={"error": str(exc)})
 
     @app.post("/api/reset")
     def reset(request: Request):

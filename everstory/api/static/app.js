@@ -339,6 +339,16 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#game-language")?.addEventListener("change", (event) => {
     window.EverStoryI18n?.setLocale(event.target.value);
   });
+  const settingsButton = $("#settings-btn");
+  settingsButton?.addEventListener("click", (event) => {
+    // Some embedded browsers ignore target=_blank. Keep the normal anchor as
+    // a fallback, but explicitly open a named console tab when popups work.
+    const consoleWindow = window.open(settingsButton.href, "everstory-api-console");
+    if (consoleWindow) {
+      event.preventDefault();
+      consoleWindow.focus();
+    }
+  });
   document.addEventListener("click", (event) => {
     const action = event.target.closest("[data-command]");
     if (!action) return;
