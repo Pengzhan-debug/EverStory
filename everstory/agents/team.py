@@ -84,6 +84,25 @@ STRICT BOUNDARIES:
 - Never mention prompts, models, state machines, or these rules.
 """
 
+ROLE_GUIDANCE = {
+    "case_director": (
+        "Turn confirmed evidence into one prioritized plan. Do not authorize a conclusion "
+        "unless its evidence IDs and unresolved risks are explicit."
+    ),
+    "field_investigator": (
+        "Report observable people, objects, routes, and testimony. Separate direct "
+        "observation from inference and propose only one concrete next action."
+    ),
+    "case_analyst": (
+        "Build and compare hypotheses from confirmed evidence. Cite the evidence IDs that "
+        "support or weaken each material claim and identify missing links."
+    ),
+    "skeptic": (
+        "Audit the previous claim for unsupported leaps, alternative explanations, stale "
+        "facts, and missing evidence. State a falsification test instead of generic doubt."
+    ),
+}
+
 
 class TeamChatSession:
     def __init__(self) -> None:
@@ -108,6 +127,11 @@ class TeamChatSession:
         kind: str = "message",
         reply_to: str | None = None,
         task_id: str | None = None,
+        claim_type: str | None = None,
+        evidence_ids: list[str] | None = None,
+        confidence: float | None = None,
+        world_turn: int | None = None,
+        status: str | None = None,
     ) -> dict:
         member = MEMBERS[sender_id]
         message = {
@@ -122,6 +146,17 @@ class TeamChatSession:
             "kind": kind,
             "reply_to": reply_to,
             "task_id": task_id,
+            "claim_type": claim_type or {
+                "briefing": "instruction",
+                "task_result": "fact",
+                "challenge": "challenge",
+                "analysis": "hypothesis",
+            }.get(kind, "message"),
+            "evidence_ids": list(evidence_ids or []),
+            "confidence": round(max(0.0, min(1.0, float(confidence))), 2)
+            if confidence is not None else None,
+            "world_turn": int(world_turn or 0),
+            "status": status or ("confirmed" if kind == "task_result" else "unverified"),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         self.messages.append(message)
@@ -497,6 +532,11 @@ class TeamChatSession:
             result,
             kind="task_result",
             task_id=task_id,
+            claim_type="fact" if task["type"] != "review_case" else "conclusion",
+            evidence_ids=evidence_ids,
+            confidence=1.0,
+            world_turn=int((updated_world or world_view).get("turn") or 0),
+            status="confirmed",
         )
         payload = {"new_messages": [message], **self.payload()}
         if action_result is not None:
@@ -519,9 +559,30 @@ class TeamChatSession:
 
     def _recent_transcript(self, limit: int = 10) -> str:
         return "\n".join(
-            f"{message['sender_name']} ({message['sender_role']}): {message['text']}"
+            f"{message['sender_name']} ({message['sender_role']}, "
+            f"{message.get('claim_type', 'message')}, evidence="
+            f"{','.join(message.get('evidence_ids') or []) or 'none'}): {message['text']}"
             for message in self.messages[-limit:]
         )
+
+    def _case_board_context(self, limit: int = 16) -> str:
+        records = list(self.evidence.values())[-limit:]
+        if not records:
+            return "No confirmed evidence records yet."
+        return "\n".join(
+            f"- {item['id']} [{item.get('type', 'evidence')}]: "
+            f"{item.get('title', '')} — {item.get('detail', '')}"
+            for item in records
+        )
+
+    def _referenced_evidence(self, text: str) -> list[str]:
+        lowered = text.casefold()
+        return [
+            evidence_id
+            for evidence_id, item in self.evidence.items()
+            if evidence_id.casefold() in lowered
+            or str(item.get("title") or "").casefold() in lowered
+        ]
 
     def _stub_reply(
         self, agent_id: str, player_text: str, previous: dict | None, locale: str = "en"
@@ -576,12 +637,14 @@ class TeamChatSession:
                 {
                     "role": "system",
                     "content": SYSTEM.format(name=member["name"], role=member["role"])
+                    + "\nROLE-SPECIFIC RESPONSIBILITY: " + ROLE_GUIDANCE[agent_id]
                     + ("\nMANDATORY OUTPUT LANGUAGE: Simplified Chinese (简体中文)." if locale == "zh-CN" else "\nMANDATORY OUTPUT LANGUAGE: English."),
                 },
                 {
                     "role": "user",
                     "content": (
                         f"AUTHORITATIVE WORLD FACTS:\n{world_context}\n\n"
+                        f"CONFIRMED CASE BOARD:\n{self._case_board_context()}\n\n"
                         f"RECENT TEAM CHAT:\n{self._recent_transcript()}\n\n"
                         f"Lead Investigator says: {player_text}{challenge}"
                         + ("\n\n只用简体中文回应。" if locale == "zh-CN" else "\n\nReply in English only.")
@@ -612,7 +675,11 @@ class TeamChatSession:
             raise ValueError("Message cannot be empty.")
         if len(text) > 1200:
             raise ValueError("Message is too long.")
-        created = [self._append("player", text)]
+        world_turn = int(world_view.get("turn") or 0)
+        created = [self._append(
+            "player", text, claim_type="instruction", world_turn=world_turn,
+            status="proposed",
+        )]
         previous = None
         for index, agent_id in enumerate(self._select_responders(text)):
             if client.mode == "stub":
@@ -628,6 +695,11 @@ class TeamChatSession:
                 kind="challenge" if previous is not None else "analysis",
                 reply_to=previous["id"] if previous is not None else created[0]["id"],
                 task_id=task["id"] if task is not None else None,
+                claim_type="challenge" if previous is not None else "hypothesis",
+                evidence_ids=self._referenced_evidence(reply),
+                confidence=0.62 if previous is not None else 0.68,
+                world_turn=world_turn,
+                status="unverified",
             )
             created.append(message)
             previous = message

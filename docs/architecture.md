@@ -66,6 +66,13 @@ The normal narration chat cannot execute `examine` or `accuse`; those two
 authoritative operations must pass through the investigation task protocol.
 The team chat itself never receives a world mutation handle.
 
+Every team message carries `claim_type`, `evidence_ids`, `confidence`,
+`world_turn`, `status`, and `reply_to`. Confirmed observations are rendered
+from the authoritative evidence board; hypotheses and challenges remain
+non-authoritative. Each responding agent receives the current world summary,
+the shared case board, and a bounded recent transcript, making provenance
+retention and cross-agent reply links directly measurable.
+
 ## 5. State model
 
 - **Entity** — id, kind (character/item/location/quest/concept), name,
@@ -110,5 +117,38 @@ interactions can be authored without engine changes.
   gate, a three-architecture evaluation harness, and symbolic
   world-model induction (rules learned from trajectories, with a held-out
   accuracy check and counterfactual predictions).
-- **Production follow-up**: durable sessions (Postgres/Redis), authentication,
-  rate limits, secret management, and multi-instance coordination.
+
+## 9. Model credential and usage boundary
+
+```text
+agent role -> immutable route snapshot -> exactly one connection
+                                      |-> platform credential + session quota
+                                      `-> player BYOK + separate accounting
+```
+
+- Platform connections are created from server environment variables and are
+  read-only to the player settings API.
+- New browser-configured connections are always classified as `personal`; a
+  failed personal request retries only the same endpoint and never falls back
+  to a platform credential.
+- Every live call records timestamp, agent, connection, credential source,
+  model, prompt/completion tokens, estimated cost, latency, result, and a
+  bounded error summary. The browser receives no raw key.
+- The current local build isolates worlds, settings, and usage with an
+  anonymous HttpOnly session cookie and an in-memory runtime. Production scale
+  requires authenticated, signed sessions; PostgreSQL for users/worlds/routes/
+  usage; envelope-encrypted BYOK secrets; and Redis-backed quotas/rate limits.
+
+## 10. Empirical routing and evaluation
+
+`python -m scripts.run_full_agent_evaluation` evaluates 8 runtime/team roles
+against 23 candidate assignments, then runs evidence-transfer, stale-fact,
+poison-rejection, and repeated end-to-end case tests. Phase checkpoints make
+the live benchmark resumable; `--refresh-team` reuses role/exchange results and
+reruns only the final routed cases. Raw outputs, errors, latency, tokens, and
+the generated report are stored under `reports/`.
+
+The checked-in run selected DeepSeek V4 Pro (Director), Doubao Seed 2.0 Lite
+(Field/Intent/NPC), GLM 5.3 (Analyst), Kimi K2.7 Code (Skeptic), DeepSeek V4
+Flash (Judge), and MiniMax M3 (Narrator). See
+[`reports/agent-routing-evaluation-zh.md`](../reports/agent-routing-evaluation-zh.md).

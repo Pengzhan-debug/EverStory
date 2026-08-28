@@ -32,6 +32,10 @@ class TeamEvalResult:
     grounded_evidence: int
     evidence_total: int
     challenge_messages: int
+    structured_message_coverage: float
+    evidence_linkage: float
+    cross_agent_reply_links: int
+    message_efficiency: float
     case_solved: bool
     memory_roundtrip: bool
     memory_messages: int
@@ -238,6 +242,26 @@ def run_team_eval(client, provider: str = "default") -> TeamEvalResult:
     )
     restored = TeamChatSession.from_dict(team.to_dict())
     memory = team.to_dict()
+    agent_messages = [item for item in team.messages if not item.get("human")]
+    structured_messages = sum(
+        1 for item in agent_messages
+        if item.get("claim_type") and item.get("status")
+        and isinstance(item.get("evidence_ids"), list)
+        and isinstance(item.get("world_turn"), int)
+    )
+    task_results = [item for item in agent_messages if item.get("kind") == "task_result"]
+    linked_results = sum(1 for item in task_results if item.get("evidence_ids"))
+    by_id = {item["id"]: item for item in team.messages}
+    cross_agent_links = sum(
+        1 for item in agent_messages
+        if item.get("reply_to") in by_id
+        and by_id[item["reply_to"]].get("sender_id") not in {"player", item.get("sender_id")}
+    )
+    useful_messages = sum(
+        1 for item in agent_messages
+        if item.get("kind") in {"analysis", "challenge", "task_result"}
+        and (item.get("text") or "").strip()
+    )
 
     per_agent: dict[str, dict] = defaultdict(
         lambda: {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "latency_ms": 0}
@@ -264,6 +288,12 @@ def run_team_eval(client, provider: str = "default") -> TeamEvalResult:
         grounded_evidence=grounded,
         evidence_total=len(evidence),
         challenge_messages=sum(1 for item in team.messages if item["kind"] == "challenge"),
+        structured_message_coverage=(
+            structured_messages / len(agent_messages) if agent_messages else 0.0
+        ),
+        evidence_linkage=(linked_results / len(task_results) if task_results else 0.0),
+        cross_agent_reply_links=cross_agent_links,
+        message_efficiency=(useful_messages / len(agent_messages) if agent_messages else 0.0),
         case_solved=bool(session.state.flags.get("case_solved")),
         memory_roundtrip=(
             len(restored.messages) == len(team.messages)
@@ -289,6 +319,8 @@ def to_team_markdown(result: TeamEvalResult) -> str:
         result.unauthorized_mutations == 0,
         result.stale_task_blocked,
         result.evidence_grounding == 1.0,
+        result.structured_message_coverage == 1.0,
+        result.evidence_linkage == 1.0,
         result.case_solved,
         result.memory_roundtrip,
     )) else "CHECK"
@@ -309,6 +341,10 @@ Overall verdict: **{verdict}** · Provider: `{result.provider}`
 | Stale proposal safely blocked | {'yes' if result.stale_task_blocked else 'no'} |
 | Evidence grounding | {result.evidence_grounding:.0%} ({result.grounded_evidence}/{result.evidence_total}) |
 | Agent challenge messages | {result.challenge_messages} |
+| Structured message coverage | {result.structured_message_coverage:.0%} |
+| Task-result evidence linkage | {result.evidence_linkage:.0%} |
+| Cross-agent reply links | {result.cross_agent_reply_links} |
+| Useful-message ratio | {result.message_efficiency:.0%} |
 | Deterministic case completion | {'yes' if result.case_solved else 'no'} |
 | Investigation memory save/load | {'pass' if result.memory_roundtrip else 'fail'} |
 | Serialized investigation memory | {result.memory_bytes} bytes ({result.memory_messages} messages / {result.memory_tasks} tasks / {result.memory_evidence} evidence) |

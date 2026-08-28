@@ -1,8 +1,15 @@
 # EverStory
 
-**A state-consistent, persistent multi-agent AI world engine — v1.0 portfolio release.**
+**A state-consistent, persistent multi-agent AI world engine — v1.1 portfolio release.**
 
 > [中文版 README](README.zh-CN.md)
+
+[![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-102%20passing-22C55E)
+![License](https://img.shields.io/badge/license-MIT-0F172A)
+
+[Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
 
 EverStory is a hybrid architecture for long-horizon AI interaction: an LLM *proposes* actions in natural language, while a deterministic state machine *decides*. The world — entities, items, locations, relationships, time, flags and quests — lives in a structured, versioned state graph that the LLM can never directly mutate.
 
@@ -12,7 +19,7 @@ The current web experience turns that engine into **The Lost Lighthouse**, a cin
 
 ## 📷 Product tour
 
-![EverStory 60-second product loop](docs/assets/readme/everstory-demo.gif)
+![EverStory product loop](docs/assets/readme/everstory-demo.gif)
 
 The demo above is generated from checked-in product captures with
 `python scripts/build_demo_gif.py`, so the repository preview is reproducible.
@@ -23,26 +30,23 @@ The demo above is generated from checked-in product captures with
 
 The current location owns the screen while the authoritative HUD exposes only the facts needed to act: location, active lead, visible objects, suggested actions, world time and turn. Players can use natural language instead of learning a command grammar.
 
-<table>
-  <tr>
-    <td width="50%">
-      <img src="docs/assets/readme/agent-team-chat.png" alt="Named investigation agents debating in the team chat">
-      <br><strong>Multi-agent investigation room</strong><br>
-      Named agents have distinct roles and model routes. They can reply to and challenge one another, while their conclusions remain hypotheses. Structured actions stay pending until the human Lead Investigator approves them.
-    </td>
-    <td width="50%">
-      <img src="docs/assets/readme/case-evidence-board.png" alt="Case board with engine-confirmed evidence">
-      <br><strong>Engine-confirmed case board</strong><br>
-      Approved checks create evidence with type, location, source agent, task link and confirmation turn. Open actions remain visibly separated from confirmed observations.
-    </td>
-  </tr>
-</table>
+### Named multi-agent investigation room
+
+![Named investigation agents debating in the team chat](docs/assets/readme/agent-team-chat.png)
+
+Named agents have distinct roles and model routes. They can reply to and challenge one another, while their conclusions remain hypotheses. Structured actions stay pending until the human Lead Investigator approves them.
+
+### Engine-confirmed case board
+
+![Case board with engine-confirmed evidence](docs/assets/readme/case-evidence-board.png)
+
+Approved checks create evidence with type, location, source agent, task link and confirmation turn. Open actions remain visibly separated from confirmed observations.
 
 ### Per-agent model routing and diagnostics
 
 ![EverStory model control console](docs/assets/readme/model-control-console.png)
 
-Each investigation and runtime role can use an independent or shared OpenAI-compatible connection. The standard console also provides connection tests, latency, token and failure diagnostics without returning stored API keys to the browser.
+Each investigation and runtime role can use an independent or shared OpenAI-compatible connection. Hosted defaults are visibly separated from player-owned BYOK connections: personal-route failures never fall through to the platform key. The console includes per-session quotas, time-bucketed token/request/cost/latency charts, connection tests, and source-aware call logs without returning stored API keys to the browser.
 
 ## ✨ What EverStory is now
 
@@ -56,7 +60,7 @@ Each investigation and runtime role can use an independent or shared OpenAI-comp
 - **Human-in-the-loop action approval** — agents propose typed `travel`, `interview`, `examine`, and `accuse` actions; critical evidence examination and formal accusations cannot bypass the Investigation Room, and every approved action is revalidated by the deterministic engine.
 - **Case evidence board** — confirmed scenes, objects and people remain separate from agent hypotheses and survive save/load.
 - **Complete mystery loop** — the player washes ashore, gathers three testimonies and three physical/timeline links, requests analyst corroboration, restores the lighthouse, and reaches one deterministic culprit/confession ending.
-- **Model signal console** — configure multiple OpenAI-compatible providers, route each agent independently, test connections, and inspect latency/token diagnostics.
+- **Model usage console** — route each agent between read-only platform defaults and isolated player BYOK connections; inspect quota, stacked usage charts, estimated cost, latency, failures, and source-aware call logs.
 - **Shared Chinese / English interface** — the game shell and model console share one locale preference; HUD, maps, objectives, known items and the investigation room update immediately without changing engine IDs.
 - **World Inspector** — live turn/time, entities, items, quests, event log and state-oriented debugging remain available without breaking immersion.
 - **Inventory & keyboard interaction** — `I` opens inventory, `TAB` focuses world state, `ESC` closes overlays.
@@ -220,6 +224,9 @@ EverStory can run in deterministic offline Stub mode or Live API mode. The recom
 ```ini
 LLM_MODE=api
 
+# Hosted token allowance for each browser runtime; 0 disables the limit.
+PLATFORM_SESSION_TOKEN_LIMIT=50000
+
 LLM_STRONG_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 LLM_STRONG_API_KEY=sk-...
 LLM_STRONG_MODEL=qwen-plus
@@ -231,6 +238,10 @@ LLM_CHEAP_MODEL=deepseek-chat
 
 The strong role (intent parsing + consistency judging) and the cheap role (narration) are independent, so vendors can be mixed freely. Restart the server after editing `.env` because configuration is read at startup.
 
+Platform credentials come only from the server environment and are read-only in the browser. A player can add a personal connection in `/settings`; that key remains server-side in the current runtime, is never returned by the settings API, has separate accounting, and is never used as a fallback target. In this local/portfolio build, anonymous browser runtimes and BYOK secrets are in process memory. A multi-instance public deployment should replace that runtime store with authenticated PostgreSQL records, encrypt BYOK secrets with a KMS-held master key, and use Redis for rate limiting/session coordination.
+
+The optional Volcengine Ark catalog uses one shared Base URL and a separate API credential for each of its seven named models. The empirically selected route map uses DeepSeek V4 Pro for directing, Doubao Seed 2.0 Lite for field work, intent parsing and NPC dialogue, GLM 5.3 for analysis, Kimi K2.7 Code for skeptical review, DeepSeek V4 Flash for consistency checks, and MiniMax M3 for narration. Run `python -m scripts.test_model_connections` for a credential-safe health check, or `python -m scripts.run_full_agent_evaluation` for the checkpointed benchmark. Verify the Coding Plan usage rules before using its coding-only endpoint for a non-coding game workload; a standard Ark model API or agent-oriented plan is the safer production choice.
+
 ## 🖥️ Web UI structure
 
 ```text
@@ -240,7 +251,7 @@ everstory/api/static/
   gameplay-core.js turn lifecycle, streaming, persistence and recovery
   team-chat.js    multi-agent discussion, task approval and evidence board
   team-chat.css   investigation-room and case-board visual system
-  settings.html   model connection/routing/diagnostics console
+  settings.html   BYOK routing, quota, usage chart, and diagnostics console
   style-v5.css     primary visual system
   immersive.css    cinematic overlays and atmosphere
   ui-tweaks.css    investigation layout and responsive polish
@@ -254,10 +265,21 @@ The browser layer is intentionally separated from the engine. The backend remain
 
 EverStory includes an evaluation harness that runs the same scripted episodes against three architectures — pure-LLM, summary-memory, and EverStory — measuring recall, rejection and token metrics. A second deterministic multi-agent benchmark measures proposal accuracy, approval safety, evidence grounding, stale-task rejection, memory persistence, case completion, and real per-agent token/latency usage in API mode.
 
-The v1.0 live DeepSeek multi-agent run passed with **100% proposal accuracy
-(8/8)**, **100% approval success (8/8)**, **100% evidence grounding (9/9)**,
-and **zero unauthorized world mutations**. It used 12 calls / 9,846 tokens at
-4.3 s average latency; the report includes per-agent usage.
+The current live Ark benchmark covers **8 roles, 23 role/model combinations,
+69 fixed role cases, 6 cross-agent exchange chains, and 3 complete cases**.
+The selected routes average **98.8%** with a **93.3%** minimum role score;
+information transfer, provenance retention, poison rejection, proposal
+accuracy, evidence grounding, and case completion all scored **100%**. The
+final comparable dataset contains 123 live calls and 118,513 tokens.
+
+| Signal | Result |
+| --- | ---: |
+| Recommended-route average | **98.8%** |
+| Minimum role score | **93.3%** |
+| Transfer / provenance / poison rejection | **100% / 100% / 100%** |
+| Proposal / evidence / case completion | **100% / 100% / 100%** |
+| Live comparable calls | **123** |
+| Live tokens | **118,513** |
 
 See:
 
@@ -265,9 +287,11 @@ See:
 - [Evaluation report](docs/eval-report.md)
 - [Multi-agent investigation report](docs/eval-report-team.md)
 - [Live multi-agent model report](reports/eval-multi-agent-live.md)
+- [Full agent routing and exchange report (Chinese)](reports/agent-routing-evaluation-zh.md)
 - [Learned rules](docs/learned-rules.md)
 - [Interview demo](docs/DEMO.md)
 - [Resume bullets and scope](docs/RESUME.md)
+- [Public demo deployment](docs/DEPLOYMENT.md)
 - [Project status & roadmap](docs/ROADMAP.md)
 
 ## 🗂 Repository layout

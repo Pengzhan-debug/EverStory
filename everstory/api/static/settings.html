@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>EverStory 控制台</title>
   <link rel="icon" href="/static/everstory-mark.svg" type="image/svg+xml"/>
-  <link rel="stylesheet" href="/static/settings.css?v=2"/>
+  <link rel="stylesheet" href="/static/settings.css?v=4"/>
   <link rel="stylesheet" href="/static/settings-brand.css?v=1"/>
 </head>
 <body>
@@ -21,39 +21,53 @@
     <aside class="sidebar">
       <nav>
         <a href="#overview" class="active" data-i18n="overview">概览</a>
+        <a href="#usage" data-i18n="usage">用量分析</a>
         <a href="#connections" data-i18n="connections">API 连接</a>
         <a href="#routing" data-i18n="routing">智能体路由</a>
         <a href="#diagnostics" data-i18n="diagnostics">调用检测</a>
       </nav>
-      <div class="sidebar-note"><strong data-i18n="security">凭据安全</strong><p data-i18n="securityNote">密钥仅保存在当前服务进程中，接口不会返回完整密钥。</p></div>
     </aside>
     <main class="content">
       <section id="overview" class="page-head">
-        <div><h1 data-i18n="title">模型与智能体</h1><p data-i18n="subtitle">管理模型连接、角色分配和运行指标。</p></div>
+        <div><h1 data-i18n="title">模型与智能体</h1><p data-i18n="subtitle">连接 · 路由 · 用量</p></div>
         <div class="mode-field"><label data-i18n="mode">运行模式</label><select id="mode"><option value="api" data-i18n="liveApi">在线 API</option><option value="stub" data-i18n="offlineStub">离线模拟</option></select></div>
       </section>
-      <section class="metrics" aria-label="Diagnostics overview">
-        <article><span data-i18n="calls">调用次数</span><strong id="metric-calls">0</strong><small id="metric-success">0 次成功</small></article>
+      <section class="metrics" aria-label="Usage overview">
+        <article><span data-i18n="calls">调用次数</span><strong id="metric-calls">0</strong><small id="metric-success">100% 成功率</small></article>
         <article><span data-i18n="tokens">Token 总量</span><strong id="metric-tokens">0</strong><small id="metric-token-detail">0 输入 / 0 输出</small></article>
-        <article><span data-i18n="latency">平均延迟</span><strong id="metric-latency">0 ms</strong><small data-i18n="last200">最近 200 次调用</small></article>
-        <article><span data-i18n="failures">失败调用</span><strong id="metric-failures">0</strong><small id="metric-health">无失败</small></article>
+        <article><span data-i18n="platformQuota">平台额度</span><strong id="metric-platform">0</strong><small id="metric-platform-detail">剩余 0</small></article>
+        <article><span data-i18n="personalTokens">个人 API Token</span><strong id="metric-personal">0</strong><small data-i18n="personalOnly">不占用平台额度</small></article>
+        <article><span data-i18n="estimatedCost">估算成本</span><strong id="metric-cost">$0.00</strong><small data-i18n="priceHint">按连接单价估算</small></article>
+        <article><span data-i18n="latency">平均延迟</span><strong id="metric-latency">0 ms</strong><small id="metric-health">无失败</small></article>
+      </section>
+      <section id="usage" class="panel usage-panel">
+        <div class="panel-head"><div><h2 data-i18n="usage">用量分析</h2><p data-i18n="usageHelp">当前玩家会话</p></div><div class="usage-controls"><select id="usage-range" aria-label="Range"><option value="24h" data-i18n="last24h">最近 24 小时</option><option value="7d" selected data-i18n="last7d">最近 7 天</option><option value="30d" data-i18n="last30d">最近 30 天</option></select><select id="usage-metric" aria-label="Metric"><option value="tokens" data-i18n="tokenMetric">Token</option><option value="requests" data-i18n="requestMetric">请求数</option><option value="cost" data-i18n="costMetric">估算成本</option><option value="latency" data-i18n="latencyMetric">延迟</option></select><select id="usage-group" aria-label="Group"><option value="source" data-i18n="bySource">按 API 来源</option><option value="agent" data-i18n="byAgent">按智能体</option><option value="model" data-i18n="byModel">按模型</option><option value="connection" data-i18n="byConnection">按连接</option></select></div></div>
+        <div class="usage-body">
+          <div class="chart-column"><div id="usage-chart" class="usage-chart" role="img" aria-label="Model usage chart"></div><div id="usage-legend" class="chart-legend"></div></div>
+          <aside class="source-breakdown">
+            <div class="source-heading"><span class="source-dot platform"></span><div><strong data-i18n="platformApi">平台默认 API</strong><small data-i18n="platformApiHelp">受当前玩家额度限制</small></div></div>
+            <div class="quota-track"><i id="quota-fill"></i></div><p><span id="quota-used">0 / 0</span><span id="quota-percent">0%</span></p>
+            <div class="source-heading personal-block"><span class="source-dot personal"></span><div><strong data-i18n="personalApi">玩家个人 API</strong><small data-i18n="personalApiHelp">独立计量，不使用平台密钥</small></div></div>
+            <p class="source-total"><span data-i18n="periodUsage">所选周期</span><strong id="personal-period">0 Tokens</strong></p>
+          </aside>
+        </div>
       </section>
       <section id="connections" class="panel">
-        <div class="panel-head"><div><h2 data-i18n="connections">API 连接</h2><p data-i18n="connectionsHelp">连接可被多个智能体复用，密钥不需要重复填写。</p></div><div class="toolbar"><select id="new-provider"><option value="deepseek">DeepSeek</option><option value="qwen">Qwen / DashScope</option><option value="custom">Custom</option></select><button id="add-connection" class="secondary" type="button" data-i18n="addConnection">添加连接</button></div></div>
+        <div class="panel-head"><div><h2 data-i18n="connections">API 平台与模型</h2></div><div class="toolbar"><select id="new-provider"><option value="ark">火山方舟 Ark</option><option value="deepseek">DeepSeek</option><option value="qwen">Qwen / DashScope</option><option value="custom">Custom</option></select><button id="add-connection" class="secondary" type="button" data-i18n="addConnection">新增 API</button></div></div>
         <div id="connection-list" class="connection-list"></div>
       </section>
       <section id="routing" class="panel">
-        <div class="panel-head"><div><h2 data-i18n="routing">智能体路由</h2><p data-i18n="routingHelp">为每个角色选择模型连接。未启用的角色会保存配置，但暂不产生调用。</p></div></div>
+        <div class="panel-head"><div><h2 data-i18n="routing">智能体路由</h2><p data-i18n="routingHelp">选择每个智能体使用的模型</p></div></div>
         <div class="table-wrap"><table><thead><tr><th data-i18n="agent">智能体</th><th data-i18n="group">分组</th><th data-i18n="state">状态</th><th data-i18n="assigned">分配连接</th><th data-i18n="model">模型</th></tr></thead><tbody id="agent-routes"></tbody></table></div>
       </section>
       <section id="diagnostics" class="panel">
-        <div class="panel-head"><div><h2 data-i18n="diagnostics">调用检测</h2><p data-i18n="diagnosticsHelp">显示当前会话最近的模型调用、延迟和 Token 使用。</p></div><button id="refresh" class="secondary" type="button" data-i18n="refresh">刷新</button></div>
-        <div class="table-wrap"><table><thead><tr><th data-i18n="agent">智能体</th><th data-i18n="connection">连接</th><th data-i18n="model">模型</th><th data-i18n="latency">延迟</th><th>Tokens</th><th data-i18n="result">结果</th></tr></thead><tbody id="recent-calls"></tbody></table></div>
+        <div class="panel-head"><div><h2 data-i18n="diagnostics">调用明细</h2><p data-i18n="diagnosticsHelp">最近 100 次调用</p></div><button id="refresh" class="secondary" type="button" data-i18n="refresh">刷新</button></div>
+        <div class="table-wrap"><table><thead><tr><th data-i18n="time">时间</th><th data-i18n="agent">智能体</th><th data-i18n="apiSource">API 来源</th><th data-i18n="connection">连接 / 模型</th><th>Tokens</th><th data-i18n="latency">延迟</th><th data-i18n="result">结果</th></tr></thead><tbody id="recent-calls"></tbody></table></div>
         <div id="empty-calls" class="empty" data-i18n="noCalls">暂无调用记录。连接测试或开始游戏后会显示数据。</div>
       </section>
     </main>
   </div>
   <footer class="save-bar"><span id="save-message" data-i18n="loaded">配置已载入。</span><button id="save-settings" class="primary" type="button" data-i18n="save">保存并应用</button></footer>
-  <script src="/static/settings.js?v=4"></script>
+  <script src="/static/settings.js?v=6"></script>
 </body>
 </html>

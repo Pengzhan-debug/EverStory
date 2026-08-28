@@ -1,10 +1,10 @@
-# EverStory v1.0 status and roadmap
+# EverStory v1.1 status and roadmap
 
-EverStory v1.0 is a GitHub- and resume-ready local portfolio release. It is a
+EverStory v1.1 is a GitHub- and resume-ready local portfolio release. It is a
 complete single-case game and engineering demonstration, not yet a production
 multiplayer service.
 
-## v1.0 acceptance status
+## v1.1 acceptance status
 
 - [x] Storm Shore narrative opening with clear onboarding
 - [x] Deterministic world state, typed actions, validation, snapshots/rollback
@@ -17,19 +17,24 @@ multiplayer service.
 - [x] Conversation, team tasks, evidence, and world state survive save/load
 - [x] Per-agent OpenAI-compatible routing, tests, latency, Token diagnostics
 - [x] Shared Chinese/English UI and model-output language enforcement
-- [x] 91 deterministic tests on Python 3.11/3.12 CI
-- [x] Live DeepSeek multi-agent benchmark with per-agent cost/latency metrics
+- [x] 102 deterministic tests on Python 3.11/3.12 CI
+- [x] Live multi-model Ark benchmark with per-agent cost/latency metrics
 - [x] Docker/Compose, Render blueprint, demo GIF, screenshots, resume notes
 
-## Verified v1.0 measurements
+## Verified v1.1 measurements
 
 - Structured task proposal accuracy: 100% (8/8)
 - Approved action success: 100% (8/8)
 - Evidence grounding: 100% (9/9)
 - Unauthorized world mutations: 0
-- Real model usage: 12 calls, 9,846 tokens, 4.3 s average latency
+- Role/model matrix: 8 roles, 23 combinations, 69 fixed role cases
+- Cross-agent evaluation: 6 exchange chains and 3 complete cases
+- Recommended-route average: 98.8%; minimum role score: 93.3%
+- Transfer, provenance, poison rejection, evidence, completion: 100%
+- Comparable real model usage: 123 calls, 118,513 tokens
 
-See `reports/eval-multi-agent-live.md` for the reproducible report.
+See `reports/agent-routing-evaluation-zh.md` and the checked-in JSON/checkpoints
+for the reproducible report.
 
 ## Production roadmap (not claimed as implemented)
 

@@ -75,11 +75,17 @@ class ApiTest(unittest.TestCase):
         game = self.client.get("/").text
         console = self.client.get("/settings").text
         gameplay = self.client.get("/static/gameplay-core.js").text
+        app_script = self.client.get("/static/app.js").text
         settings = self.client.get("/static/settings.js").text
 
         self.assertIn('target="_blank"', game)
         self.assertIn('rel="opener"', game)
         self.assertNotIn('window.open("/settings"', gameplay)
+        self.assertIn(
+            'window.open(settingsButton.href, "everstory-api-console")',
+            app_script,
+        )
+        self.assertIn('app.js?v=20', game)
         self.assertIn('id="back-to-game"', console)
         self.assertIn('href="/?resume=1"', console)
         self.assertIn("window.opener.focus()", settings)
@@ -185,7 +191,10 @@ class ApiTest(unittest.TestCase):
 
     def test_agent_connection_pool_and_routes(self):
         initial = self.client.get("/api/llm/settings").json()
-        routes = dict(initial["agent_routes"])
+        routes = {
+            agent["id"]: ("story" if agent["id"] in {"narrator", "npc_dialogue", "field_investigator"} else "reasoning")
+            for agent in initial["agent_catalog"]
+        }
         routes["case_analyst"] = "analyst_api"
         response = self.client.put(
             "/api/llm/settings",
@@ -216,8 +225,133 @@ class ApiTest(unittest.TestCase):
         settings = response.json()["settings"]
         self.assertEqual(settings["agent_routes"]["case_analyst"], "analyst_api")
         self.assertEqual(settings["connections"]["analyst_api"]["model"], "analysis-model")
+        self.assertEqual(settings["connections"]["analyst_api"]["credential_source"], "personal")
+        self.assertFalse(settings["credential_policy"]["fallback_to_platform"])
         self.assertNotIn("analyst-secret", response.text)
         self.assertIn("diagnostics", settings)
+
+    def test_platform_credentials_are_read_only_and_personal_settings_are_isolated(self):
+        initial = self.client.get("/api/llm/settings").json()
+        self.assertEqual(initial["connections"]["reasoning"]["credential_source"], "platform")
+        blocked = self.client.put(
+            "/api/llm/settings",
+            json={
+                "mode": "stub",
+                "connections": {
+                    "reasoning": {
+                        "name": "Reasoning API",
+                        "base_url": initial["connections"]["reasoning"]["base_url"],
+                        "model": initial["connections"]["reasoning"]["model"],
+                        "api_key": "attempted-overwrite",
+                    },
+                    "story": initial["connections"]["story"],
+                },
+                "agent_routes": initial["agent_routes"],
+            },
+        )
+        self.assertEqual(blocked.status_code, 400)
+
+        routes = dict(initial["agent_routes"])
+        routes["narrator"] = "player_api"
+        payload_connections = {
+            key: {
+                "name": value["name"], "base_url": value["base_url"], "model": value["model"]
+            }
+            for key, value in initial["connections"].items()
+        }
+        payload_connections["player_api"] = {
+            "name": "Player API", "base_url": "https://player.test/v1",
+            "model": "player-model", "api_key": "player-secret",
+        }
+        saved = self.client.put(
+            "/api/llm/settings",
+            json={"mode": "stub", "connections": payload_connections, "agent_routes": routes},
+        )
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json()["settings"]["agent_routes"]["narrator"], "player_api")
+
+        from everstory.api.main import app
+        other = TestClient(app)
+        other.post("/api/reset")
+        self.assertNotIn("player_api", other.get("/api/llm/settings").json()["connections"])
+
+    def test_player_can_disable_and_restore_a_platform_model_for_own_session(self):
+        initial = self.client.get("/api/llm/settings").json()
+        self.assertIn("reasoning", initial["platform_catalog"])
+        remaining = {
+            key: {
+                "name": value["name"],
+                "base_url": value["base_url"],
+                "model": value["model"],
+            }
+            for key, value in initial["connections"].items()
+            if key != "reasoning"
+        }
+        routes = {
+            agent: ("story" if route == "reasoning" else route)
+            for agent, route in initial["agent_routes"].items()
+        }
+        disabled = self.client.put(
+            "/api/llm/settings",
+            json={"mode": "stub", "connections": remaining, "agent_routes": routes},
+        )
+        self.assertEqual(disabled.status_code, 200)
+        disabled_settings = disabled.json()["settings"]
+        self.assertNotIn("reasoning", disabled_settings["connections"])
+        self.assertIn("reasoning", disabled_settings["platform_catalog"])
+
+        remaining["reasoning"] = {
+            "name": initial["platform_catalog"]["reasoning"]["name"],
+            "base_url": initial["platform_catalog"]["reasoning"]["base_url"],
+            "model": initial["platform_catalog"]["reasoning"]["model"],
+        }
+        restored = self.client.put(
+            "/api/llm/settings",
+            json={"mode": "stub", "connections": remaining, "agent_routes": routes},
+        )
+        self.assertEqual(restored.status_code, 200)
+        restored_connection = restored.json()["settings"]["connections"]["reasoning"]
+        self.assertEqual(restored_connection["credential_source"], "platform")
+        self.assertEqual(restored_connection["masked_key"], "")
+
+    def test_legacy_partial_override_cannot_reclassify_a_platform_key(self):
+        response = self.client.put(
+            "/api/llm/settings",
+            json={
+                "mode": "stub",
+                "cheap": {
+                    "base_url": "https://player-story.test/v1",
+                    "model": "player-story",
+                },
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["settings"]
+        self.assertEqual(data["connections"]["reasoning"]["credential_source"], "platform")
+        self.assertEqual(data["connections"]["story"]["credential_source"], "personal")
+        self.assertFalse(data["connections"]["story"]["key_configured"])
+
+    def test_usage_endpoint_and_console_chart_contract(self):
+        usage = self.client.get(
+            "/api/llm/usage?range=7d&metric=tokens&group_by=source"
+        )
+        self.assertEqual(usage.status_code, 200)
+        data = usage.json()
+        self.assertEqual(len(data["series"]), 7)
+        self.assertIn("platform_quota", data["summary"])
+        self.assertIn("logs", data)
+        bad = self.client.get("/api/llm/usage?range=year")
+        self.assertEqual(bad.status_code, 400)
+
+        page = self.client.get("/settings").text
+        script = self.client.get("/static/settings.js").text
+        self.assertIn('id="usage-chart"', page)
+        self.assertIn('id="usage-metric"', page)
+        self.assertIn("credential_source", script)
+        self.assertNotIn("BYOK 不回退平台", page)
+        self.assertNotIn("凭据隔离", page)
+        self.assertIn('data-i18n="addConnection"', page)
+        self.assertIn("data-remove-provider", script)
 
     def test_team_chat_has_identity_and_agent_challenge(self):
         history = self.client.get("/api/agents/chat").json()

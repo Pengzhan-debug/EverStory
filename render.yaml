@@ -7,3 +7,21 @@ services:
     envVars:
       - key: LLM_MODE
         value: stub
+      - key: PLATFORM_SESSION_TOKEN_LIMIT
+        value: 50000
+      - key: ARK_ENABLE_CATALOG
+        value: false
+      - key: ARK_KIMI_K27_CODE_API_KEY
+        sync: false
+      - key: ARK_DEEPSEEK_V4_PRO_API_KEY
+        sync: false
+      - key: ARK_DEEPSEEK_V4_FLASH_API_KEY
+        sync: false
+      - key: ARK_GLM_53_API_KEY
+        sync: false
+      - key: ARK_MINIMAX_M3_API_KEY
+        sync: false
+      - key: ARK_DOUBAO_SEED_20_LITE_API_KEY
+        sync: false
+      - key: ARK_DOUBAO_SEED_21_TURBO_API_KEY
+        sync: false
