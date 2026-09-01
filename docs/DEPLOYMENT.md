@@ -16,8 +16,9 @@
    `https://everstory-xxxx.onrender.com` 的地址；该平台实际生成的域名才是公开演示地址。
 6. 如需自定义域名，在 Render 的 **Settings → Custom Domains** 中绑定域名并按提示配置 DNS。
 
-免费实例可能休眠，首次访问会有冷启动；本地文件和进程内会话也可能随重启丢失。因此它
-适合作品集试玩，不适合宣称为持久化多人生产服务。
+免费实例可能休眠，首次访问会有冷启动。若 Render 中没有配置 `DATABASE_URL` 和
+`REDIS_URL`，服务仍会回退到文件/进程内模式，重启后实时会话可能丢失；这个配置适合
+作品集试玩，不适合宣称为持久化多人生产服务。
 
 ## 是否启用平台真实模型
 
@@ -34,12 +35,33 @@
 
 ## 当前数据保存方式
 
-- 本地/Compose：存档写入 `everstory_saves` 卷，容器重启后可恢复。
-- 当前公开单实例：浏览器以匿名运行时 Cookie 识别会话；路由和 BYOK 密钥只在服务进程
-  内存中保存，完整密钥不返回浏览器。
-- Render 免费实例：进程重启后内存会话会丢失，普通本地磁盘也不应视为永久存储。
+- 本地 Python（无 URL）：命名存档写 JSON，实时运行态保存在进程内。
+- Docker Compose：默认启动 Web + PostgreSQL 16 + Redis 7；数据库保存实时运行态、
+  命名存档和 Token 账本，Redis 提供 TTL、限流和会话锁。
+- Render 单实例：在 Environment 中绑定托管 PostgreSQL 的 Internal URL 和 Redis/Key
+  Value URL 后启用同一套持久层；不绑定则自动回退。
+- 玩家 BYOK：当前只在服务进程内存中，完整密钥不返回浏览器，也不会明文写入数据库。
 
-## 多用户生产版本应增加
+### 数据库初始化与迁移
+
+开发环境默认 `DATABASE_AUTO_CREATE=true`，便于首次启动。正式环境建议先执行：
+
+```bash
+alembic upgrade head
+```
+
+随后设置 `DATABASE_AUTO_CREATE=false`，让 Alembic 成为唯一的 Schema 变更入口。核心变量：
+
+```ini
+DATABASE_URL=postgresql+psycopg://user:password@host:5432/everstory
+REDIS_URL=redis://host:6379/0
+SESSION_TTL_SECONDS=2592000
+RATE_LIMIT_REQUESTS=60
+RATE_LIMIT_WINDOW_SECONDS=60
+INFRA_STRICT=true
+```
+
+## 多用户生产版本还应增加
 
 ```text
 Browser
@@ -53,9 +75,11 @@ Browser
 ```
 
 - 登录：邮箱验证码或 OAuth；游客可先试玩，注册后再绑定永久存档。
-- 数据库：PostgreSQL 作为权威持久层；每张业务表带 `user_id`/`runtime_id` 做租户隔离。
+- 数据库：PostgreSQL 持久层已实现游客会话、运行态、存档和用量账本；下一步把游客
+  主体绑定到正式账号，并补充数据导出、删除和备份恢复演练。
 - 凭据：只保存密文，使用 KMS envelope encryption；日志、异常和前端响应永不包含完整 Key。
-- 配额：Redis 原子限流 + PostgreSQL 用量账本，同时设置单用户、单 IP、单日平台预算。
+- 配额：Redis 原子会话限流 + PostgreSQL 用量账本已实现；还需增加单 IP、单账号和
+  单日平台预算与告警。
 - 多实例：SSE 事件、任务锁和会话状态需要共享存储或消息系统，不能依赖单个 Python 进程。
 - 运维：结构化日志、错误追踪、调用延迟/失败率、成本告警、数据库备份和删除账号流程。
 

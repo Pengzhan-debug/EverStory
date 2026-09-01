@@ -1,12 +1,12 @@
 # EverStory
 
-**A state-consistent, persistent multi-agent AI world engine — v1.1 portfolio release.**
+**A state-consistent, persistent multi-agent AI world engine — v1.2 portfolio release.**
 
 > [中文版 README](README.zh-CN.md)
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-102%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-109%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
@@ -52,6 +52,7 @@ Each investigation and runtime role can use an independent or shared OpenAI-comp
 
 - **Deterministic AI world engine** — typed actions are validated against real state before anything changes.
 - **Persistent world state** — entities, items, locations, relationships, time, flags, quests and snapshots remain structured and inspectable.
+- **Production persistence path** — optional PostgreSQL stores anonymous principals, live runtime snapshots, save games, and an idempotent LLM usage ledger; Redis supplies session TTL, mutation quotas, and cross-process player locks.
 - **Natural-language gameplay** — players can say things like `walk toward the lighthouse`, `take the rusty key`, or `talk to the keeper` instead of learning a command language.
 - **Grounded narration** — the LLM narrates the state transition that the engine actually applied.
 - **Fact checking** — generated narration is checked against the state delta and can be retried when it contradicts the world.
@@ -158,8 +159,10 @@ docker compose up --build
 # open http://127.0.0.1:8123
 ```
 
-The container defaults to deterministic Stub mode. Copy `.env.example` to
-`.env` and set `LLM_MODE=api` only when you want live model calls.
+Compose starts the web service, PostgreSQL 16, and Redis 7 with health checks
+and persistent volumes. The app still defaults to deterministic Stub mode.
+Copy `.env.example` to `.env` and set `LLM_MODE=api` only when you want live
+model calls.
 
 ### Local Python
 
@@ -169,7 +172,7 @@ python -m venv everstory-env
 everstory-env\Scripts\activate        # Windows
 # source everstory-env/bin/activate   # macOS/Linux
 
-pip install -e ".[web]"
+pip install -e ".[web,production]"
 
 # 1. Play in the terminal (deterministic stub mode, no API key needed)
 everstory
@@ -238,7 +241,26 @@ LLM_CHEAP_MODEL=deepseek-chat
 
 The strong role (intent parsing + consistency judging) and the cheap role (narration) are independent, so vendors can be mixed freely. Restart the server after editing `.env` because configuration is read at startup.
 
-Platform credentials come only from the server environment and are read-only in the browser. A player can add a personal connection in `/settings`; that key remains server-side in the current runtime, is never returned by the settings API, has separate accounting, and is never used as a fallback target. In this local/portfolio build, anonymous browser runtimes and BYOK secrets are in process memory. A multi-instance public deployment should replace that runtime store with authenticated PostgreSQL records, encrypt BYOK secrets with a KMS-held master key, and use Redis for rate limiting/session coordination.
+Platform credentials come only from the server environment and are read-only in the browser. A player can add a personal connection in `/settings`; that key remains server-side in the current runtime, is never returned by the settings API, has separate accounting, and is never used as a fallback target. With `DATABASE_URL`, anonymous world/team runtimes and usage records survive process restarts. BYOK secrets still remain process-local and are never written as plaintext; authenticated accounts and KMS envelope encryption are required before claiming production secret persistence.
+
+### PostgreSQL and Redis
+
+`DATABASE_URL` enables the SQLAlchemy storage backend. PostgreSQL then owns
+guest principals, live game/runtime snapshots, named saves, and the append-only
+LLM usage ledger. `REDIS_URL` enables session TTL markers, fixed-window mutation
+rate limiting, and per-session distributed locks. If either variable is blank,
+the corresponding local fallback remains available.
+
+```ini
+DATABASE_URL=postgresql+psycopg://everstory:password@postgres:5432/everstory
+REDIS_URL=redis://redis:6379/0
+RATE_LIMIT_REQUESTS=60
+RATE_LIMIT_WINDOW_SECONDS=60
+```
+
+Schema changes are tracked with Alembic (`alembic upgrade head`). BYOK secrets
+are deliberately not written to the database yet; production account login and
+KMS envelope encryption remain the next security milestone.
 
 The optional Volcengine Ark catalog uses one shared Base URL and a separate API credential for each of its seven named models. The empirically selected route map uses DeepSeek V4 Pro for directing, Doubao Seed 2.0 Lite for field work, intent parsing and NPC dialogue, GLM 5.3 for analysis, Kimi K2.7 Code for skeptical review, DeepSeek V4 Flash for consistency checks, and MiniMax M3 for narration. Run `python -m scripts.test_model_connections` for a credential-safe health check, or `python -m scripts.run_full_agent_evaluation` for the checkpointed benchmark. Verify the Coding Plan usage rules before using its coding-only endpoint for a non-coding game workload; a standard Ark model API or agent-oriented plan is the safer production choice.
 

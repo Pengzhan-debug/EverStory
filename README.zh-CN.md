@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![测试](https://img.shields.io/badge/tests-102%20passing-22C55E)
+![测试](https://img.shields.io/badge/tests-109%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [English README](README.md) · [系统架构](docs/architecture.md) · [真实模型评测](reports/agent-routing-evaluation-zh.md) · [公开部署](docs/DEPLOYMENT.md) · [面试演示](docs/DEMO.md) · [简历模板](docs/RESUME.md)
@@ -147,7 +147,7 @@ everstory-learn       # 规则归纳报告
 python -m unittest discover -s tests -v   # 测试
 ```
 
-当前包含 **102 项**无需 API Key 的自动化测试，完整验收路径覆盖智能体提议移动、
+当前包含 **109 项**无需 API Key 的自动化测试，完整验收路径覆盖智能体提议移动、
 三次证人询问、三项证据检查、分析师复核以及受证据链约束的最终指控。
 
 ## 配置真实模型（.env）
@@ -193,9 +193,13 @@ LLM_CHEAP_MODEL=deepseek-v4-flash
 
 服务端 `.env` 中的密钥属于平台默认连接，玩家只能查看脱敏状态，不能在页面修改或
 取回。玩家可在 `/settings` 新增自己的 OpenAI 兼容连接；密钥只留在当前服务进程，
-用量独立统计，调用失败也不会切换到平台密钥。当前作品集版本仍使用匿名 Cookie 和
-进程内运行时；若要多实例公开部署，应升级为登录账户 + PostgreSQL 持久化、KMS 主密钥
-加密 BYOK，并用 Redis 做会话协调和限流。
+用量独立统计，调用失败也不会切换到平台密钥。
+
+v1.2 已加入可选的 PostgreSQL + Redis 运行路径：PostgreSQL 持久化游客主体、实时世界
+与调查记忆、命名存档和幂等 Token 用量账本；Redis 管理会话 TTL、写请求限流与跨进程
+会话锁。未配置 `DATABASE_URL` / `REDIS_URL` 时仍可使用原来的本地模式。数据库迁移由
+Alembic 管理，Docker Compose 会直接启动 Web、PostgreSQL 16、Redis 7 三个服务。
+玩家 BYOK 目前仍不写入数据库；正式商业部署还需账号登录与 KMS 信封加密。
 
 ## 目录结构
 
@@ -207,6 +211,8 @@ everstory/
   llm/             供应商客户端（强/弱双端点）、意图解析、叙述、裁判
   memory/          实体卡、滚动摘要、上下文构建
   persistence.py   版本化存档/读档（世界 + 调查记忆）
+  storage.py       SQLAlchemy 持久层（PostgreSQL/SQLite）与本地回退
+  redis_runtime.py Redis 会话 TTL、限流、分布式锁与内存回退
   agents/          调查团队、互相质疑、任务提案与证据记录
   api/             FastAPI + 游戏 UI + 群聊证据板 + 模型控制台
   eval/            三架构评测 + 长程记忆衰减 + 报告

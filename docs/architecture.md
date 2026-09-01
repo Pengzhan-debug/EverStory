@@ -134,12 +134,36 @@ agent role -> immutable route snapshot -> exactly one connection
 - Every live call records timestamp, agent, connection, credential source,
   model, prompt/completion tokens, estimated cost, latency, result, and a
   bounded error summary. The browser receives no raw key.
-- The current local build isolates worlds, settings, and usage with an
-  anonymous HttpOnly session cookie and an in-memory runtime. Production scale
-  requires authenticated, signed sessions; PostgreSQL for users/worlds/routes/
-  usage; envelope-encrypted BYOK secrets; and Redis-backed quotas/rate limits.
+- An anonymous HttpOnly cookie identifies a guest principal. With
+  `DATABASE_URL`, SQLAlchemy persists live world/team runtime documents, named
+  saves, and idempotent usage events in PostgreSQL; without it, the original
+  in-memory/file fallback remains available.
+- With `REDIS_URL`, Redis tracks session TTL, enforces an atomic fixed-window
+  mutation quota, and serializes writes to the same player session across
+  processes. A local lock/rate-bucket fallback keeps development deterministic.
+- API credentials are intentionally excluded from runtime documents. Full
+  production scale still requires account authentication, KMS envelope
+  encryption for BYOK, IP/account budget policies, and stateless multi-instance
+  cache invalidation.
 
-## 10. Empirical routing and evaluation
+## 10. Runtime persistence topology
+
+```text
+HttpOnly guest cookie
+        |
+        v
+FastAPI runtime cache ---- Redis TTL / rate limit / session lock
+        |
+        +---- PostgreSQL player_sessions (authoritative live snapshot)
+        +---- PostgreSQL save_games      (named immutable saves)
+        `---- PostgreSQL llm_usage_events (idempotent usage ledger)
+```
+
+The database schema is versioned with Alembic. PostgreSQL JSONB keeps the
+versioned world document intact while indexed relational columns retain tenant,
+time, turn, and usage query boundaries.
+
+## 11. Empirical routing and evaluation
 
 `python -m scripts.run_full_agent_evaluation` evaluates 8 runtime/team roles
 against 23 candidate assignments, then runs evidence-transfer, stale-fact,

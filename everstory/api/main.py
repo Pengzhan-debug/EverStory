@@ -25,6 +25,8 @@ from .. import persistence
 from ..llm.settings import client_payload, update_client
 from ..llm.usage import usage_payload
 from ..pipeline import TurnPipeline
+from ..redis_runtime import RedisRuntime, build_redis_runtime
+from ..storage import DatabaseStorage, FileStorage, build_storage
 from ..worlds import load_world
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -184,9 +186,16 @@ def world_payload(session: WorldSession) -> dict:
     }
 
 
-def create_app() -> FastAPI:
-    app = FastAPI(title="EverStory", version="1.1.0")
+def create_app(
+    storage: FileStorage | DatabaseStorage | None = None,
+    redis_runtime: RedisRuntime | None = None,
+) -> FastAPI:
+    app = FastAPI(title="EverStory", version="1.2.0")
     app.add_middleware(GZipMiddleware, minimum_size=500)
+    storage = storage or build_storage()
+    redis_runtime = redis_runtime or build_redis_runtime()
+    app.state.storage = storage
+    app.state.redis_runtime = redis_runtime
     runtimes: dict[str, RuntimeSlot] = {}
     runtimes_lock = RLock()
 
@@ -197,6 +206,39 @@ def create_app() -> FastAPI:
             pipeline=TurnPipeline(session, client or build_client()),
         )
 
+    def slot_document(slot: RuntimeSlot) -> dict:
+        return persistence.session_to_dict(
+            slot.session,
+            extra={
+                "team_chat": slot.team_chat.to_dict(),
+                "pipeline": slot.pipeline.memory_payload(),
+                # Metrics are durable, while API credentials are intentionally
+                # never serialized into a runtime document.
+                "usage": list(slot.pipeline.client.call_history),
+            },
+        )
+
+    def restore_slot(document: dict, session_id: str) -> RuntimeSlot:
+        session = persistence.session_from_dict(document)
+        raw_extra = document.get("extra")
+        extra = raw_extra if isinstance(raw_extra, dict) else {}
+        client = build_client()
+        usage = extra.get("usage") if isinstance(extra.get("usage"), list) else []
+        if not usage:
+            usage = storage.load_usage(session_id)
+        client.call_history.extend(call for call in usage if isinstance(call, dict))
+        pipeline = TurnPipeline(session, client)
+        pipeline.restore_memory(extra.get("pipeline"))
+        return RuntimeSlot(
+            session=session,
+            pipeline=pipeline,
+            team_chat=TeamChatSession.from_dict(extra.get("team_chat")),
+        )
+
+    def persist_slot(session_id: str, slot: RuntimeSlot) -> None:
+        storage.save_runtime(session_id, slot_document(slot))
+        storage.sync_usage(session_id, list(slot.pipeline.client.call_history))
+
     def slot_for(request: Request) -> RuntimeSlot:
         session_id = request.state.session_id
         with runtimes_lock:
@@ -204,26 +246,46 @@ def create_app() -> FastAPI:
             if slot is None:
                 if len(runtimes) >= MAX_RUNTIME_SESSIONS:
                     oldest_id = min(runtimes, key=lambda key: runtimes[key].touched_at)
-                    runtimes.pop(oldest_id, None)
-                slot = new_slot()
+                    oldest = runtimes.pop(oldest_id, None)
+                    if oldest is not None:
+                        persist_slot(oldest_id, oldest)
+                document = storage.load_runtime(session_id)
+                slot = restore_slot(document, session_id) if document else new_slot()
                 runtimes[session_id] = slot
             slot.touched_at = time.monotonic()
             return slot
-
-    def saves_dir_for(request: Request) -> Path:
-        return Path(persistence.SAVES_DIR) / request.state.session_id
 
     @app.middleware("http")
     async def isolate_world_session(request: Request, call_next):
         raw = request.cookies.get(SESSION_COOKIE, "")
         is_new = SESSION_ID_RE.fullmatch(raw) is None
         request.state.session_id = uuid.uuid4().hex if is_new else raw
+        if request.url.path != "/api/health":
+            redis_runtime.touch(request.state.session_id)
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            allowed, _ = redis_runtime.allow(request.state.session_id)
+            if not allowed:
+                response = JSONResponse(
+                    status_code=429,
+                    content={"error": "Too many requests. Retry after the rate window."},
+                    headers={"Retry-After": str(redis_runtime.rate_window)},
+                )
+                if is_new:
+                    response.set_cookie(
+                        SESSION_COOKIE,
+                        request.state.session_id,
+                        max_age=redis_runtime.session_ttl,
+                        httponly=True,
+                        samesite="lax",
+                        path="/",
+                    )
+                return response
         response = await call_next(request)
         if is_new:
             response.set_cookie(
                 SESSION_COOKIE,
                 request.state.session_id,
-                max_age=60 * 60 * 24 * 30,
+                max_age=redis_runtime.session_ttl,
                 httponly=True,
                 samesite="lax",
                 path="/",
@@ -249,7 +311,16 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     def health():
-        return {"status": "ok"}
+        database = storage.health()
+        coordination = redis_runtime.health()
+        ready = bool(database.get("ok")) and bool(coordination.get("ok"))
+        payload = {
+            "status": "ok" if ready else "degraded",
+            "version": "1.2.0",
+            "database": database,
+            "coordination": coordination,
+        }
+        return payload if ready else JSONResponse(status_code=503, content=payload)
 
     @app.get("/api/llm/settings")
     def get_llm_settings(request: Request):
@@ -265,6 +336,7 @@ def create_app() -> FastAPI:
             with slot.lock:
                 client = update_client(slot.pipeline.client, body)
                 slot.pipeline.client = client
+                persist_slot(request.state.session_id, slot)
                 return {"ok": True, "settings": client_payload(client)}
         except ValueError as exc:
             return JSONResponse(status_code=400, content={"error": str(exc)})
@@ -316,7 +388,9 @@ def create_app() -> FastAPI:
                 }
 
         try:
-            return await run_in_threadpool(test_locked)
+            result = await run_in_threadpool(test_locked)
+            await run_in_threadpool(persist_slot, request.state.session_id, slot)
+            return result
         except ValueError as exc:
             return JSONResponse(status_code=400, content={"error": str(exc)})
         except Exception as exc:
@@ -354,7 +428,9 @@ def create_app() -> FastAPI:
         with runtimes_lock:
             current = runtimes.get(request.state.session_id)
             client = current.pipeline.client if current else build_client()
-            runtimes[request.state.session_id] = new_slot(client)
+            slot = new_slot(client)
+            runtimes[request.state.session_id] = slot
+            persist_slot(request.state.session_id, slot)
         return {"ok": True}
 
     @app.post("/api/save")
@@ -364,17 +440,20 @@ def create_app() -> FastAPI:
         slot = slot_for(request)
 
         def save_locked():
-            with slot.lock:
-                path = persistence.save_session(
-                    slot.session,
+            with redis_runtime.session_lock(request.state.session_id), slot.lock:
+                extra = {
+                    "team_chat": slot.team_chat.to_dict(),
+                    "pipeline": slot.pipeline.memory_payload(),
+                    "usage": list(slot.pipeline.client.call_history),
+                }
+                reference = storage.save_game(
+                    request.state.session_id,
                     name,
-                    saves_dir=saves_dir_for(request),
-                    extra={
-                        "team_chat": slot.team_chat.to_dict(),
-                        "pipeline": slot.pipeline.memory_payload(),
-                    },
+                    slot.session,
+                    extra,
                 )
-                return path, slot.session.state.turn, len(slot.team_chat.evidence)
+                persist_slot(request.state.session_id, slot)
+                return reference, slot.session.state.turn, len(slot.team_chat.evidence)
 
         path, turn, evidence_count = await run_in_threadpool(save_locked)
         return {
@@ -386,7 +465,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/saves")
     def saves(request: Request):
-        return {"saves": persistence.list_saves(saves_dir_for(request))}
+        return {"saves": storage.list_games(request.state.session_id)}
 
     @app.post("/api/load")
     async def load(request: Request):
@@ -394,22 +473,28 @@ def create_app() -> FastAPI:
         raw = (body.get("path") or "").strip()
         if not raw:
             return JSONResponse(status_code=400, content={"error": "missing path"})
-        path = Path(raw).resolve()
-        root = saves_dir_for(request).resolve()
-        if not path.is_relative_to(root) or not path.exists():
+        try:
+            session, extra = await run_in_threadpool(
+                storage.load_game, request.state.session_id, raw
+            )
+        except ValueError:
             return JSONResponse(status_code=400, content={"error": "invalid save path"})
-        session, extra = await run_in_threadpool(persistence.load_session_bundle, path)
         team_chat = TeamChatSession.from_dict(extra.get("team_chat"))
         with runtimes_lock:
             current = runtimes.get(request.state.session_id)
             client = current.pipeline.client if current else build_client()
+            usage = extra.get("usage") if isinstance(extra.get("usage"), list) else []
+            client.call_history.clear()
+            client.call_history.extend(call for call in usage if isinstance(call, dict))
             pipeline = TurnPipeline(session, client)
             pipeline.restore_memory(extra.get("pipeline"))
-            runtimes[request.state.session_id] = RuntimeSlot(
+            slot = RuntimeSlot(
                 session=session,
                 pipeline=pipeline,
                 team_chat=team_chat,
             )
+            runtimes[request.state.session_id] = slot
+            persist_slot(request.state.session_id, slot)
         return world_payload(session)
 
     @app.get("/api/world")
@@ -440,13 +525,15 @@ def create_app() -> FastAPI:
             return JSONResponse(status_code=400, content={"error": "empty message"})
 
         def discuss_locked():
-            with slot.lock:
+            with redis_runtime.session_lock(request.state.session_id), slot.lock:
                 actor = slot.session.player_id()
                 context = slot.session.visible_summary(actor)
                 view = world_payload(slot.session)
-                return slot.team_chat.post(
+                result = slot.team_chat.post(
                     text, context, view, slot.pipeline.client, locale=locale
                 )
+                persist_slot(request.state.session_id, slot)
+                return result
 
         try:
             return await run_in_threadpool(discuss_locked)
@@ -463,7 +550,7 @@ def create_app() -> FastAPI:
         slot = slot_for(request)
 
         def approve_locked():
-            with slot.lock:
+            with redis_runtime.session_lock(request.state.session_id), slot.lock:
                 def execute(action_spec: dict):
                     result = slot.session.act(
                         Action(
@@ -482,9 +569,11 @@ def create_app() -> FastAPI:
                         world_payload(slot.session),
                     )
 
-                return slot.team_chat.approve_task(
+                result = slot.team_chat.approve_task(
                     task_id, world_payload(slot.session), executor=execute
                 )
+                persist_slot(request.state.session_id, slot)
+                return result
 
         try:
             return await run_in_threadpool(approve_locked)
@@ -507,9 +596,11 @@ def create_app() -> FastAPI:
         # Run the LLM pipeline off the event loop so one slow turn never
         # blocks health checks or other sessions.
         def process_locked():
-            with slot.lock:
+            with redis_runtime.session_lock(request.state.session_id), slot.lock:
                 result = slot.pipeline.process(text, locale=locale)
-                return result, world_payload(slot.session)
+                current_world = world_payload(slot.session)
+                persist_slot(request.state.session_id, slot)
+                return result, current_world
 
         result, current_world = await run_in_threadpool(process_locked)
         return {
@@ -539,11 +630,12 @@ def create_app() -> FastAPI:
 
         def gen():
             try:
-                with slot.lock:
+                with redis_runtime.session_lock(request.state.session_id), slot.lock:
                     for ev in slot.pipeline.process_stream(
                         text, world_renderer=world_payload, locale=locale
                     ):
                         yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+                    persist_slot(request.state.session_id, slot)
             except Exception as exc:  # surface errors to the client
                 yield f"data: {json.dumps({'type': 'error', 'message': str(exc)[:300]}, ensure_ascii=False)}\n\n"
 

@@ -5,6 +5,13 @@ services:
       - "8123:8123"
     environment:
       LLM_MODE: ${LLM_MODE:-stub}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://everstory:everstory@postgres:5432/everstory}
+      DATABASE_AUTO_CREATE: ${DATABASE_AUTO_CREATE:-true}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-2592000}
+      RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-60}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      INFRA_STRICT: ${INFRA_STRICT:-true}
       PLATFORM_SESSION_TOKEN_LIMIT: ${PLATFORM_SESSION_TOKEN_LIMIT:-50000}
       ARK_ENABLE_CATALOG: ${ARK_ENABLE_CATALOG:-false}
       ARK_BASE_URL: ${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/coding/v3}
@@ -23,7 +30,41 @@ services:
       LLM_CHEAP_MODEL: ${LLM_CHEAP_MODEL:-deepseek-chat}
     volumes:
       - everstory_saves:/app/saves
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: everstory
+      POSTGRES_USER: everstory
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-everstory}
+    volumes:
+      - everstory_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U everstory -d everstory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - everstory_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
 volumes:
   everstory_saves:
+  everstory_postgres:
+  everstory_redis:
