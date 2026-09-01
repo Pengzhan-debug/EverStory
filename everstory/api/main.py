@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import re
+import secrets
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -35,13 +37,20 @@ STATIC_DIR = Path(__file__).parent / "static"
 # StaticFiles returns a portable content type in local and packaged builds.
 mimetypes.add_type("image/webp", ".webp")
 
-SESSION_COOKIE = "everstory_session"
+AUTH_COOKIE = "everstory_auth"
+RUNTIME_COOKIE = "everstory_runtime"
+LEGACY_SESSION_COOKIE = "everstory_session"
+# Backward-compatible import used by clients/tests; it now identifies a game
+# runtime rather than an authenticated user.
+SESSION_COOKIE = RUNTIME_COOKIE
 SESSION_ID_RE = re.compile(r"^[a-f0-9]{32}$")
+AUTH_TOKEN_RE = re.compile(r"^[a-f0-9]{64}$")
 MAX_RUNTIME_SESSIONS = 128
 
 
 @dataclass
 class RuntimeSlot:
+    user_id: str
     session: WorldSession
     pipeline: TurnPipeline
     team_chat: TeamChatSession = field(default_factory=TeamChatSession)
@@ -190,7 +199,7 @@ def create_app(
     storage: FileStorage | DatabaseStorage | None = None,
     redis_runtime: RedisRuntime | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="EverStory", version="1.2.0")
+    app = FastAPI(title="EverStory", version="1.3.0")
     app.add_middleware(GZipMiddleware, minimum_size=500)
     storage = storage or build_storage()
     redis_runtime = redis_runtime or build_redis_runtime()
@@ -199,9 +208,10 @@ def create_app(
     runtimes: dict[str, RuntimeSlot] = {}
     runtimes_lock = RLock()
 
-    def new_slot(client=None) -> RuntimeSlot:
+    def new_slot(user_id: str, client=None) -> RuntimeSlot:
         session = WorldSession(load_world("lost_lighthouse"))
         return RuntimeSlot(
+            user_id=user_id,
             session=session,
             pipeline=TurnPipeline(session, client or build_client()),
         )
@@ -218,50 +228,91 @@ def create_app(
             },
         )
 
-    def restore_slot(document: dict, session_id: str) -> RuntimeSlot:
+    def restore_slot(document: dict, user_id: str, session_id: str) -> RuntimeSlot:
         session = persistence.session_from_dict(document)
         raw_extra = document.get("extra")
         extra = raw_extra if isinstance(raw_extra, dict) else {}
         client = build_client()
         usage = extra.get("usage") if isinstance(extra.get("usage"), list) else []
         if not usage:
-            usage = storage.load_usage(session_id)
+            usage = storage.load_usage(user_id, session_id)
         client.call_history.extend(call for call in usage if isinstance(call, dict))
         pipeline = TurnPipeline(session, client)
         pipeline.restore_memory(extra.get("pipeline"))
         return RuntimeSlot(
+            user_id=user_id,
             session=session,
             pipeline=pipeline,
             team_chat=TeamChatSession.from_dict(extra.get("team_chat")),
         )
 
     def persist_slot(session_id: str, slot: RuntimeSlot) -> None:
-        storage.save_runtime(session_id, slot_document(slot))
-        storage.sync_usage(session_id, list(slot.pipeline.client.call_history))
+        storage.save_runtime(slot.user_id, session_id, slot_document(slot))
+        storage.sync_usage(
+            slot.user_id, session_id, list(slot.pipeline.client.call_history)
+        )
 
     def slot_for(request: Request) -> RuntimeSlot:
         session_id = request.state.session_id
+        user_id = request.state.user_id
         with runtimes_lock:
             slot = runtimes.get(session_id)
+            if slot is not None and slot.user_id != user_id:
+                # A runtime id can never be reused as an authority boundary.
+                runtimes.pop(session_id, None)
+                slot = None
             if slot is None:
                 if len(runtimes) >= MAX_RUNTIME_SESSIONS:
                     oldest_id = min(runtimes, key=lambda key: runtimes[key].touched_at)
                     oldest = runtimes.pop(oldest_id, None)
                     if oldest is not None:
                         persist_slot(oldest_id, oldest)
-                document = storage.load_runtime(session_id)
-                slot = restore_slot(document, session_id) if document else new_slot()
+                document = storage.load_runtime(user_id, session_id)
+                slot = (
+                    restore_slot(document, user_id, session_id)
+                    if document
+                    else new_slot(user_id)
+                )
                 runtimes[session_id] = slot
             slot.touched_at = time.monotonic()
             return slot
 
     @app.middleware("http")
     async def isolate_world_session(request: Request, call_next):
-        raw = request.cookies.get(SESSION_COOKIE, "")
-        is_new = SESSION_ID_RE.fullmatch(raw) is None
-        request.state.session_id = uuid.uuid4().hex if is_new else raw
-        if request.url.path != "/api/health":
-            redis_runtime.touch(request.state.session_id)
+        # Health probes and immutable assets have no player authority and must
+        # not create guest rows or update auth-session last-seen timestamps.
+        if request.url.path == "/api/health" or request.url.path.startswith(
+            "/static/"
+        ):
+            return await call_next(request)
+        raw_auth = request.cookies.get(AUTH_COOKIE, "")
+        raw_runtime = request.cookies.get(RUNTIME_COOKIE, "")
+        raw_legacy = request.cookies.get(LEGACY_SESSION_COOKIE, "")
+        is_new_auth = AUTH_TOKEN_RE.fullmatch(raw_auth) is None
+        auth_token = secrets.token_hex(32) if is_new_auth else raw_auth
+        legacy_id = raw_legacy if SESSION_ID_RE.fullmatch(raw_legacy) else ""
+        is_new_runtime = SESSION_ID_RE.fullmatch(raw_runtime) is None
+        requested_runtime = (
+            raw_runtime
+            if not is_new_runtime
+            else legacy_id or uuid.uuid4().hex
+        )
+        identity = storage.resolve_identity(
+            auth_token,
+            requested_runtime,
+            legacy_id if is_new_auth else "",
+        )
+        if identity.replacement_auth_token:
+            auth_token = identity.replacement_auth_token
+            is_new_auth = True
+        request.state.user_id = identity.user_id
+        request.state.session_id = identity.runtime_id
+        request.state.user_kind = identity.kind
+        cookie_secure = (
+            request.url.scheme == "https"
+            or os.getenv("COOKIE_SECURE", "false").lower() in {"1", "true", "yes"}
+        )
+        redis_runtime.touch(request.state.session_id)
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             allowed, _ = redis_runtime.allow(request.state.session_id)
             if not allowed:
@@ -270,23 +321,45 @@ def create_app(
                     content={"error": "Too many requests. Retry after the rate window."},
                     headers={"Retry-After": str(redis_runtime.rate_window)},
                 )
-                if is_new:
+                if is_new_auth:
                     response.set_cookie(
-                        SESSION_COOKIE,
-                        request.state.session_id,
+                        AUTH_COOKIE,
+                        auth_token,
                         max_age=redis_runtime.session_ttl,
                         httponly=True,
+                        secure=cookie_secure,
+                        samesite="lax",
+                        path="/",
+                    )
+                if is_new_runtime or identity.runtime_replaced:
+                    response.set_cookie(
+                        RUNTIME_COOKIE,
+                        identity.runtime_id,
+                        max_age=redis_runtime.session_ttl,
+                        httponly=True,
+                        secure=cookie_secure,
                         samesite="lax",
                         path="/",
                     )
                 return response
         response = await call_next(request)
-        if is_new:
+        if is_new_auth:
             response.set_cookie(
-                SESSION_COOKIE,
-                request.state.session_id,
+                AUTH_COOKIE,
+                auth_token,
                 max_age=redis_runtime.session_ttl,
                 httponly=True,
+                secure=cookie_secure,
+                samesite="lax",
+                path="/",
+            )
+        if is_new_runtime or identity.runtime_replaced:
+            response.set_cookie(
+                RUNTIME_COOKIE,
+                identity.runtime_id,
+                max_age=redis_runtime.session_ttl,
+                httponly=True,
+                secure=cookie_secure,
                 samesite="lax",
                 path="/",
             )
@@ -316,11 +389,22 @@ def create_app(
         ready = bool(database.get("ok")) and bool(coordination.get("ok"))
         payload = {
             "status": "ok" if ready else "degraded",
-            "version": "1.2.0",
+            "version": "1.3.0",
             "database": database,
             "coordination": coordination,
         }
         return payload if ready else JSONResponse(status_code=503, content=payload)
+
+    @app.get("/api/auth/session")
+    def auth_session(request: Request):
+        return {
+            "user": {
+                "id": request.state.user_id,
+                "kind": request.state.user_kind,
+                "registered": request.state.user_kind == "registered",
+            },
+            "runtime_id": request.state.session_id,
+        }
 
     @app.get("/api/llm/settings")
     def get_llm_settings(request: Request):
@@ -428,7 +512,7 @@ def create_app(
         with runtimes_lock:
             current = runtimes.get(request.state.session_id)
             client = current.pipeline.client if current else build_client()
-            slot = new_slot(client)
+            slot = new_slot(request.state.user_id, client)
             runtimes[request.state.session_id] = slot
             persist_slot(request.state.session_id, slot)
         return {"ok": True}
@@ -447,6 +531,7 @@ def create_app(
                     "usage": list(slot.pipeline.client.call_history),
                 }
                 reference = storage.save_game(
+                    request.state.user_id,
                     request.state.session_id,
                     name,
                     slot.session,
@@ -465,7 +550,11 @@ def create_app(
 
     @app.get("/api/saves")
     def saves(request: Request):
-        return {"saves": storage.list_games(request.state.session_id)}
+        return {
+            "saves": storage.list_games(
+                request.state.user_id, request.state.session_id
+            )
+        }
 
     @app.post("/api/load")
     async def load(request: Request):
@@ -475,7 +564,10 @@ def create_app(
             return JSONResponse(status_code=400, content={"error": "missing path"})
         try:
             session, extra = await run_in_threadpool(
-                storage.load_game, request.state.session_id, raw
+                storage.load_game,
+                request.state.user_id,
+                request.state.session_id,
+                raw,
             )
         except ValueError:
             return JSONResponse(status_code=400, content={"error": "invalid save path"})
@@ -489,6 +581,7 @@ def create_app(
             pipeline = TurnPipeline(session, client)
             pipeline.restore_memory(extra.get("pipeline"))
             slot = RuntimeSlot(
+                user_id=request.state.user_id,
                 session=session,
                 pipeline=pipeline,
                 team_chat=team_chat,

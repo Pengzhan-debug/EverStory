@@ -7,10 +7,14 @@ SQLite in tests) without changing the HTTP contract.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import secrets
 import uuid
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, create_engine, select
@@ -37,6 +41,16 @@ def normalize_database_url(database_url: str) -> str:
     return database_url
 
 
+@dataclass(frozen=True)
+class IdentityContext:
+    user_id: str
+    runtime_id: str
+    kind: str = "guest"
+    auth_session_id: str = ""
+    runtime_replaced: bool = False
+    replacement_auth_token: str = ""
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -46,7 +60,31 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     kind: Mapped[str] = mapped_column(String(16), default="guest", nullable=False)
+    email: Mapped[str | None] = mapped_column(String(320), unique=True, nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    csrf_hash: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class PlayerSession(Base):
@@ -65,6 +103,7 @@ class SaveGame(Base):
     __tablename__ = "save_games"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     session_id: Mapped[str] = mapped_column(
         ForeignKey("player_sessions.id"), index=True
     )
@@ -82,6 +121,7 @@ class UsageEvent(Base):
     __tablename__ = "llm_usage_events"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     session_id: Mapped[str] = mapped_column(
         ForeignKey("player_sessions.id"), index=True
     )
@@ -100,27 +140,70 @@ class FileStorage:
     name = "file"
     durable_runtime = False
 
+    def __init__(self):
+        self._identity_lock = RLock()
+        self._auth_users: dict[str, str] = {}
+        self._runtime_owners: dict[str, str] = {}
+
     def _root(self, session_id: str) -> Path:
         return Path(persistence.SAVES_DIR) / session_id
 
-    def load_runtime(self, session_id: str) -> dict[str, Any] | None:
+    def resolve_identity(
+        self, auth_token: str, runtime_id: str, legacy_session_id: str = ""
+    ) -> IdentityContext:
+        token_hash = hashlib.sha256(auth_token.encode()).hexdigest()
+        runtime_replaced = False
+        replacement_auth_token = ""
+        with self._identity_lock:
+            user_id = self._auth_users.get(token_hash)
+            if user_id is None:
+                # Never accept a caller-chosen unknown token as an authority
+                # credential.  The server issues the token that becomes valid.
+                replacement_auth_token = secrets.token_hex(32)
+                token_hash = hashlib.sha256(
+                    replacement_auth_token.encode()
+                ).hexdigest()
+                user_id = legacy_session_id or uuid.uuid4().hex
+                self._auth_users[token_hash] = user_id
+            owner = self._runtime_owners.get(runtime_id)
+            if owner is not None and owner != user_id:
+                runtime_id = uuid.uuid4().hex
+                runtime_replaced = True
+            self._runtime_owners[runtime_id] = user_id
+        return IdentityContext(
+            user_id=user_id,
+            runtime_id=runtime_id,
+            runtime_replaced=runtime_replaced,
+            replacement_auth_token=replacement_auth_token,
+        )
+
+    def load_runtime(self, user_id: str, session_id: str) -> dict[str, Any] | None:
         return None
 
-    def save_runtime(self, session_id: str, payload: dict[str, Any]) -> None:
+    def save_runtime(
+        self, user_id: str, session_id: str, payload: dict[str, Any]
+    ) -> None:
         return None
 
     def save_game(
-        self, session_id: str, name: str, world: WorldSession, extra: dict[str, Any]
+        self,
+        user_id: str,
+        session_id: str,
+        name: str,
+        world: WorldSession,
+        extra: dict[str, Any],
     ) -> str:
         return str(
-            persistence.save_session(world, name, saves_dir=self._root(session_id), extra=extra)
+            persistence.save_session(
+                world, name, saves_dir=self._root(session_id), extra=extra
+            )
         )
 
-    def list_games(self, session_id: str) -> list[dict[str, Any]]:
+    def list_games(self, user_id: str, session_id: str) -> list[dict[str, Any]]:
         return persistence.list_saves(self._root(session_id))
 
     def load_game(
-        self, session_id: str, reference: str
+        self, user_id: str, session_id: str, reference: str
     ) -> tuple[WorldSession, dict[str, Any]]:
         path = Path(reference).resolve()
         root = self._root(session_id).resolve()
@@ -128,10 +211,14 @@ class FileStorage:
             raise ValueError("invalid save path")
         return persistence.load_session_bundle(path)
 
-    def sync_usage(self, session_id: str, calls: list[dict[str, Any]]) -> None:
+    def sync_usage(
+        self, user_id: str, session_id: str, calls: list[dict[str, Any]]
+    ) -> None:
         return None
 
-    def load_usage(self, session_id: str, limit: int = 2000) -> list[dict[str, Any]]:
+    def load_usage(
+        self, user_id: str, session_id: str, limit: int = 2000
+    ) -> list[dict[str, Any]]:
         return []
 
     def health(self) -> dict[str, Any]:
@@ -146,6 +233,9 @@ class DatabaseStorage:
 
     def __init__(self, database_url: str, *, create_schema: bool = True):
         database_url = normalize_database_url(database_url)
+        self.auth_ttl_seconds = max(
+            60, int(os.getenv("SESSION_TTL_SECONDS", "2592000"))
+        )
         kwargs: dict[str, Any] = {"pool_pre_ping": True}
         if database_url.startswith("sqlite"):
             kwargs["connect_args"] = {"check_same_thread": False}
@@ -154,39 +244,135 @@ class DatabaseStorage:
         if create_schema:
             Base.metadata.create_all(self.engine)
 
-    def _ensure_session(self, db: Session, session_id: str) -> PlayerSession:
-        player_session = db.get(PlayerSession, session_id)
+    def _ensure_user(self, db: Session, user_id: str) -> User:
+        user = db.get(User, user_id)
+        if user is None:
+            user = User(id=user_id, kind="guest")
+            db.add(user)
+            db.flush()
+        return user
+
+    def _ensure_session(
+        self, db: Session, user_id: str, session_id: str
+    ) -> PlayerSession:
+        player_session = db.scalar(
+            select(PlayerSession).where(
+                PlayerSession.id == session_id,
+                PlayerSession.user_id == user_id,
+            )
+        )
         if player_session is not None:
             return player_session
-        if db.get(User, session_id) is None:
-            db.add(User(id=session_id, kind="guest"))
-        player_session = PlayerSession(id=session_id, user_id=session_id)
+        if db.get(PlayerSession, session_id) is not None:
+            raise PermissionError("runtime belongs to another user")
+        self._ensure_user(db, user_id)
+        player_session = PlayerSession(id=session_id, user_id=user_id)
         db.add(player_session)
         db.flush()
         return player_session
 
-    def load_runtime(self, session_id: str) -> dict[str, Any] | None:
+    def resolve_identity(
+        self, auth_token: str, runtime_id: str, legacy_session_id: str = ""
+    ) -> IdentityContext:
+        token_hash = hashlib.sha256(auth_token.encode()).hexdigest()
+        now = utcnow()
+        runtime_replaced = False
+        replacement_auth_token = ""
+        with Session(self.engine) as db, db.begin():
+            auth = db.scalar(
+                select(AuthSession).where(AuthSession.token_hash == token_hash)
+            )
+            auth_expires = auth.expires_at if auth is not None else None
+            if auth_expires is not None and auth_expires.tzinfo is None:
+                auth_expires = auth_expires.replace(tzinfo=timezone.utc)
+            auth_is_valid = bool(
+                auth is not None
+                and auth.revoked_at is None
+                and auth_expires is not None
+                and auth_expires > now
+            )
+            if auth is None or not auth_is_valid:
+                # Unknown tokens may be attacker-selected (session fixation),
+                # so both missing and expired credentials receive a new
+                # server-generated secret before they are persisted.
+                replacement_auth_token = secrets.token_hex(32)
+                token_hash = hashlib.sha256(
+                    replacement_auth_token.encode()
+                ).hexdigest()
+                if auth is not None:
+                    if auth.revoked_at is None:
+                        auth.revoked_at = now
+                legacy_user = (
+                    db.get(User, legacy_session_id) if legacy_session_id else None
+                )
+                user = legacy_user or User(id=uuid.uuid4().hex, kind="guest")
+                if legacy_user is None:
+                    db.add(user)
+                    db.flush()
+                auth = AuthSession(
+                    id=uuid.uuid4().hex,
+                    user_id=user.id,
+                    token_hash=token_hash,
+                    expires_at=now + timedelta(seconds=self.auth_ttl_seconds),
+                )
+                db.add(auth)
+            else:
+                user = db.get(User, auth.user_id)
+                auth.last_seen_at = now
+            user.last_seen_at = now
+
+            player_session = db.get(PlayerSession, runtime_id)
+            if player_session is not None and player_session.user_id != user.id:
+                runtime_id = uuid.uuid4().hex
+                player_session = None
+                runtime_replaced = True
+            if player_session is None:
+                db.add(PlayerSession(id=runtime_id, user_id=user.id))
+
+            return IdentityContext(
+                user_id=user.id,
+                runtime_id=runtime_id,
+                kind=user.kind,
+                auth_session_id=auth.id,
+                runtime_replaced=runtime_replaced,
+                replacement_auth_token=replacement_auth_token,
+            )
+
+    def load_runtime(self, user_id: str, session_id: str) -> dict[str, Any] | None:
         with Session(self.engine) as db:
-            row = db.get(PlayerSession, session_id)
+            row = db.scalar(
+                select(PlayerSession).where(
+                    PlayerSession.id == session_id,
+                    PlayerSession.user_id == user_id,
+                )
+            )
             return dict(row.runtime_payload) if row and row.runtime_payload else None
 
-    def save_runtime(self, session_id: str, payload: dict[str, Any]) -> None:
+    def save_runtime(
+        self, user_id: str, session_id: str, payload: dict[str, Any]
+    ) -> None:
         with Session(self.engine) as db, db.begin():
-            row = self._ensure_session(db, session_id)
+            row = self._ensure_session(db, user_id, session_id)
             row.runtime_payload = payload
             row.updated_at = utcnow()
 
     def save_game(
-        self, session_id: str, name: str, world: WorldSession, extra: dict[str, Any]
+        self,
+        user_id: str,
+        session_id: str,
+        name: str,
+        world: WorldSession,
+        extra: dict[str, Any],
     ) -> str:
         payload = persistence.session_to_dict(world, extra=extra)
         save_id = uuid.uuid4().hex
         evidence_count = len(extra.get("team_chat", {}).get("evidence", []))
         with Session(self.engine) as db, db.begin():
-            self._ensure_session(db, session_id)
+            self._ensure_session(db, user_id, session_id)
             db.add(
                 SaveGame(
                     id=save_id,
+                    user_id=user_id,
                     session_id=session_id,
                     name=name[:120],
                     title=world.title[:200],
@@ -197,11 +383,14 @@ class DatabaseStorage:
             )
         return f"db:{save_id}"
 
-    def list_games(self, session_id: str) -> list[dict[str, Any]]:
+    def list_games(self, user_id: str, session_id: str) -> list[dict[str, Any]]:
         with Session(self.engine) as db:
             rows = db.scalars(
                 select(SaveGame)
-                .where(SaveGame.session_id == session_id)
+                .where(
+                    SaveGame.user_id == user_id,
+                    SaveGame.session_id == session_id,
+                )
                 .order_by(SaveGame.created_at.desc())
             ).all()
             return [
@@ -217,23 +406,29 @@ class DatabaseStorage:
             ]
 
     def load_game(
-        self, session_id: str, reference: str
+        self, user_id: str, session_id: str, reference: str
     ) -> tuple[WorldSession, dict[str, Any]]:
         if not reference.startswith("db:"):
             raise ValueError("invalid save path")
         with Session(self.engine) as db:
             row = db.get(SaveGame, reference[3:])
-            if row is None or row.session_id != session_id:
+            if (
+                row is None
+                or row.user_id != user_id
+                or row.session_id != session_id
+            ):
                 raise ValueError("invalid save path")
             payload = dict(row.payload)
         extra = payload.get("extra")
         return persistence.session_from_dict(payload), extra if isinstance(extra, dict) else {}
 
-    def sync_usage(self, session_id: str, calls: list[dict[str, Any]]) -> None:
+    def sync_usage(
+        self, user_id: str, session_id: str, calls: list[dict[str, Any]]
+    ) -> None:
         if not calls:
             return
         with Session(self.engine) as db, db.begin():
-            self._ensure_session(db, session_id)
+            self._ensure_session(db, user_id, session_id)
             ids = [str(call.get("id") or "") for call in calls if call.get("id")]
             existing = set(
                 db.scalars(select(UsageEvent.id).where(UsageEvent.id.in_(ids))).all()
@@ -250,6 +445,7 @@ class DatabaseStorage:
                 db.add(
                     UsageEvent(
                         id=call_id,
+                        user_id=user_id,
                         session_id=session_id,
                         agent=str(call.get("agent") or "unassigned")[:80],
                         model=str(call.get("model") or "")[:160],
@@ -259,11 +455,16 @@ class DatabaseStorage:
                     )
                 )
 
-    def load_usage(self, session_id: str, limit: int = 2000) -> list[dict[str, Any]]:
+    def load_usage(
+        self, user_id: str, session_id: str, limit: int = 2000
+    ) -> list[dict[str, Any]]:
         with Session(self.engine) as db:
             rows = db.scalars(
                 select(UsageEvent)
-                .where(UsageEvent.session_id == session_id)
+                .where(
+                    UsageEvent.user_id == user_id,
+                    UsageEvent.session_id == session_id,
+                )
                 .order_by(UsageEvent.created_at.desc())
                 .limit(limit)
             ).all()

@@ -1,17 +1,27 @@
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.orm import Session
 
-from everstory.api.main import SESSION_COOKIE, create_app
+from everstory.api.main import AUTH_COOKIE, SESSION_COOKIE, create_app
 from everstory.engine import WorldSession
 from everstory.llm.client import LLMClient
 from everstory.persistence import session_to_dict
 from everstory.redis_runtime import RedisRuntime
-from everstory.storage import DatabaseStorage, normalize_database_url
+from everstory.storage import (
+    AuthSession,
+    DatabaseStorage,
+    PlayerSession,
+    User,
+    normalize_database_url,
+)
 from everstory.worlds import load_world
 
 
@@ -30,6 +40,7 @@ class DatabaseStorageTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         db_path = Path(self.tmp.name) / "everstory-test.db"
         self.storage = DatabaseStorage(f"sqlite:///{db_path.as_posix()}")
+        self.user_id = "d" * 32
         self.session_id = "a" * 32
 
     def tearDown(self):
@@ -39,25 +50,88 @@ class DatabaseStorageTests(unittest.TestCase):
     def test_runtime_round_trip(self):
         world = WorldSession(load_world("lost_lighthouse"))
         payload = session_to_dict(world, extra={"pipeline": {"transcript": []}})
-        self.storage.save_runtime(self.session_id, payload)
+        self.storage.save_runtime(self.user_id, self.session_id, payload)
 
-        restored = self.storage.load_runtime(self.session_id)
+        restored = self.storage.load_runtime(self.user_id, self.session_id)
 
         self.assertEqual(restored["world"], "lost_lighthouse")
         self.assertEqual(restored["state"]["turn"], 0)
 
+    def test_guest_auth_token_is_hashed_and_identity_is_stable(self):
+        token = "f" * 64
+        first = self.storage.resolve_identity(token, self.session_id)
+        second = self.storage.resolve_identity(
+            first.replacement_auth_token, self.session_id
+        )
+
+        self.assertEqual(first.user_id, second.user_id)
+        self.assertEqual(first.runtime_id, self.session_id)
+        self.assertNotEqual(first.replacement_auth_token, token)
+        self.assertEqual(second.replacement_auth_token, "")
+        with Session(self.storage.engine) as db:
+            auth = db.query(AuthSession).one()
+            self.assertNotEqual(auth.token_hash, token)
+            self.assertEqual(len(auth.token_hash), 64)
+
+    def test_runtime_cannot_be_claimed_by_another_guest(self):
+        first = self.storage.resolve_identity("1" * 64, self.session_id)
+        second = self.storage.resolve_identity("2" * 64, self.session_id)
+
+        self.assertNotEqual(first.user_id, second.user_id)
+        self.assertNotEqual(second.runtime_id, self.session_id)
+        self.assertTrue(second.runtime_replaced)
+
+    def test_expired_auth_token_rotates_without_reclaiming_old_runtime(self):
+        first = self.storage.resolve_identity("3" * 64, self.session_id)
+        issued_token = first.replacement_auth_token
+        with Session(self.storage.engine) as db, db.begin():
+            auth = db.query(AuthSession).one()
+            auth.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+        replacement = self.storage.resolve_identity(issued_token, self.session_id)
+
+        self.assertEqual(len(replacement.replacement_auth_token), 64)
+        self.assertNotEqual(replacement.user_id, first.user_id)
+        self.assertNotEqual(replacement.runtime_id, first.runtime_id)
+
+    def test_legacy_session_is_adopted_by_first_auth_cookie(self):
+        legacy = "9" * 32
+        with Session(self.storage.engine) as db, db.begin():
+            db.add(User(id=legacy, kind="guest"))
+            db.add(PlayerSession(id=legacy, user_id=legacy))
+
+        identity = self.storage.resolve_identity("4" * 64, legacy, legacy)
+
+        self.assertEqual(identity.user_id, legacy)
+        self.assertEqual(identity.runtime_id, legacy)
+
+    def test_storage_queries_require_matching_user(self):
+        world = WorldSession(load_world("lost_lighthouse"))
+        payload = session_to_dict(world)
+        self.storage.save_runtime(self.user_id, self.session_id, payload)
+
+        self.assertIsNone(self.storage.load_runtime("e" * 32, self.session_id))
+        with self.assertRaises(PermissionError):
+            self.storage.save_runtime("e" * 32, self.session_id, payload)
+
     def test_database_saves_are_isolated_by_session(self):
         world = WorldSession(load_world("lost_lighthouse"))
         reference = self.storage.save_game(
-            self.session_id, "first clue", world, {"team_chat": {"evidence": []}}
+            self.user_id,
+            self.session_id,
+            "first clue",
+            world,
+            {"team_chat": {"evidence": []}},
         )
 
         self.assertTrue(reference.startswith("db:"))
-        self.assertEqual(len(self.storage.list_games(self.session_id)), 1)
-        restored, _ = self.storage.load_game(self.session_id, reference)
+        self.assertEqual(len(self.storage.list_games(self.user_id, self.session_id)), 1)
+        restored, _ = self.storage.load_game(
+            self.user_id, self.session_id, reference
+        )
         self.assertEqual(restored.world_name, "lost_lighthouse")
         with self.assertRaises(ValueError):
-            self.storage.load_game("b" * 32, reference)
+            self.storage.load_game("e" * 32, self.session_id, reference)
 
     def test_usage_ledger_is_idempotent(self):
         event = {
@@ -67,10 +141,10 @@ class DatabaseStorageTests(unittest.TestCase):
             "model": "test-model",
             "total_tokens": 42,
         }
-        self.storage.sync_usage(self.session_id, [event])
-        self.storage.sync_usage(self.session_id, [event])
+        self.storage.sync_usage(self.user_id, self.session_id, [event])
+        self.storage.sync_usage(self.user_id, self.session_id, [event])
 
-        calls = self.storage.load_usage(self.session_id)
+        calls = self.storage.load_usage(self.user_id, self.session_id)
 
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0]["total_tokens"], 42)
@@ -88,14 +162,45 @@ class DatabaseStorageTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 turn = response.json()["world"]["turn"]
                 session_cookie = first_client.cookies.get(SESSION_COOKIE)
+                auth_cookie = first_client.cookies.get(AUTH_COOKIE)
 
             second_app = create_app(self.storage, RedisRuntime(rate_limit=0))
             with TestClient(second_app) as second_client:
                 second_client.cookies.set(SESSION_COOKIE, session_cookie)
+                second_client.cookies.set(AUTH_COOKIE, auth_cookie)
                 restored = second_client.get("/api/world")
 
         self.assertEqual(restored.status_code, 200)
         self.assertEqual(restored.json()["turn"], turn)
+
+    def test_health_and_static_assets_do_not_create_guest_rows(self):
+        app = create_app(self.storage, RedisRuntime(rate_limit=0))
+        with TestClient(app) as client:
+            self.assertEqual(client.get("/api/health").status_code, 200)
+            self.assertEqual(client.get("/static/i18n.js").status_code, 200)
+
+        with Session(self.storage.engine) as db:
+            self.assertEqual(db.query(User).count(), 0)
+            self.assertEqual(db.query(AuthSession).count(), 0)
+
+    def test_alembic_upgrades_empty_database_to_identity_schema(self):
+        migration_path = Path(self.tmp.name) / "migration-test.db"
+        config = Config("alembic.ini")
+        url = f"sqlite:///{migration_path.as_posix()}"
+        config.set_main_option("sqlalchemy.url", url)
+
+        command.upgrade(config, "head")
+
+        engine = create_engine(url)
+        try:
+            schema = inspect(engine)
+            self.assertIn("auth_sessions", schema.get_table_names())
+            self.assertIn(
+                "user_id",
+                {column["name"] for column in schema.get_columns("save_games")},
+            )
+        finally:
+            engine.dispose()
 
 
 class RedisRuntimeTests(unittest.TestCase):

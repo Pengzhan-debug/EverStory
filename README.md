@@ -1,12 +1,12 @@
 # EverStory
 
-**A state-consistent, persistent multi-agent AI world engine — v1.2 portfolio release.**
+**A state-consistent, persistent multi-agent AI world engine — v1.3 identity-core release.**
 
 > [中文版 README](README.zh-CN.md)
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-109%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-119%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Identity/BYOK design](docs/IDENTITY_AND_BYOK_DESIGN.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
@@ -52,7 +52,7 @@ Each investigation and runtime role can use an independent or shared OpenAI-comp
 
 - **Deterministic AI world engine** — typed actions are validated against real state before anything changes.
 - **Persistent world state** — entities, items, locations, relationships, time, flags, quests and snapshots remain structured and inspectable.
-- **Production persistence path** — optional PostgreSQL stores anonymous principals, live runtime snapshots, save games, and an idempotent LLM usage ledger; Redis supplies session TTL, mutation quotas, and cross-process player locks.
+- **Production persistence path** — optional PostgreSQL stores guest users, hashed auth sessions, tenant-owned runtime snapshots, save games, and an idempotent LLM usage ledger; Redis supplies session TTL, mutation quotas, and cross-process player locks.
 - **Natural-language gameplay** — players can say things like `walk toward the lighthouse`, `take the rusty key`, or `talk to the keeper` instead of learning a command language.
 - **Grounded narration** — the LLM narrates the state transition that the engine actually applied.
 - **Fact checking** — generated narration is checked against the state delta and can be retried when it contradicts the world.
@@ -246,8 +246,9 @@ Platform credentials come only from the server environment and are read-only in 
 ### PostgreSQL and Redis
 
 `DATABASE_URL` enables the SQLAlchemy storage backend. PostgreSQL then owns
-guest principals, live game/runtime snapshots, named saves, and the append-only
-LLM usage ledger. `REDIS_URL` enables session TTL markers, fixed-window mutation
+guest users and hashed auth sessions, live game/runtime snapshots, named saves,
+and the append-only LLM usage ledger. Every database access is scoped by both
+the authenticated `user_id` and active runtime id. `REDIS_URL` enables session TTL markers, fixed-window mutation
 rate limiting, and per-session distributed locks. If either variable is blank,
 the corresponding local fallback remains available.
 

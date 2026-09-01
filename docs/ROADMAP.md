@@ -1,10 +1,11 @@
-# EverStory v1.2 status and roadmap
+# EverStory v1.3 identity-core status and roadmap
 
-EverStory v1.2 is a GitHub- and resume-ready portfolio release with an optional
-PostgreSQL/Redis production path. It is a complete single-case game and
-engineering demonstration, not yet a commercial multiplayer service.
+EverStory v1.3 is the GitHub- and resume-ready game release. This first v1.3
+production-hardening slice adds durable guest identity and tenant isolation
+on top of the optional PostgreSQL/Redis path. It remains a complete single-case
+game and engineering demonstration, not yet a commercial multiplayer service.
 
-## v1.2 acceptance status
+## v1.3 acceptance status
 
 - [x] Storm Shore narrative opening with clear onboarding
 - [x] Deterministic world state, typed actions, validation, snapshots/rollback
@@ -17,14 +18,17 @@ engineering demonstration, not yet a commercial multiplayer service.
 - [x] Conversation, team tasks, evidence, and world state survive save/load
 - [x] Per-agent OpenAI-compatible routing, tests, latency, Token diagnostics
 - [x] Shared Chinese/English UI and model-output language enforcement
-- [x] 109 deterministic tests on Python 3.11/3.12 CI
+- [x] 119 deterministic tests on Python 3.11/3.12 CI
 - [x] Live multi-model Ark benchmark with per-agent cost/latency metrics
 - [x] Docker/Compose, Render blueprint, demo GIF, screenshots, resume notes
 - [x] SQLAlchemy/PostgreSQL runtime, save-game, and usage persistence
 - [x] Redis session TTL, mutation rate limits, and distributed session locks
 - [x] Alembic schema migration and three-service Docker Compose topology
+- [x] Separate server-issued guest auth and active-runtime HttpOnly cookies
+- [x] Hashed auth-session storage, expiry rotation, and legacy-session adoption
+- [x] Explicit user ownership filters for runtime, save, and usage persistence
 
-## Verified v1.2 measurements
+## Verified measurements
 
 - Structured task proposal accuracy: 100% (8/8)
 - Approved action success: 100% (8/8)
@@ -39,9 +43,9 @@ engineering demonstration, not yet a commercial multiplayer service.
 See `reports/agent-routing-evaluation-zh.md` and the checked-in JSON/checkpoints
 for the reproducible report.
 
-## Production roadmap (not claimed as implemented)
+## Remaining production roadmap
 
-1. Add authentication and migrate anonymous guest principals into user accounts.
+1. Add email-code authentication and upgrade/merge guest principals into registered accounts.
 2. Add KMS-encrypted BYOK persistence, IP/account/day budgets, and secret rotation.
 3. Add browser-level Playwright CI for the full bilingual investigation path.
 4. Add branching cases and authoring tools for declarative TOML worlds.
@@ -56,6 +60,8 @@ multi-instance design is documented in
 
 - One mystery has the fully authored multi-agent ending; Ghost Train remains an
   engine-content example rather than an equally polished campaign.
+- Guest identity is durable only when PostgreSQL is configured; file mode keeps
+  identity ownership in process memory and is intended for local/demo use.
 - PostgreSQL is authoritative when configured, but the FastAPI process still
   keeps a bounded hot runtime cache; full horizontal scale needs cache
   invalidation/version checks in addition to the Redis session lock.

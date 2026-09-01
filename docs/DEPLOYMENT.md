@@ -37,7 +37,7 @@
 
 - 本地 Python（无 URL）：命名存档写 JSON，实时运行态保存在进程内。
 - Docker Compose：默认启动 Web + PostgreSQL 16 + Redis 7；数据库保存实时运行态、
-  命名存档和 Token 账本，Redis 提供 TTL、限流和会话锁。
+  哈希认证会话、命名存档和 Token 账本，Redis 提供 TTL、限流和会话锁。
 - Render 单实例：在 Environment 中绑定托管 PostgreSQL 的 Internal URL 和 Redis/Key
   Value URL 后启用同一套持久层；不绑定则自动回退。
 - 玩家 BYOK：当前只在服务进程内存中，完整密钥不返回浏览器，也不会明文写入数据库。
@@ -56,6 +56,7 @@ alembic upgrade head
 DATABASE_URL=postgresql+psycopg://user:password@host:5432/everstory
 REDIS_URL=redis://host:6379/0
 SESSION_TTL_SECONDS=2592000
+COOKIE_SECURE=true
 RATE_LIMIT_REQUESTS=60
 RATE_LIMIT_WINDOW_SECONDS=60
 INFRA_STRICT=true
@@ -74,8 +75,9 @@ Browser
       → Model providers
 ```
 
-- 登录：邮箱验证码或 OAuth；游客可先试玩，注册后再绑定永久存档。
-- 数据库：PostgreSQL 持久层已实现游客会话、运行态、存档和用量账本；下一步把游客
+- 身份：服务端签发的游客认证会话、双 Cookie 和租户过滤已实现；下一步增加邮箱验证码
+  或 OAuth，并将游客原地升级为可跨设备登录的账号。
+- 数据库：PostgreSQL 持久层已实现游客身份、运行态、存档和用量账本；下一步把游客
   主体绑定到正式账号，并补充数据导出、删除和备份恢复演练。
 - 凭据：只保存密文，使用 KMS envelope encryption；日志、异常和前端响应永不包含完整 Key。
 - 配额：Redis 原子会话限流 + PostgreSQL 用量账本已实现；还需增加单 IP、单账号和

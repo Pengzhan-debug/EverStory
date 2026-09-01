@@ -36,6 +36,44 @@ class ApiTest(unittest.TestCase):
         self.assertIn("investigation team", world["scene"]["objective"])
         self.assertGreater(len(world["scene"]["suggestions"]), 1)
 
+    def test_guest_identity_uses_separate_auth_and_runtime_cookies(self):
+        data = self.client.get("/api/auth/session").json()
+
+        self.assertEqual(data["user"]["kind"], "guest")
+        self.assertFalse(data["user"]["registered"])
+        self.assertEqual(
+            data["runtime_id"], self.client.cookies.get("everstory_runtime")
+        )
+        self.assertEqual(len(self.client.cookies.get("everstory_auth")), 64)
+        self.assertEqual(len(self.client.cookies.get("everstory_runtime")), 32)
+
+    def test_unknown_auth_cookie_is_replaced_by_server_credential(self):
+        attacker_selected = "a" * 64
+        self.client.cookies.set("everstory_auth", attacker_selected)
+
+        response = self.client.get("/api/auth/session")
+
+        self.assertEqual(response.status_code, 200)
+        issued = response.cookies.get("everstory_auth")
+        self.assertNotEqual(issued, attacker_selected)
+        self.assertEqual(len(issued), 64)
+
+    def test_forged_runtime_cookie_is_not_an_authority_boundary(self):
+        other = TestClient(self.client.app)
+        try:
+            other.get("/api/auth/session")
+            stolen_runtime = self.client.cookies.get("everstory_runtime")
+            other.cookies.set("everstory_runtime", stolen_runtime)
+
+            identity = other.get("/api/auth/session").json()
+
+            self.assertNotEqual(identity["user"]["id"], self.client.get(
+                "/api/auth/session"
+            ).json()["user"]["id"])
+            self.assertNotEqual(identity["runtime_id"], stolen_runtime)
+        finally:
+            other.close()
+
     def test_game_shell_exposes_shared_chinese_english_locale(self):
         page = self.client.get("/").text
         locale = self.client.get("/static/i18n.js").text
@@ -573,8 +611,8 @@ class ApiTest(unittest.TestCase):
             self.assertEqual(first_world["turn"], 1)
             self.assertEqual(other_world["turn"], 0)
             self.assertNotEqual(
-                self.client.cookies.get("everstory_session"),
-                other.cookies.get("everstory_session"),
+                self.client.cookies.get("everstory_runtime"),
+                other.cookies.get("everstory_runtime"),
             )
         finally:
             other.close()
@@ -600,7 +638,10 @@ class ApiTest(unittest.TestCase):
 
         other = TestClient(self.client.app)
         other.cookies.set(
-            "everstory_session", self.client.cookies.get("everstory_session")
+            "everstory_runtime", self.client.cookies.get("everstory_runtime")
+        )
+        other.cookies.set(
+            "everstory_auth", self.client.cookies.get("everstory_auth")
         )
         try:
             def wait_turn(client):

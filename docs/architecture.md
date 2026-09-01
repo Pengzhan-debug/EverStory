@@ -134,25 +134,26 @@ agent role -> immutable route snapshot -> exactly one connection
 - Every live call records timestamp, agent, connection, credential source,
   model, prompt/completion tokens, estimated cost, latency, result, and a
   bounded error summary. The browser receives no raw key.
-- An anonymous HttpOnly cookie identifies a guest principal. With
-  `DATABASE_URL`, SQLAlchemy persists live world/team runtime documents, named
-  saves, and idempotent usage events in PostgreSQL; without it, the original
-  in-memory/file fallback remains available.
+- Separate HttpOnly cookies identify a server-issued guest auth session and the
+  active game runtime. PostgreSQL stores only the auth-token hash, rejects a
+  runtime owned by another user, and scopes runtime, save, and usage queries by
+  both `user_id` and runtime id. The in-memory/file fallback remains available.
 - With `REDIS_URL`, Redis tracks session TTL, enforces an atomic fixed-window
   mutation quota, and serializes writes to the same player session across
   processes. A local lock/rate-bucket fallback keeps development deterministic.
 - API credentials are intentionally excluded from runtime documents. Full
-  production scale still requires account authentication, KMS envelope
+  production scale still requires registered-account login, CSRF enforcement, KMS envelope
   encryption for BYOK, IP/account budget policies, and stateless multi-instance
   cache invalidation.
 
 ## 10. Runtime persistence topology
 
 ```text
-HttpOnly guest cookie
+everstory_auth (server-issued secret) ---> PostgreSQL users/auth_sessions
+everstory_runtime (active game id) ------> ownership check
         |
         v
-FastAPI runtime cache ---- Redis TTL / rate limit / session lock
+FastAPI runtime cache ---- Redis TTL / rate limit / runtime lock
         |
         +---- PostgreSQL player_sessions (authoritative live snapshot)
         +---- PostgreSQL save_games      (named immutable saves)

@@ -1,6 +1,16 @@
 # EverStory 多用户身份、BYOK 与多实例设计
 
-> 状态：v1.3 设计稿。本文描述下一阶段的实施边界，不代表这些能力已经上线。
+> 状态：v1.3 分阶段实施中。Phase A 游客身份核心已经实现；注册登录、CSRF 强制校验、
+> BYOK 密文持久化和多实例版本控制仍是后续阶段，不应视为已上线。
+
+### 已实现的 Phase A
+
+- 首次访问创建游客用户、认证会话和游戏运行档，旧 `everstory_session` 可无损继承。
+- `everstory_auth` 与 `everstory_runtime` 分离；未知或过期认证令牌由服务端强制换发。
+- PostgreSQL 只保存 SHA-256 令牌哈希，原始认证令牌只存在于 HttpOnly Cookie。
+- 运行态、命名存档和 Token 用量查询均同时约束 `user_id + runtime_id`。
+- `GET /api/auth/session` 返回最小游客身份摘要，健康检查和静态资源不会制造游客记录。
+- Alembic `20260901_0002` 完成旧数据回填，并有空库迁移、跨用户伪造和重启恢复测试。
 
 ## 1. 目标
 
@@ -50,7 +60,7 @@ User
 - `everstory_auth`：256-bit 随机不透明令牌，只在浏览器 Cookie 中出现；数据库只保存
   SHA-256 哈希。`HttpOnly + Secure + SameSite=Lax`。
 - `everstory_runtime`：当前游戏局 UUID。它只能访问 `everstory_auth` 所属用户的数据。
-- CSRF：为所有 Cookie 认证的写接口增加双提交 Token 或服务端 CSRF Token。
+- CSRF（待 Phase B）：为所有 Cookie 认证的写接口增加双提交 Token 或服务端 CSRF Token。
 
 Cookie 轮换发生在登录、提权和账号合并之后，避免 session fixation。
 
@@ -224,13 +234,14 @@ FastAPI 的进程内 `RuntimeSlot` 只能作为热缓存。每次写前比较 Re
 
 ## 10. 迁移顺序
 
-1. `0002_identity_core`：扩展 users，创建 auth_sessions/login_challenges，给业务表补 user_id。
-2. 回填现有数据：旧的 `player_sessions.user_id` 保持指向对应 guest user，不丢档。
-3. API 同时写旧会话 Cookie 和新 auth/runtime Cookie，观察一个版本。
-4. `0003_encrypted_connections`：创建 api_connections/agent_route_assignments。
-5. 控制台改用连接 CRUD；确认日志和响应没有密钥后再启用持久 BYOK。
-6. `0004_runtime_versioning`：增加 state_version、幂等键和缓存失效。
-7. 删除旧 Cookie 兼容层和进程内连接配置。
+1. [已完成] `0002_identity_core`：扩展 users，创建 auth_sessions，给业务表补 user_id。
+2. [已完成] 回填现有数据：旧 `player_sessions.user_id` 保持指向对应 guest user，不丢档。
+3. [兼容期] 接受旧会话 Cookie，同时签发新 auth/runtime Cookie，观察一个版本。
+4. [待实现] 登录挑战与游客升级/账号合并，并启用 CSRF 校验和设备撤销。
+5. [待实现] `encrypted_connections`：创建 api_connections/agent_route_assignments。
+6. [待实现] 控制台改用连接 CRUD；确认日志和响应没有密钥后再启用持久 BYOK。
+7. [待实现] `runtime_versioning`：增加 state_version、幂等键和缓存失效。
+8. [待实现] 删除旧 Cookie 兼容层和进程内连接配置。
 
 任何数据库迁移都必须支持滚动部署：先加 nullable 字段并双写，回填完成后再加 NOT NULL
 与唯一约束，不能让旧实例在发布过程中失效。
