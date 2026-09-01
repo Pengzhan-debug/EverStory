@@ -9,8 +9,10 @@ WORKDIR /app
 
 COPY pyproject.toml README.md LICENSE ./
 COPY everstory ./everstory
+COPY alembic.ini ./
+COPY migrations ./migrations
 
-RUN pip install --upgrade pip && pip install ".[web]" \
+RUN pip install --upgrade pip && pip install ".[web,production]" \
     && useradd --create-home --uid 10001 everstory \
     && mkdir -p /app/saves \
     && chown -R everstory:everstory /app

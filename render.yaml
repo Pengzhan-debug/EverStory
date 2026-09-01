@@ -7,6 +7,18 @@ services:
     envVars:
       - key: LLM_MODE
         value: stub
+      # Attach managed PostgreSQL/Key Value URLs here when moving beyond the
+      # free single-instance portfolio demo. Empty values keep file mode.
+      - key: DATABASE_URL
+        value: ""
+      - key: REDIS_URL
+        value: ""
+      - key: DATABASE_AUTO_CREATE
+        value: true
+      - key: RATE_LIMIT_REQUESTS
+        value: 60
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        value: 60
       - key: PLATFORM_SESSION_TOKEN_LIMIT
         value: 50000
       - key: ARK_ENABLE_CATALOG

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import time
 import json
+import uuid
 from collections import deque
 from datetime import datetime, timezone
 
@@ -196,6 +197,7 @@ class LLMClient:
             ) + prompt_tokens + completion_tokens
         self.call_history.append(
             {
+                "id": uuid.uuid4().hex,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "agent": agent or "unassigned",
                 "connection_id": connection_id,
