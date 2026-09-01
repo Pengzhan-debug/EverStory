@@ -48,6 +48,10 @@ for the reproducible report.
 5. Compare the four-agent workflow with a controlled single-agent baseline on
    solve rate, contradiction rate, cost, and player-rated usefulness.
 
+The implementation-ready identity, encrypted BYOK, schema, API, and
+multi-instance design is documented in
+[`IDENTITY_AND_BYOK_DESIGN.md`](IDENTITY_AND_BYOK_DESIGN.md).
+
 ## Honest limitations
 
 - One mystery has the fully authored multi-agent ending; Ghost Train remains an

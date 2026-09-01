@@ -9,7 +9,7 @@
 ![Tests](https://img.shields.io/badge/tests-109%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
-[Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
+[Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Identity/BYOK design](docs/IDENTITY_AND_BYOK_DESIGN.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
 
 EverStory is a hybrid architecture for long-horizon AI interaction: an LLM *proposes* actions in natural language, while a deterministic state machine *decides*. The world — entities, items, locations, relationships, time, flags and quests — lives in a structured, versioned state graph that the LLM can never directly mutate.
 

@@ -7,7 +7,7 @@
 ![测试](https://img.shields.io/badge/tests-109%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
-[English README](README.md) · [系统架构](docs/architecture.md) · [真实模型评测](reports/agent-routing-evaluation-zh.md) · [公开部署](docs/DEPLOYMENT.md) · [面试演示](docs/DEMO.md) · [简历模板](docs/RESUME.md)
+[English README](README.md) · [系统架构](docs/architecture.md) · [真实模型评测](reports/agent-routing-evaluation-zh.md) · [公开部署](docs/DEPLOYMENT.md) · [身份与 BYOK 设计](docs/IDENTITY_AND_BYOK_DESIGN.md) · [面试演示](docs/DEMO.md) · [简历模板](docs/RESUME.md)
 
 EverStory 是一个解决 **LLM 长程交互不可靠**（遗忘、自相矛盾、编造状态）问题的
 混合架构项目：玩家用自然语言行动，大模型负责"听懂"和"叙述"，但世界的真相——
