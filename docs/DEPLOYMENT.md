@@ -43,7 +43,10 @@ PostgreSQL 升级为付费实例并开启备份，Key Value 是否付费取决�
 3. **无限平台 Key**：不建议，公开地址会产生盗刷和账单风险。
 
 如要启用平台模型，把密钥仅放到 Render Environment，不要提交到 Git。`LLM_MODE=api`
-会启用真实调用；`PLATFORM_SESSION_TOKEN_LIMIT` 控制单浏览器运行时的平台 Token 上限。
+会启用真实调用；`PLATFORM_SESSION_TOKEN_LIMIT` 控制单浏览器运行时的平台 Token 上限，
+`PLATFORM_ACCOUNT_DAILY_TOKEN_LIMIT` 通过 Redis 控制同一账号跨案件、跨实例的每日总量。
+请求前会预留提示词估算加最大输出 Token，完成后按真实 usage 结算；连续供应商故障会触发
+冷却熔断。`LIVE_LLM_REQUIRE_ACCOUNT=true` 时，游客不能切换到在线 API。
 火山方舟目录还需 `ARK_ENABLE_CATALOG=true`。正式使用前应确认所购套餐允许游戏/智能体
 工作负载，Coding Plan 端点不应在未确认条款时直接作为公开游戏后端。
 
@@ -88,6 +91,11 @@ BYOK_MASTER_KEY_ID=prod-v1
 BYOK_PREVIOUS_MASTER_KEYS={}
 RATE_LIMIT_REQUESTS=60
 RATE_LIMIT_WINDOW_SECONDS=60
+PLATFORM_ACCOUNT_DAILY_TOKEN_LIMIT=20000
+PLATFORM_TOKEN_RESERVATION=2048
+PLATFORM_CIRCUIT_FAILURE_THRESHOLD=3
+PLATFORM_CIRCUIT_COOLDOWN_SECONDS=300
+LIVE_LLM_REQUIRE_ACCOUNT=true
 INFRA_STRICT=true
 ```
 

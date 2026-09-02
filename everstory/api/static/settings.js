@@ -15,8 +15,9 @@ const TEXT = {
     usageHelp:"当前玩家会话", last24h:"最近 24 小时", last7d:"最近 7 天",
     last30d:"最近 30 天", tokenMetric:"Token", requestMetric:"请求数", costMetric:"估算成本", latencyMetric:"延迟",
     bySource:"按 API 来源", byAgent:"按智能体", byModel:"按模型", byConnection:"按连接",
-    platformApi:"平台默认 API", platformApiHelp:"受当前玩家额度限制", personalApi:"玩家个人 API",
+    platformApi:"平台默认 API", platformApiHelp:"受会话与账号每日预算限制", personalApi:"玩家个人 API",
     personalApiHelp:"独立计量，不使用平台密钥", periodUsage:"所选周期", remaining:"剩余", unlimited:"不限制",
+    dailyBudget:"账号每日预算", circuitState:"平台熔断", circuitHealthy:"正常", circuitOpen:"个连接冷却中", accountRequired:"登录后可启用在线 API",
     addConnection:"新增 API",
     routingHelp:"选择每个智能体使用的模型", agent:"智能体", group:"分组", state:"状态",
     assigned:"分配连接", model:"模型", diagnosticsHelp:"最近 100 次调用",
@@ -42,8 +43,9 @@ const TEXT = {
     usageHelp:"Current player session", last24h:"Last 24 hours", last7d:"Last 7 days",
     last30d:"Last 30 days", tokenMetric:"Tokens", requestMetric:"Requests", costMetric:"Estimated cost", latencyMetric:"Latency",
     bySource:"By API source", byAgent:"By agent", byModel:"By model", byConnection:"By connection",
-    platformApi:"Platform default API", platformApiHelp:"Limited per player session", personalApi:"Player personal API",
+    platformApi:"Platform default API", platformApiHelp:"Limited per session and account/day", personalApi:"Player personal API",
     personalApiHelp:"Metered separately; no platform key", periodUsage:"Selected period", remaining:"remaining", unlimited:"Unlimited",
+    dailyBudget:"Daily account budget", circuitState:"Platform circuit", circuitHealthy:"Healthy", circuitOpen:"connections cooling down", accountRequired:"Sign in to enable live APIs",
     addConnection:"Add API",
     routingHelp:"Choose the model used by each agent", agent:"Agent", group:"Group", state:"Status",
     assigned:"Assigned connection", model:"Model", diagnosticsHelp:"Latest 100 calls",
@@ -267,6 +269,7 @@ function renderChart() {
 function renderUsage() {
   const summary = usage?.summary || {};
   const quota = summary.platform_quota || {};
+  const guardrails = summary.platform_guardrails || {};
   $("#metric-calls").textContent = num(summary.calls);
   $("#metric-success").textContent = `${summary.success_rate ?? 100}% ${t("successRate")}`;
   $("#metric-tokens").textContent = num(summary.total_tokens);
@@ -280,6 +283,12 @@ function renderUsage() {
   $("#quota-used").textContent = quota.limit ? `${num(quota.used)} / ${num(quota.limit)}` : t("unlimited");
   $("#quota-percent").textContent = quota.limit ? `${quota.percent || 0}%` : "—";
   $("#quota-fill").style.width = `${Math.min(100, quota.percent || 0)}%`;
+  $("#daily-budget").textContent = guardrails.daily_token_limit
+    ? `${num(guardrails.daily_tokens_used)} / ${num(guardrails.daily_token_limit)}`
+    : t("unlimited");
+  const openCircuits = Number(guardrails.open_circuits || 0);
+  $("#circuit-state").textContent = openCircuits ? `${openCircuits} ${t("circuitOpen")}` : t("circuitHealthy");
+  $("#circuit-state").className = openCircuits ? "bad" : "";
   $("#personal-period").textContent = `${num(summary.personal_tokens)} Tokens`;
   renderChart();
   renderLogs();

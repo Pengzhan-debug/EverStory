@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-133%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-138%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [Play the live demo](https://everstory.onrender.com/) · [Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Identity/BYOK design](docs/IDENTITY_AND_BYOK_DESIGN.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
@@ -65,6 +65,7 @@ Each investigation and runtime role can use an independent or shared OpenAI-comp
 - **Case evidence board** — confirmed scenes, objects and people remain separate from agent hypotheses and survive save/load.
 - **Complete mystery loop** — the player washes ashore, gathers three testimonies and three physical/timeline links, requests analyst corroboration, restores the lighthouse, and reaches one deterministic culprit/confession ending.
 - **Model usage console** — route each agent between read-only platform defaults and isolated player BYOK connections; inspect quota, stacked usage charts, estimated cost, latency, failures, and source-aware call logs.
+- **Hosted-model safety rails** — public guests remain on Stub until account verification; Redis atomically enforces account/day platform Token budgets, preflight reservation/actual-usage settlement, and per-provider failure circuit breakers. Personal BYOK never consumes the platform budget.
 - **Shared Chinese / English interface** — the game shell and model console share one locale preference; HUD, maps, objectives, known items and the investigation room update immediately without changing engine IDs.
 - **World Inspector** — live turn/time, entities, items, quests, event log and state-oriented debugging remain available without breaking immersion.
 - **Inventory & keyboard interaction** — `I` opens inventory, `TAB` focuses world state, `ESC` closes overlays.

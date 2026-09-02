@@ -34,6 +34,7 @@ from ..llm.settings import (
     client_payload,
     update_client,
 )
+from ..llm.guardrails import PlatformGuardrails
 from ..llm.usage import usage_payload
 from ..pipeline import TurnPipeline
 from ..redis_runtime import RedisRuntime, build_redis_runtime
@@ -230,6 +231,9 @@ def create_app(
 
     def client_with_account_profile(user_id: str, client=None):
         configured_client = client or build_client()
+        configured_client.platform_guard = PlatformGuardrails.from_env(
+            redis_runtime, user_id
+        )
         profile = storage.load_llm_profile(user_id)
         return apply_account_profile(configured_client, profile)
 
@@ -247,6 +251,9 @@ def create_app(
                 or not storage.durable_runtime,
                 "personal_keys_account_scoped": registered,
                 "personal_keys_encrypted_at_rest": encrypted_at_rest,
+                "live_api_requires_account": os.getenv(
+                    "LIVE_LLM_REQUIRE_ACCOUNT", "false"
+                ).lower() in {"1", "true", "yes"},
             }
         )
         return payload
@@ -710,6 +717,20 @@ def create_app(
         try:
             with slot.lock:
                 client = update_client(slot.pipeline.client, body)
+                live_requires_account = os.getenv(
+                    "LIVE_LLM_REQUIRE_ACCOUNT", "false"
+                ).lower() in {"1", "true", "yes"}
+                if (
+                    live_requires_account
+                    and client.mode == "api"
+                    and request.state.user_kind != "registered"
+                ):
+                    return JSONResponse(
+                        status_code=403,
+                        content={
+                            "error": "Sign in before enabling live model APIs. Offline Stub remains available."
+                        },
+                    )
                 profile = account_profile(client)
                 if request.state.user_kind == "registered":
                     storage.save_llm_profile(request.state.user_id, profile)

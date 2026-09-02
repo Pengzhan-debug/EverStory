@@ -45,6 +45,16 @@ services:
         value: 600
       - key: PLATFORM_SESSION_TOKEN_LIMIT
         value: 50000
+      - key: PLATFORM_ACCOUNT_DAILY_TOKEN_LIMIT
+        value: 20000
+      - key: PLATFORM_TOKEN_RESERVATION
+        value: 2048
+      - key: PLATFORM_CIRCUIT_FAILURE_THRESHOLD
+        value: 3
+      - key: PLATFORM_CIRCUIT_COOLDOWN_SECONDS
+        value: 300
+      - key: LIVE_LLM_REQUIRE_ACCOUNT
+        value: true
       - key: ARK_ENABLE_CATALOG
         value: false
       - key: ARK_KIMI_K27_CODE_API_KEY

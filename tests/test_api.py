@@ -635,6 +635,7 @@ class ApiTest(unittest.TestCase):
         data = usage.json()
         self.assertEqual(len(data["series"]), 7)
         self.assertIn("platform_quota", data["summary"])
+        self.assertIn("platform_guardrails", data["summary"])
         self.assertIn("logs", data)
         bad = self.client.get("/api/llm/usage?range=year")
         self.assertEqual(bad.status_code, 400)
@@ -643,11 +644,21 @@ class ApiTest(unittest.TestCase):
         script = self.client.get("/static/settings.js").text
         self.assertIn('id="usage-chart"', page)
         self.assertIn('id="usage-metric"', page)
+        self.assertIn('id="daily-budget"', page)
         self.assertIn("credential_source", script)
         self.assertNotIn("BYOK 不回退平台", page)
         self.assertNotIn("凭据隔离", page)
         self.assertIn('data-i18n="addConnection"', page)
         self.assertIn("data-remove-provider", script)
+
+    def test_public_guest_cannot_enable_live_api_when_account_is_required(self):
+        import os
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {"LIVE_LLM_REQUIRE_ACCOUNT": "true"}):
+            response = self.client.put("/api/llm/settings", json={"mode": "api"})
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Sign in", response.json()["error"])
 
     def test_team_chat_has_identity_and_agent_challenge(self):
         history = self.client.get("/api/agents/chat").json()

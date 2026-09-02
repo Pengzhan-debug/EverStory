@@ -92,6 +92,20 @@ def usage_payload(
     limit = getattr(client, "platform_token_limit", 0)
     platform_used = client.platform_tokens_used()
     remaining = max(0, limit - platform_used) if limit else None
+    platform_ids = [
+        connection_id
+        for connection_id, connection in client.connections.items()
+        if str(connection.get("credential_source") or "personal").lower()
+        == "platform"
+    ]
+    guard = getattr(client, "platform_guard", None)
+    guardrail_status = guard.status(platform_ids) if guard is not None else {
+        "daily_token_limit": 0,
+        "daily_tokens_used": 0,
+        "daily_tokens_remaining": None,
+        "open_circuits": 0,
+        "circuits": {},
+    }
 
     buckets = []
     bucket_lookup = {}
@@ -167,6 +181,7 @@ def usage_payload(
                 "remaining": remaining,
                 "percent": round(platform_used / limit * 100, 1) if limit else 0,
             },
+            "platform_guardrails": guardrail_status,
         },
         "series": buckets,
         "groups": groups,

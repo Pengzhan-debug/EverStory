@@ -68,6 +68,9 @@ nav a:hover, nav a.active { background: #2e3c4d; color: #fff; }
 .quota-track { height: 8px; margin: 17px 0 8px; overflow: hidden; border-radius: 9px; background: #e4e9ef; }
 .quota-track i { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--primary); transition: width .25s ease; }
 .source-breakdown > p { display: flex; justify-content: space-between; margin: 0; color: var(--muted); font-size: 10px; }
+.guardrail-state { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; color: var(--muted); font-size: 10px; }
+.guardrail-state strong { color: var(--text); text-align: right; }
+.guardrail-state strong.bad { color: var(--bad); }
 .personal-block { margin-top: 35px; padding-top: 21px; border-top: 1px solid var(--line); }
 .source-breakdown .source-total { display: block; margin-top: 17px; }
 .source-total strong { display: block; margin-top: 6px; color: var(--text); font-size: 20px; }

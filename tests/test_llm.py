@@ -3,6 +3,8 @@ from unittest.mock import Mock, patch
 
 from everstory.engine import WorldSession
 from everstory.llm.client import LLMClient, LLMError
+from everstory.llm.guardrails import PlatformGuardrails
+from everstory.redis_runtime import RedisRuntime
 from everstory.llm.intent import parse_actions
 from everstory.llm.language import ensure_output_locale, guarded_stream, matches_locale
 from everstory.llm.usage import usage_payload
@@ -125,9 +127,14 @@ class IntentTest(unittest.TestCase):
         self.assertEqual(client.call_history[-1]["prompt_tokens"], 5)
 
     def test_personal_route_never_falls_back_to_platform(self):
+        guard = PlatformGuardrails(
+            RedisRuntime(), "account-personal", daily_token_limit=100,
+            reservation_tokens=50, failure_threshold=1, cooldown_seconds=60,
+        )
         client = LLMClient(
             mode="api",
             strong_api_key="platform-key",
+            platform_guard=guard,
             connections={
                 "personal_api": {
                     "name": "Player API",
@@ -153,6 +160,8 @@ class IntentTest(unittest.TestCase):
         self.assertEqual(post.call_count, 3)
         self.assertTrue(all(call.args[0].startswith("https://player.test") for call in post.call_args_list))
         self.assertEqual(client.call_history[-1]["credential_source"], "personal")
+        self.assertEqual(guard.status(["platform_api"])["daily_tokens_used"], 0)
+        self.assertEqual(guard.status(["platform_api"])["open_circuits"], 0)
 
     def test_platform_quota_blocks_before_network_request(self):
         client = LLMClient(mode="api", strong_api_key="platform-key", platform_token_limit=10)
@@ -165,6 +174,46 @@ class IntentTest(unittest.TestCase):
                 client.chat([{"role": "user", "content": "hi"}], agent="case_director")
         post.assert_not_called()
         self.assertFalse(client.call_history[-1]["ok"])
+
+    def test_account_daily_budget_reserves_and_settles_actual_usage(self):
+        runtime = RedisRuntime()
+        guard = PlatformGuardrails(
+            runtime, "account-1", daily_token_limit=100,
+            reservation_tokens=60, failure_threshold=3, cooldown_seconds=60,
+        )
+        client = LLMClient(
+            mode="api", strong_api_key="platform-key", platform_guard=guard
+        )
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            "choices": [{"message": {"content": "ok"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+        with patch("requests.post", return_value=response):
+            client.chat([{"role": "user", "content": "hi"}], agent="case_director")
+        status = guard.status(["reasoning"])
+        self.assertEqual(status["daily_tokens_used"], 15)
+        self.assertEqual(status["daily_tokens_remaining"], 85)
+
+    def test_platform_circuit_blocks_after_repeated_provider_failures(self):
+        runtime = RedisRuntime()
+        guard = PlatformGuardrails(
+            runtime, "account-2", daily_token_limit=1000,
+            reservation_tokens=100, failure_threshold=2, cooldown_seconds=60,
+        )
+        client = LLMClient(
+            mode="api", strong_api_key="platform-key", platform_guard=guard
+        )
+        failure = Mock(status_code=503, text="unavailable")
+        with patch("requests.post", return_value=failure), patch("time.sleep"):
+            for _ in range(2):
+                with self.assertRaises(LLMError):
+                    client.chat([{"role": "user", "content": "hi"}], agent="case_director")
+            with patch("requests.post") as blocked:
+                with self.assertRaisesRegex(LLMError, "circuit"):
+                    client.chat([{"role": "user", "content": "hi"}], agent="case_director")
+                blocked.assert_not_called()
+        self.assertEqual(guard.status(["reasoning"])["open_circuits"], 1)
 
     def test_usage_payload_groups_sources_and_keeps_quota_separate(self):
         client = LLMClient(mode="api", platform_token_limit=100)

@@ -64,6 +64,20 @@ def client_payload(client: LLMClient) -> dict:
         for connection_id, connection in client.platform_catalog.items()
     }
     calls = list(client.call_history)
+    platform_ids = [
+        connection_id
+        for connection_id, connection in client.connections.items()
+        if str(connection.get("credential_source") or "personal").lower()
+        == "platform"
+    ]
+    guard = getattr(client, "platform_guard", None)
+    guardrail_status = guard.status(platform_ids) if guard is not None else {
+        "daily_token_limit": 0,
+        "daily_tokens_used": 0,
+        "daily_tokens_remaining": None,
+        "open_circuits": 0,
+        "circuits": {},
+    }
     prompt_tokens = sum(int(call.get("prompt_tokens") or 0) for call in calls)
     completion_tokens = sum(int(call.get("completion_tokens") or 0) for call in calls)
     return {
@@ -90,6 +104,7 @@ def client_payload(client: LLMClient) -> dict:
             "fallback_to_platform": getattr(client, "allow_platform_fallback", False),
             "platform_token_limit": getattr(client, "platform_token_limit", 0),
             "platform_tokens_used": client.platform_tokens_used(),
+            "platform_guardrails": guardrail_status,
         },
         "diagnostics": {
             "calls": len(calls),
@@ -304,6 +319,7 @@ def update_client(current: LLMClient, payload: object) -> LLMClient:
             platform_catalog=current.platform_catalog,
             agent_routes=routes,
             platform_token_limit=getattr(current, "platform_token_limit", 0),
+            platform_guard=getattr(current, "platform_guard", None),
         )
         client.call_history.extend(current.call_history)
         client._platform_tokens_consumed = current.platform_tokens_used()
@@ -358,6 +374,7 @@ def update_client(current: LLMClient, payload: object) -> LLMClient:
         connections=legacy_connections,
         platform_catalog=current.platform_catalog,
         platform_token_limit=getattr(current, "platform_token_limit", 0),
+        platform_guard=getattr(current, "platform_guard", None),
     )
     client.call_history.extend(current.call_history)
     client._platform_tokens_consumed = current.platform_tokens_used()

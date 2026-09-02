@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![测试](https://img.shields.io/badge/tests-133%20passing-22C55E)
+![测试](https://img.shields.io/badge/tests-138%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [在线试玩](https://everstory.onrender.com/) · [English README](README.md) · [系统架构](docs/architecture.md) · [真实模型评测](reports/agent-routing-evaluation-zh.md) · [公开部署](docs/DEPLOYMENT.md) · [身份与 BYOK 设计](docs/IDENTITY_AND_BYOK_DESIGN.md) · [面试演示](docs/DEMO.md) · [简历模板](docs/RESUME.md)
@@ -55,6 +55,10 @@ EverStory 是一个解决 **LLM 长程交互不可靠**（遗忘、自相矛盾�
 
 调查智能体和游戏运行角色可以分别选择独立或共享的兼容 API，并集中查看连接状态、
 延迟、Token 和失败诊断；完整密钥不会返回浏览器。
+
+公开环境要求登录后才能启用在线模型。平台 API 使用 Redis 按账号与 UTC 日期原子预留
+Token，调用结束后按真实 usage 结算；同一平台连接连续失败会进入冷却熔断。玩家 BYOK
+独立计量，不消耗平台每日预算。
 
 ## 核心架构
 

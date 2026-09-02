@@ -45,6 +45,7 @@ class LLMClient:
         platform_catalog: dict[str, dict] | None = None,
         agent_routes: dict[str, str] | None = None,
         platform_token_limit: int | None = None,
+        platform_guard=None,
         default_credential_source: str = "platform",
     ) -> None:
         self.mode = (mode or LLM_MODE).lower()
@@ -120,6 +121,7 @@ class LLMClient:
             else max(0, int(platform_token_limit))
         )
         self._platform_tokens_consumed = 0
+        self.platform_guard = platform_guard
         # A personal route never falls through to a hosted credential. Retried
         # calls stay on the same resolved endpoint and key.
         self.allow_platform_fallback = False
@@ -172,6 +174,35 @@ class LLMClient:
                 "Platform token allowance exhausted for this session. "
                 "Add a personal API connection or try again after the session resets."
             )
+
+    def _begin_platform_request(self, connection_id: str, messages: list[dict]):
+        self._ensure_platform_quota(connection_id)
+        if self.credential_source(connection_id) != "platform" or self.platform_guard is None:
+            return None
+        try:
+            # Character count is intentionally conservative for mixed Chinese/
+            # English prompts. The configured reservation is also the maximum
+            # completion size sent to hosted models.
+            prompt_estimate = max(
+                1,
+                sum(len(str(message.get("content") or "")) for message in messages),
+            )
+            return self.platform_guard.begin(
+                connection_id,
+                prompt_estimate + int(self.platform_guard.reservation_tokens),
+            )
+        except RuntimeError as exc:
+            raise LLMError(str(exc)) from exc
+
+    def _finish_platform_request(
+        self, connection_id: str, reservation, *, ok: bool
+    ) -> None:
+        if reservation is None or self.platform_guard is None:
+            return
+        tokens = int(self.last_usage.get("prompt_tokens", 0)) + int(
+            self.last_usage.get("completion_tokens", 0)
+        )
+        self.platform_guard.finish(connection_id, reservation, ok=ok, tokens=tokens)
 
     def _record_call(
         self,
@@ -260,7 +291,7 @@ class LLMClient:
             agent=agent, role=role, model=model, connection_id=connection_id
         )
         try:
-            self._ensure_platform_quota(route_id)
+            reservation = self._begin_platform_request(route_id, messages)
         except LLMError as exc:
             self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
             self._record_call(
@@ -280,6 +311,7 @@ class LLMClient:
                 agent=agent, connection_id=route_id, model=model,
                 latency_ms=0, ok=False, error=error,
             )
+            self._finish_platform_request(route_id, reservation, ok=False)
             raise LLMError(error)
         payload = {
             "model": model,
@@ -288,6 +320,8 @@ class LLMClient:
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
+        if reservation is not None:
+            payload["max_tokens"] = int(self.platform_guard.reservation_tokens)
         last_error: Exception | None = None
         started = time.perf_counter()
         for attempt in range(3):  # transient network failures are common
@@ -313,6 +347,7 @@ class LLMClient:
                         ok=False,
                         error=f"HTTP {resp.status_code}: {resp.text[:120]}",
                     )
+                    self._finish_platform_request(route_id, reservation, ok=False)
                     raise LLMError(
                         f"LLM API error {resp.status_code}: {resp.text[:300]}"
                     )
@@ -332,6 +367,7 @@ class LLMClient:
                 ok=False,
                 error=str(last_error),
             )
+            self._finish_platform_request(route_id, reservation, ok=False)
             raise LLMError(f"LLM API request failed after retries: {last_error}") from last_error
         if resp.status_code != 200:
             raise LLMError(f"LLM API error {resp.status_code}: {resp.text[:300]}")
@@ -348,6 +384,7 @@ class LLMClient:
             latency_ms=round((time.perf_counter() - started) * 1000),
             ok=True,
         )
+        self._finish_platform_request(route_id, reservation, ok=True)
         try:
             return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError) as exc:  # pragma: no cover
@@ -384,7 +421,7 @@ class LLMClient:
             agent=agent, role=role, model=model, connection_id=connection_id
         )
         try:
-            self._ensure_platform_quota(route_id)
+            reservation = self._begin_platform_request(route_id, messages)
         except LLMError as exc:
             self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0}
             self._record_call(
@@ -404,6 +441,7 @@ class LLMClient:
                 agent=agent, connection_id=route_id, model=model,
                 latency_ms=0, ok=False, error=error,
             )
+            self._finish_platform_request(route_id, reservation, ok=False)
             raise LLMError(error)
         payload = {
             "model": model,
@@ -414,6 +452,8 @@ class LLMClient:
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
+        if reservation is not None:
+            payload["max_tokens"] = int(self.platform_guard.reservation_tokens)
         last_error: Exception | None = None
         started = time.perf_counter()
         resp = None
@@ -441,6 +481,7 @@ class LLMClient:
                         ok=False,
                         error=f"HTTP {resp.status_code}: {resp.text[:120]}",
                     )
+                    self._finish_platform_request(route_id, reservation, ok=False)
                     raise LLMError(
                         f"LLM API error {resp.status_code}: {resp.text[:300]}"
                     )
@@ -460,6 +501,7 @@ class LLMClient:
                 ok=False,
                 error=str(last_error),
             )
+            self._finish_platform_request(route_id, reservation, ok=False)
             raise LLMError(f"LLM API request failed after retries: {last_error}") from last_error
         if resp is None or resp.status_code != 200:
             raise LLMError(f"LLM API error: {resp.status_code if resp else 'no response'}")
@@ -498,3 +540,4 @@ class LLMClient:
                 latency_ms=round((time.perf_counter() - started) * 1000),
                 ok=True,
             )
+            self._finish_platform_request(route_id, reservation, ok=True)

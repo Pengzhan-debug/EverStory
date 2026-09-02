@@ -473,6 +473,23 @@ class RedisRuntimeTests(unittest.TestCase):
         self.assertEqual(runtime.allow_quota("auth:test", 1, 600), (False, 0))
         self.assertEqual(runtime.allow("unlimited-game-runtime"), (True, -1))
 
+    def test_daily_token_reservation_and_settlement(self):
+        runtime = RedisRuntime()
+        self.assertEqual(runtime.reserve_tokens("budget:user:day", 100, 60, 600), (True, 60))
+        self.assertEqual(runtime.reserve_tokens("budget:user:day", 100, 60, 600), (False, 60))
+        self.assertEqual(runtime.adjust_tokens("budget:user:day", -35, 600), 25)
+        self.assertEqual(runtime.reserve_tokens("budget:user:day", 100, 60, 600), (True, 85))
+
+    def test_platform_circuit_opens_and_recovers(self):
+        runtime = RedisRuntime()
+        key = "circuit:provider"
+        runtime.record_circuit_result(key, ok=False, failure_threshold=2, cooldown_seconds=60)
+        self.assertFalse(runtime.circuit_status(key)["open"])
+        runtime.record_circuit_result(key, ok=False, failure_threshold=2, cooldown_seconds=60)
+        self.assertTrue(runtime.circuit_status(key)["open"])
+        runtime.record_circuit_result(key, ok=True, failure_threshold=2, cooldown_seconds=60)
+        self.assertFalse(runtime.circuit_status(key)["open"])
+
 
 if __name__ == "__main__":
     unittest.main()

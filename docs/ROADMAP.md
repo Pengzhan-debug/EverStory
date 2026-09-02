@@ -18,7 +18,7 @@ game and engineering demonstration, not yet a commercial multiplayer service.
 - [x] Conversation, team tasks, evidence, and world state survive save/load
 - [x] Per-agent OpenAI-compatible routing, tests, latency, Token diagnostics
 - [x] Shared Chinese/English UI and model-output language enforcement
-- [x] 133 deterministic tests on Python 3.11/3.12 CI
+- [x] 138 deterministic tests on Python 3.11/3.12 CI
 - [x] Live multi-model Ark benchmark with per-agent cost/latency metrics
 - [x] Docker/Compose, Render blueprint, demo GIF, screenshots, resume notes
 - [x] SQLAlchemy/PostgreSQL runtime, save-game, and usage persistence
@@ -33,6 +33,8 @@ game and engineering demonstration, not yet a commercial multiplayer service.
 - [x] Account-owned investigation picker with explicit cross-browser resume
 - [x] Account-scoped BYOK profile persistence with AES-256-GCM envelope encryption
 - [x] Account-bound AAD, integrity failure tests, and versioned master-key rotation
+- [x] Account/day platform Token reservation, settlement, and provider circuit breakers
+- [x] Public guest Stub enforcement before verified-account live API access
 
 ## Verified measurements
 
@@ -51,7 +53,7 @@ for the reproducible report.
 
 ## Remaining production roadmap
 
-1. Add a managed cloud KMS adapter/online rewrap job and account/day budgets.
+1. Add a managed cloud KMS adapter and online rewrap job.
 2. Add browser-level Playwright CI for the full bilingual investigation path.
 3. Add branching cases and authoring tools for declarative TOML worlds.
 4. Compare the four-agent workflow with a controlled single-agent baseline on

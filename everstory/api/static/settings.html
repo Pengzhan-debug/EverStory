@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>EverStory 控制台</title>
   <link rel="icon" href="/static/everstory-mark.svg" type="image/svg+xml"/>
-  <link rel="stylesheet" href="/static/settings.css?v=4"/>
+  <link rel="stylesheet" href="/static/settings.css?v=5"/>
   <link rel="stylesheet" href="/static/settings-brand.css?v=1"/>
 </head>
 <body>
@@ -47,6 +47,8 @@
           <aside class="source-breakdown">
             <div class="source-heading"><span class="source-dot platform"></span><div><strong data-i18n="platformApi">平台默认 API</strong><small data-i18n="platformApiHelp">受当前玩家额度限制</small></div></div>
             <div class="quota-track"><i id="quota-fill"></i></div><p><span id="quota-used">0 / 0</span><span id="quota-percent">0%</span></p>
+            <div class="guardrail-state"><span data-i18n="dailyBudget">账号每日预算</span><strong id="daily-budget">未启用</strong></div>
+            <div class="guardrail-state"><span data-i18n="circuitState">平台熔断</span><strong id="circuit-state">正常</strong></div>
             <div class="source-heading personal-block"><span class="source-dot personal"></span><div><strong data-i18n="personalApi">玩家个人 API</strong><small data-i18n="personalApiHelp">独立计量，不使用平台密钥</small></div></div>
             <p class="source-total"><span data-i18n="periodUsage">所选周期</span><strong id="personal-period">0 Tokens</strong></p>
           </aside>
@@ -69,6 +71,6 @@
   </div>
   <footer class="save-bar"><span id="save-message" data-i18n="loaded">配置已载入。</span><button id="save-settings" class="primary" type="button" data-i18n="save">保存并应用</button></footer>
   <script src="/static/auth.js?v=4"></script>
-  <script src="/static/settings.js?v=6"></script>
+  <script src="/static/settings.js?v=7"></script>
 </body>
 </html>
