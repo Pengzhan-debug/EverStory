@@ -51,6 +51,10 @@ PostgreSQL 升级为付费实例并开启备份，Key Value 是否付费取决�
 火山方舟目录还需 `ARK_ENABLE_CATALOG=true`。正式使用前应确认所购套餐允许游戏/智能体
 工作负载，Coding Plan 端点不应在未确认条款时直接作为公开游戏后端。
 
+如果需要一次配置多个平台密钥，推荐在 Render **Environment → Secret Files** 上传
+`everstory.env`。应用会自动读取 `/etc/secrets/everstory.env`，而 Blueprint 环境变量仍具有
+更高优先级。文件只应包含 `ARK_*_API_KEY`、`ADMIN_EMAILS` 等敏感项，绝不能提交到 Git。
+
 ## 当前数据保存方式
 
 - 本地 Python（无 URL）：命名存档写 JSON，实时运行态保存在进程内。

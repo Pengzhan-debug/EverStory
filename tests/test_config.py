@@ -1,10 +1,38 @@
-import os
 import unittest
+import os
+import tempfile
+from pathlib import Path
 
 from everstory.config import ARK_MODEL_CONNECTIONS, build_client
 
 
 class ConfigTest(unittest.TestCase):
+    def test_hosted_secret_file_loader_preserves_explicit_environment(self):
+        from everstory.config import _load_dotenv
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "everstory.env"
+            path.write_text(
+                "EVERSTORY_TEST_SECRET=file-value\nEVERSTORY_TEST_FIXED=file-value\n",
+                encoding="utf-8",
+            )
+            old_secret = os.environ.pop("EVERSTORY_TEST_SECRET", None)
+            old_fixed = os.environ.get("EVERSTORY_TEST_FIXED")
+            os.environ["EVERSTORY_TEST_FIXED"] = "process-value"
+            try:
+                _load_dotenv(str(path))
+                self.assertEqual(os.environ["EVERSTORY_TEST_SECRET"], "file-value")
+                self.assertEqual(os.environ["EVERSTORY_TEST_FIXED"], "process-value")
+            finally:
+                if old_secret is None:
+                    os.environ.pop("EVERSTORY_TEST_SECRET", None)
+                else:
+                    os.environ["EVERSTORY_TEST_SECRET"] = old_secret
+                if old_fixed is None:
+                    os.environ.pop("EVERSTORY_TEST_FIXED", None)
+                else:
+                    os.environ["EVERSTORY_TEST_FIXED"] = old_fixed
+
     def tearDown(self):
         for key in [
             k

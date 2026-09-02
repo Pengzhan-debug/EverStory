@@ -24,6 +24,10 @@ def _load_dotenv(path: str | None = None) -> None:
 
 
 _load_dotenv()
+# Render and similar hosts expose encrypted secret files under /etc/secrets.
+# Existing process environment values still win, so Blueprint-managed values
+# cannot be silently overridden by the file.
+_load_dotenv(os.environ.get("EVERSTORY_SECRET_FILE", "/etc/secrets/everstory.env"))
 
 
 def env(name: str, default: str = "") -> str:
