@@ -10,15 +10,18 @@
 
 1. 把当前分支合并到 GitHub 默认分支。
 2. 在 Render 选择 **New → Blueprint**，连接 EverStory 仓库。
-3. Render 会读取仓库根目录的 `render.yaml`，使用 `Dockerfile` 构建服务。
+3. Render 会读取仓库根目录的 `render.yaml`，使用 `Dockerfile` 构建 Web，并创建同区的
+   PostgreSQL 与 Key Value；容器每次启动前都会执行 `alembic upgrade head`。
 4. 首次演示保留 `LLM_MODE=stub` 和 `ARK_ENABLE_CATALOG=false`，无需填写模型密钥。
 5. 等待 `/api/health` 健康检查通过，Render 会生成类似
    `https://everstory-xxxx.onrender.com` 的地址；该平台实际生成的域名才是公开演示地址。
 6. 如需自定义域名，在 Render 的 **Settings → Custom Domains** 中绑定域名并按提示配置 DNS。
 
-免费实例可能休眠，首次访问会有冷启动。若 Render 中没有配置 `DATABASE_URL` 和
-`REDIS_URL`，服务仍会回退到文件/进程内模式，重启后实时会话可能丢失；这个配置适合
-作品集试玩，不适合宣称为持久化多人生产服务。
+免费实例可能休眠，首次访问会有冷启动。Blueprint 中 PostgreSQL 是账号、案件、存档、
+用量和 BYOK 密文的权威数据源；Key Value 只保存可重建的 TTL、限流桶和短期锁。
+Render 免费 PostgreSQL 目前会在创建 30 天后到期，容量为 1 GB、无备份；免费 Key Value
+重启会清空。因此这套默认值适合作品集试玩，不适合长期生产。正式公开运营前应把
+PostgreSQL 升级为付费实例并开启备份，Key Value 是否付费取决于是否需要缓存持久化。
 
 ## 是否启用平台真实模型
 
@@ -38,8 +41,8 @@
 - 本地 Python（无 URL）：命名存档写 JSON，实时运行态保存在进程内。
 - Docker Compose：默认启动 Web + PostgreSQL 16 + Redis 7；数据库保存实时运行态、
   哈希认证会话、命名存档和 Token 账本，Redis 提供 TTL、限流和会话锁。
-- Render 单实例：在 Environment 中绑定托管 PostgreSQL 的 Internal URL 和 Redis/Key
-  Value URL 后启用同一套持久层；不绑定则自动回退。
+- Render Blueprint：自动绑定免费托管 PostgreSQL 的 Internal URL 与 Key Value URL；
+  PostgreSQL 保存权威数据，Key Value 仅承担 TTL、限流和运行档锁。
 - 玩家 BYOK：游客只在服务进程内保存；注册账号在 PostgreSQL 中保存 AES-256-GCM
   信封密文，完整密钥不返回浏览器，也不进入运行态 JSON、Redis 或用量账本。
 - 邮箱登录：本地 `development` 模式可以在账号面板显示测试验证码；公网必须切换到
@@ -47,7 +50,8 @@
 
 ### 数据库初始化与迁移
 
-开发环境默认 `DATABASE_AUTO_CREATE=true`，便于首次启动。正式环境建议先执行：
+开发环境默认 `DATABASE_AUTO_CREATE=true`，便于首次启动。Render Blueprint 设置为
+`false`，并通过 Docker 启动命令先执行：
 
 ```bash
 alembic upgrade head

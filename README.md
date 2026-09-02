@@ -270,6 +270,12 @@ account model profiles. Each personal-connection payload uses a fresh random
 data key and AES-256-GCM nonce; the data key is separately wrapped by the active
 master-key version and bound to the account id as authenticated data.
 
+The checked-in Render Blueprint provisions a free web service, free PostgreSQL,
+and free Key Value cache, then runs Alembic before the web process starts. This
+is a portfolio-demo topology: Render's free PostgreSQL expires after 30 days and
+has no backups, while free Key Value is intentionally non-persistent. Upgrade
+the database before treating the public URL as a long-lived service.
+
 The optional Volcengine Ark catalog uses one shared Base URL and a separate API credential for each of its seven named models. The empirically selected route map uses DeepSeek V4 Pro for directing, Doubao Seed 2.0 Lite for field work, intent parsing and NPC dialogue, GLM 5.3 for analysis, Kimi K2.7 Code for skeptical review, DeepSeek V4 Flash for consistency checks, and MiniMax M3 for narration. Run `python -m scripts.test_model_connections` for a credential-safe health check, or `python -m scripts.run_full_agent_evaluation` for the checkpointed benchmark. Verify the Coding Plan usage rules before using its coding-only endpoint for a non-coding game workload; a standard Ark model API or agent-oriented plan is the safer production choice.
 
 ## 🖥️ Web UI structure

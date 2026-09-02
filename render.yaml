@@ -4,17 +4,21 @@ services:
     runtime: docker
     plan: free
     healthCheckPath: /api/health
+    dockerCommand: /bin/sh -c "python -m alembic upgrade head && exec python -m uvicorn everstory.api.main:app --host 0.0.0.0 --port 8123"
     envVars:
       - key: LLM_MODE
         value: stub
-      # Attach managed PostgreSQL/Key Value URLs here when moving beyond the
-      # free single-instance portfolio demo. Empty values keep file mode.
       - key: DATABASE_URL
-        value: ""
+        fromDatabase:
+          name: everstory-postgres
+          property: connectionString
       - key: REDIS_URL
-        value: ""
+        fromService:
+          type: keyvalue
+          name: everstory-key-value
+          property: connectionString
       - key: DATABASE_AUTO_CREATE
-        value: true
+        value: false
       - key: RATE_LIMIT_REQUESTS
         value: 60
       - key: RATE_LIMIT_WINDOW_SECONDS
@@ -57,3 +61,17 @@ services:
         sync: false
       - key: ARK_DOUBAO_SEED_21_TURBO_API_KEY
         sync: false
+
+  - type: keyvalue
+    name: everstory-key-value
+    plan: free
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+    persistenceMode: off
+
+databases:
+  - name: everstory-postgres
+    plan: free
+    databaseName: everstory
+    user: everstory
+    ipAllowList: []
