@@ -556,6 +556,60 @@ def create_app(
             )
         }
 
+    @app.get("/api/auth/investigations")
+    def account_investigations(request: Request):
+        if request.state.user_kind != "registered":
+            return JSONResponse(
+                status_code=403,
+                content={"error": "A verified account is required."},
+            )
+        return {
+            "investigations": storage.list_investigations(
+                request.state.user_id, request.state.session_id
+            )
+        }
+
+    @app.post("/api/auth/investigations/{runtime_id}/activate")
+    async def activate_account_investigation(runtime_id: str, request: Request):
+        if request.state.user_kind != "registered":
+            return JSONResponse(
+                status_code=403,
+                content={"error": "A verified account is required."},
+            )
+        target_is_owned = SESSION_ID_RE.fullmatch(
+            runtime_id
+        ) and storage.owns_investigation(request.state.user_id, runtime_id)
+        if not target_is_owned:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Investigation not found."},
+            )
+
+        previous_runtime_id = request.state.session_id
+        if runtime_id != previous_runtime_id:
+            previous_slot = slot_for(request)
+
+            def persist_previous() -> None:
+                with previous_slot.lock:
+                    persist_slot(previous_runtime_id, previous_slot)
+
+            await run_in_threadpool(persist_previous)
+            request.state.session_id = runtime_id
+            request.state.runtime_id_to_set = runtime_id
+            redis_runtime.touch(runtime_id)
+
+        active_slot = slot_for(request)
+        with active_slot.lock:
+            active_world = world_payload(active_slot.session)
+        return {
+            "ok": True,
+            "runtime_id": runtime_id,
+            "world": active_world,
+            "investigations": storage.list_investigations(
+                request.state.user_id, runtime_id
+            ),
+        }
+
     @app.delete("/api/auth/sessions/{auth_session_id}")
     def revoke_auth_session(auth_session_id: str, request: Request):
         revoked = storage.revoke_auth_session(

@@ -181,6 +181,76 @@ class DatabaseStorageTests(unittest.TestCase):
             self.storage.load_runtime(visitor.user_id, second_runtime)
         )
 
+    def test_registered_account_lists_only_owned_investigations(self):
+        first_runtime = "3" * 32
+        first_guest = self.storage.resolve_identity("a" * 64, first_runtime)
+        first_world = WorldSession(load_world("lost_lighthouse"))
+        first_world.state.turn = 3
+        self.storage.save_runtime(
+            first_guest.user_id,
+            first_runtime,
+            session_to_dict(
+                first_world,
+                extra={"team_chat": {"evidence": [{"id": "clue-1"}]}},
+            ),
+        )
+        first_challenge = self.storage.create_login_challenge("cases@example.com")
+        account = self.storage.verify_login_challenge(
+            first_challenge["id"],
+            "cases@example.com",
+            first_challenge["code"],
+            first_guest.user_id,
+            first_guest.auth_session_id,
+            first_runtime,
+        )
+
+        second_runtime = "4" * 32
+        second_guest = self.storage.resolve_identity("b" * 64, second_runtime)
+        second_world = WorldSession(load_world("lost_lighthouse"))
+        second_world.state.turn = 7
+        self.storage.save_runtime(
+            second_guest.user_id,
+            second_runtime,
+            session_to_dict(second_world, extra={"team_chat": {"evidence": []}}),
+        )
+        second_challenge = self.storage.create_login_challenge("cases@example.com")
+        self.storage.verify_login_challenge(
+            second_challenge["id"],
+            "cases@example.com",
+            second_challenge["code"],
+            second_guest.user_id,
+            second_guest.auth_session_id,
+            second_runtime,
+        )
+
+        outsider = self.storage.resolve_identity("c" * 64, "5" * 32)
+        investigations = self.storage.list_investigations(
+            account.user_id, second_runtime
+        )
+
+        self.assertEqual(
+            {item["id"] for item in investigations},
+            {first_runtime, second_runtime},
+        )
+        self.assertEqual(
+            next(item for item in investigations if item["id"] == first_runtime)[
+                "evidence"
+            ],
+            1,
+        )
+        self.assertEqual(
+            next(item for item in investigations if item["id"] == second_runtime)[
+                "turn"
+            ],
+            7,
+        )
+        self.assertTrue(
+            self.storage.owns_investigation(account.user_id, first_runtime)
+        )
+        self.assertFalse(
+            self.storage.owns_investigation(outsider.user_id, first_runtime)
+        )
+
     def test_login_challenge_stores_hashes_and_is_single_use(self):
         guest = self.storage.resolve_identity("8" * 64, "8" * 32)
         challenge = self.storage.create_login_challenge("private@example.com")

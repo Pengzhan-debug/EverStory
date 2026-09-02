@@ -119,6 +119,103 @@ class ApiTest(unittest.TestCase):
         after_logout = self.client.get("/api/auth/session").json()
         self.assertFalse(after_logout["user"]["registered"])
 
+    def test_registered_account_can_resume_owned_investigation_across_clients(self):
+        import os
+        from unittest.mock import patch
+
+        primary = TestClient(self.client.app)
+        secondary = TestClient(self.client.app)
+        outsider = TestClient(self.client.app)
+        try:
+            self.authorize_writes(primary)
+            primary_turn = primary.post(
+                "/api/turn", json={"text": "wait", "locale": "en"}
+            ).json()["world"]["turn"]
+            primary_runtime = primary.get("/api/auth/session").json()["runtime_id"]
+            with patch.dict(
+                os.environ,
+                {"AUTH_EMAIL_MODE": "development", "AUTH_DEV_EXPOSE_CODE": "true"},
+            ):
+                first_challenge = primary.post(
+                    "/api/auth/email/request",
+                    json={"email": "switching@example.com", "locale": "en"},
+                ).json()
+                self.assertEqual(
+                    primary.post(
+                        "/api/auth/email/verify",
+                        json={
+                            "challenge_id": first_challenge["challenge_id"],
+                            "email": "switching@example.com",
+                            "code": first_challenge["development_code"],
+                        },
+                    ).status_code,
+                    200,
+                )
+
+                self.authorize_writes(secondary)
+                secondary.post("/api/turn", json={"text": "wait", "locale": "en"})
+                secondary_runtime = secondary.get("/api/auth/session").json()[
+                    "runtime_id"
+                ]
+                second_challenge = secondary.post(
+                    "/api/auth/email/request",
+                    json={"email": "switching@example.com", "locale": "en"},
+                ).json()
+                self.assertEqual(
+                    secondary.post(
+                        "/api/auth/email/verify",
+                        json={
+                            "challenge_id": second_challenge["challenge_id"],
+                            "email": "switching@example.com",
+                            "code": second_challenge["development_code"],
+                        },
+                    ).status_code,
+                    200,
+                )
+
+            secondary.headers.update(
+                {"X-CSRF-Token": secondary.cookies.get("everstory_csrf")}
+            )
+            investigations = secondary.get("/api/auth/investigations").json()[
+                "investigations"
+            ]
+            self.assertEqual(
+                {item["id"] for item in investigations},
+                {primary_runtime, secondary_runtime},
+            )
+            self.assertTrue(
+                next(
+                    item for item in investigations if item["id"] == secondary_runtime
+                )["current"]
+            )
+
+            self.authorize_writes(outsider)
+            outsider_runtime = outsider.get("/api/auth/session").json()["runtime_id"]
+            self.assertEqual(
+                outsider.get("/api/auth/investigations").status_code, 403
+            )
+            self.assertEqual(
+                secondary.post(
+                    f"/api/auth/investigations/{outsider_runtime}/activate",
+                    json={},
+                ).status_code,
+                404,
+            )
+
+            activated = secondary.post(
+                f"/api/auth/investigations/{primary_runtime}/activate", json={}
+            )
+            self.assertEqual(activated.status_code, 200)
+            self.assertEqual(activated.json()["runtime_id"], primary_runtime)
+            self.assertEqual(
+                secondary.cookies.get("everstory_runtime"), primary_runtime
+            )
+            self.assertEqual(secondary.get("/api/world").json()["turn"], primary_turn)
+        finally:
+            primary.close()
+            secondary.close()
+            outsider.close()
+
     def test_forged_runtime_cookie_is_not_an_authority_boundary(self):
         other = TestClient(self.client.app)
         try:
@@ -141,9 +238,9 @@ class ApiTest(unittest.TestCase):
         self.assertIn('id="game-language"', page)
         self.assertIn('id="account-btn"', page)
         self.assertIn('id="account-panel"', page)
-        self.assertIn('src="/static/auth.js?v=2"', page)
+        self.assertIn('src="/static/auth.js?v=4"', page)
         self.assertIn('data-i18n="worldStable"', page)
-        self.assertIn('src="/static/i18n.js?v=6"', page)
+        self.assertIn('src="/static/i18n.js?v=7"', page)
         self.assertIn('localStorage.getItem("everstory_locale")', locale)
         self.assertIn("证明灯塔遭到人为破坏", locale)
         self.assertIn('"lighthouse_lit": "灯塔已点亮"', locale)
@@ -208,7 +305,7 @@ class ApiTest(unittest.TestCase):
         page = self.client.get("/").text
         ui_css = self.client.get("/static/ui-tweaks.css").text
 
-        self.assertIn('ui-tweaks.css?v=19', page)
+        self.assertIn('ui-tweaks.css?v=20', page)
         self.assertIn("left: clamp(390px, 31vw, 470px)", ui_css)
         self.assertIn("#messages { left: 7%; right: 7%; }", ui_css)
         self.assertIn(".scene-presence:not(:has(.presence-card))", ui_css)

@@ -41,6 +41,7 @@
       emailAddress: "Email address", sendCode: "Send code", verificationCode: "Verification code",
       verifyAndSave: "Verify and save", accountSynced: "This investigation belongs to your verified account.",
       activeSessions: "Active sessions", refresh: "Refresh", logout: "Sign out", revoke: "Revoke",
+      accountInvestigations: "Your investigations", resumeInvestigation: "Resume", currentInvestigation: "CURRENT",
     },
     "zh-CN": {
       enter: "进入 ›", tagline: "一个不会说谎的世界", taglineCaps: "一个不会说谎的世界", worldStable: "世界状态稳定",
@@ -81,6 +82,7 @@
       emailAddress: "邮箱地址", sendCode: "发送验证码", verificationCode: "验证码",
       verifyAndSave: "验证并保存", accountSynced: "当前调查已归属于你的已验证账号。",
       activeSessions: "活跃设备", refresh: "刷新", logout: "退出登录", revoke: "下线",
+      accountInvestigations: "你的案件", resumeInvestigation: "继续调查", currentInvestigation: "当前案件",
     },
   };
 

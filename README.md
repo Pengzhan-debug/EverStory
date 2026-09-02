@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-126%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-128%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Identity/BYOK design](docs/IDENTITY_AND_BYOK_DESIGN.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
@@ -53,7 +53,7 @@ Each investigation and runtime role can use an independent or shared OpenAI-comp
 - **Deterministic AI world engine** — typed actions are validated against real state before anything changes.
 - **Persistent world state** — entities, items, locations, relationships, time, flags, quests and snapshots remain structured and inspectable.
 - **Production persistence path** — optional PostgreSQL stores guest users, hashed auth sessions, tenant-owned runtime snapshots, save games, and an idempotent LLM usage ledger; Redis supplies session TTL, mutation quotas, and cross-process player locks.
-- **Guest-to-account upgrade** — email one-time codes upgrade or merge a guest without reloading the case; double-submit CSRF, auth rotation, device listing/revocation, hashed challenges, and SMTP/development delivery modes cover the account boundary.
+- **Guest-to-account and cross-device resume** — email one-time codes upgrade or merge a guest without reloading the case; verified players can list and resume only their own investigations across browsers. Double-submit CSRF, auth rotation, device listing/revocation, hashed challenges, and SMTP/development delivery modes protect the account boundary.
 - **Natural-language gameplay** — players can say things like `walk toward the lighthouse`, `take the rusty key`, or `talk to the keeper` instead of learning a command language.
 - **Grounded narration** — the LLM narrates the state transition that the engine actually applied.
 - **Fact checking** — generated narration is checked against the state delta and can be retried when it contradicts the world.

@@ -18,7 +18,7 @@ game and engineering demonstration, not yet a commercial multiplayer service.
 - [x] Conversation, team tasks, evidence, and world state survive save/load
 - [x] Per-agent OpenAI-compatible routing, tests, latency, Token diagnostics
 - [x] Shared Chinese/English UI and model-output language enforcement
-- [x] 126 deterministic tests on Python 3.11/3.12 CI
+- [x] 128 deterministic tests on Python 3.11/3.12 CI
 - [x] Live multi-model Ark benchmark with per-agent cost/latency metrics
 - [x] Docker/Compose, Render blueprint, demo GIF, screenshots, resume notes
 - [x] SQLAlchemy/PostgreSQL runtime, save-game, and usage persistence
@@ -30,6 +30,7 @@ game and engineering demonstration, not yet a commercial multiplayer service.
 - [x] Email-code guest upgrade and existing-account data merge without game reload
 - [x] Double-submit CSRF, credential rotation, device listing, revocation, and logout
 - [x] HMAC-protected login challenges with Redis email/IP request limits
+- [x] Account-owned investigation picker with explicit cross-browser resume
 
 ## Verified measurements
 
@@ -48,11 +49,10 @@ for the reproducible report.
 
 ## Remaining production roadmap
 
-1. Add an account-owned investigation picker for explicit cross-device resume.
-2. Add KMS-encrypted BYOK persistence, account/day budgets, and secret rotation.
-3. Add browser-level Playwright CI for the full bilingual investigation path.
-4. Add branching cases and authoring tools for declarative TOML worlds.
-5. Compare the four-agent workflow with a controlled single-agent baseline on
+1. Add KMS-encrypted BYOK persistence, account/day budgets, and secret rotation.
+2. Add browser-level Playwright CI for the full bilingual investigation path.
+3. Add branching cases and authoring tools for declarative TOML worlds.
+4. Compare the four-agent workflow with a controlled single-agent baseline on
    solve rate, contradiction rate, cost, and player-rated usefulness.
 
 The implementation-ready identity, encrypted BYOK, schema, API, and
@@ -67,8 +67,6 @@ multi-instance design is documented in
   identity ownership in process memory and is intended for local/demo use.
 - SMTP must be configured by the deployer; public Render defaults to disabled
   delivery and never exposes development verification codes.
-- Verified ownership persists, but switching to an older investigation from a
-  different browser still needs the planned account investigation picker.
 - PostgreSQL is authoritative when configured, but the FastAPI process still
   keeps a bounded hot runtime cache; full horizontal scale needs cache
   invalidation/version checks in addition to the Redis session lock.

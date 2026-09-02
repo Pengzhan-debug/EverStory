@@ -36,6 +36,8 @@
   let identity = null;
   let challengeId = "";
   let challengeEmail = "";
+  let sessions = [];
+  let investigations = [];
 
   async function api(path, options = {}) {
     if (!originalFetch) {
@@ -131,16 +133,84 @@
     return row;
   }
 
+  function renderSessions() {
+    const host = $("#account-sessions");
+    if (!host) return;
+    host.replaceChildren(...sessions.map(sessionRow));
+  }
+
   async function loadSessions() {
     const host = $("#account-sessions");
     if (!host || !identity?.user?.registered) return;
     host.textContent = text("Loading sessions…", "正在加载设备……");
     try {
       const data = await api("/api/auth/sessions");
-      host.replaceChildren(...data.sessions.map(sessionRow));
+      sessions = data.sessions || [];
+      renderSessions();
     } catch (error) {
       host.textContent = error.message;
     }
+  }
+
+  function investigationRow(investigation) {
+    const row = document.createElement("article");
+    row.className = `account-investigation${investigation.current ? " is-current" : ""}`;
+    const body = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = window.EverStoryI18n?.value(investigation.title) || investigation.title;
+    const locationLabel = window.EverStoryI18n?.value(investigation.location_name) || investigation.location_name || "—";
+    const details = document.createElement("small");
+    details.textContent = `${locationLabel} · ${text("Turn", "回合")} ${investigation.turn} · ${investigation.evidence} ${text("clues", "条线索")}`;
+    const identifier = document.createElement("code");
+    identifier.textContent = investigation.id.slice(0, 8);
+    body.append(title, details, identifier);
+    row.appendChild(body);
+    if (investigation.current) {
+      const current = document.createElement("span");
+      current.className = "account-current";
+      current.textContent = text("CURRENT", "当前案件");
+      row.appendChild(current);
+    } else {
+      const resume = document.createElement("button");
+      resume.type = "button";
+      resume.textContent = text("Resume", "继续调查");
+      resume.addEventListener("click", async () => {
+        resume.disabled = true;
+        status(text("Saving this case and opening the selected investigation…", "正在保存当前案件并打开所选调查……"));
+        try {
+          await api(`/api/auth/investigations/${encodeURIComponent(investigation.id)}/activate`, {method: "POST", body: "{}"});
+          location.reload();
+        } catch (error) {
+          status(error.message, true);
+          resume.disabled = false;
+        }
+      });
+      row.appendChild(resume);
+    }
+    return row;
+  }
+
+  function renderInvestigations() {
+    const host = $("#account-investigations");
+    if (!host) return;
+    host.replaceChildren(...investigations.map(investigationRow));
+  }
+
+  async function loadInvestigations() {
+    const host = $("#account-investigations");
+    if (!host || !identity?.user?.registered) return;
+    host.textContent = text("Loading investigations…", "正在加载案件……");
+    try {
+      const data = await api("/api/auth/investigations");
+      investigations = data.investigations || [];
+      renderInvestigations();
+    } catch (error) {
+      host.textContent = error.message;
+    }
+  }
+
+  async function loadAccountData() {
+    await Promise.all([loadInvestigations(), loadSessions()]);
   }
 
   async function openPanel() {
@@ -150,7 +220,7 @@
     status();
     try {
       await loadIdentity();
-      if (identity.user.registered) await loadSessions();
+      if (identity.user.registered) await loadAccountData();
       else $("#account-email")?.focus();
     } catch (error) {
       status(error.message, true);
@@ -170,6 +240,7 @@
     $("#account-close").addEventListener("click", closePanel);
     $("#account-backdrop").addEventListener("click", closePanel);
     $("#account-refresh-sessions").addEventListener("click", loadSessions);
+    $("#account-refresh-investigations").addEventListener("click", loadInvestigations);
 
     $("#account-email-form").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -211,7 +282,7 @@
         identity = {user: data.user, runtime_id: data.runtime_id};
         renderIdentity();
         status(text("Account verified. Your current investigation is preserved.", "账号验证成功，当前调查进度已保留。"));
-        await loadSessions();
+        await loadAccountData();
       } catch (error) {
         status(error.message, true);
       } finally {
@@ -230,7 +301,12 @@
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && $("#account-panel").classList.contains("open")) closePanel();
     });
-    window.addEventListener("everstory:locale", renderIdentity);
+    window.addEventListener("everstory:locale", () => {
+      status();
+      renderIdentity();
+      renderInvestigations();
+      renderSessions();
+    });
   }
 
   if (document.readyState === "loading") {

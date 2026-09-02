@@ -21,7 +21,7 @@
   运行态、存档与用量查询均以 `user_id + runtime_id` 进行租户隔离，并兼容旧游客存档。
 - 实现邮箱一次性验证码登录、游客原地升级/账号合并、登录令牌轮换、双提交 CSRF 和
   设备会话撤销；验证码以服务端密钥 HMAC 保存，并按 IP/邮箱实施 Redis 限频。
-- 建立 126 项离线自动化测试与可断点恢复的真实模型评测；覆盖 8 类角色、23 个
+- 建立 128 项离线自动化测试与可断点恢复的真实模型评测；覆盖 8 类角色、23 个
   角色—模型组合、6 条跨智能体交换链和 3 个完整案件，推荐路由平均分 98.8%，
   信息传递、来源保留、污染拒绝、证据落地与完整破案均为 100%。
 
@@ -45,7 +45,7 @@
 2. 打开联合调查室，让一个智能体提出任务、另一个智能体质疑。
 3. 玩家批准检查，展示只有引擎确认的事实才进入证据板。
 4. 打开模型控制台，展示不同角色的路由和 Token/延迟统计。
-5. 用架构图解释权威状态边界，再展示 126 项测试和真实模型评测报告。
+5. 用架构图解释权威状态边界，再展示 128 项测试和真实模型评测报告。
 
 ## English version
 
@@ -68,7 +68,7 @@
   durable runtime, save, and usage query.
 - Added email-code guest upgrades/account merges, auth rotation, double-submit
   CSRF, device revocation, HMAC-protected challenges, and scoped Redis limits.
-- Created 126 offline tests and a checkpointed live-model benchmark covering
+- Created 128 offline tests and a checkpointed live-model benchmark covering
   23 role/model combinations, six cross-agent exchange chains, and three full
   cases; selected routes averaged 98.8% with 100% transfer, provenance,
   poison rejection, evidence grounding, and completion.

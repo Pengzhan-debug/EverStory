@@ -1425,9 +1425,9 @@ body.truth-open .truth-backdrop { visibility: visible; opacity: 1; }
 .account-btn.is-registered::before { background: var(--ok); box-shadow: 0 0 9px rgba(82, 213, 155, .65); }
 .account-backdrop { position: fixed; inset: 0; z-index: 70; opacity: 0; visibility: hidden; background: rgba(0, 4, 8, .62); backdrop-filter: blur(5px); transition: opacity .2s ease, visibility .2s ease; }
 .account-backdrop.open { opacity: 1; visibility: visible; }
-.account-panel { position: fixed; z-index: 71; top: 82px; right: 24px; width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 106px); overflow-y: auto; padding: 22px; opacity: 0; visibility: hidden; transform: translateY(-10px) scale(.985); border: 1px solid rgba(228, 182, 93, .24); border-radius: 10px; background: linear-gradient(160deg, rgba(8, 19, 27, .98), rgba(3, 9, 14, .98)); box-shadow: 0 28px 90px rgba(0, 0, 0, .58); transition: opacity .2s ease, transform .2s ease, visibility .2s ease; }
+.account-panel { position: fixed; z-index: 71; top: 82px; right: 24px; width: min(470px, calc(100vw - 32px)); max-height: calc(100vh - 106px); overflow-y: auto; padding: 22px; opacity: 0; visibility: hidden; transform: translateY(-10px) scale(.985); border: 1px solid rgba(228, 182, 93, .24); border-radius: 10px; background: linear-gradient(160deg, rgba(8, 19, 27, .98), rgba(3, 9, 14, .98)); box-shadow: 0 28px 90px rgba(0, 0, 0, .58); transition: opacity .2s ease, transform .2s ease, visibility .2s ease; }
 .account-panel.open { opacity: 1; visibility: visible; transform: none; }
-.account-panel-head, .account-identity, .account-section-head, .account-session { display: flex; align-items: center; }
+.account-panel-head, .account-identity, .account-section-head, .account-session, .account-investigation { display: flex; align-items: center; }
 .account-panel-head { justify-content: space-between; padding-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, .09); }
 .account-kicker { color: var(--gold); font: 600 8px var(--mono); letter-spacing: 2px; }
 .account-panel h2 { margin: 5px 0 0; color: #ebe6da; font: 600 19px var(--display); }
@@ -1440,7 +1440,7 @@ body.truth-open .truth-backdrop { visibility: visible; opacity: 1; }
 .account-form label { display: grid; gap: 7px; color: #aab5b7; font-size: 10px; }
 .account-form input { width: 100%; padding: 12px 13px; border: 1px solid rgba(255, 255, 255, .13); border-radius: 6px; outline: none; color: #f1eee6; background: rgba(0, 0, 0, .28); font: 12px var(--mono); }
 .account-form input:focus { border-color: rgba(228, 182, 93, .58); }
-.account-form button, .account-section-head button, .account-session button, .account-danger { border: 1px solid rgba(228, 182, 93, .32); border-radius: 6px; padding: 10px 13px; color: #efe5cf; background: rgba(228, 182, 93, .1); font: 600 10px var(--sans); cursor: pointer; }
+.account-form button, .account-section-head button, .account-session button, .account-investigation button, .account-danger { border: 1px solid rgba(228, 182, 93, .32); border-radius: 6px; padding: 10px 13px; color: #efe5cf; background: rgba(228, 182, 93, .1); font: 600 10px var(--sans); cursor: pointer; }
 .account-form button:hover { background: rgba(228, 182, 93, .2); }
 .account-form button:disabled { opacity: .5; cursor: wait; }
 .account-identity { gap: 12px; margin: 8px 0 17px; }
@@ -1456,6 +1456,15 @@ body.truth-open .truth-backdrop { visibility: visible; opacity: 1; }
 .account-session strong { color: #cdd5d3; font-size: 10px; }
 .account-session small { color: #6e7e82; font: 8px var(--mono); }
 .account-session button { padding: 6px 9px; border-color: rgba(238,142,142,.25); color: #e7aaaa; background: transparent; }
+.account-investigations { display: grid; gap: 8px; }
+.account-investigation { justify-content: space-between; gap: 14px; padding: 13px; border: 1px solid rgba(228,182,93,.12); border-radius: 7px; background: linear-gradient(120deg, rgba(228,182,93,.055), rgba(0,0,0,.16)); }
+.account-investigation.is-current { border-color: rgba(82,213,155,.3); background: linear-gradient(120deg, rgba(82,213,155,.08), rgba(0,0,0,.14)); }
+.account-investigation > div { min-width: 0; display: grid; gap: 5px; }
+.account-investigation strong { overflow: hidden; color: #e5dfd3; font: 600 11px var(--display); text-overflow: ellipsis; white-space: nowrap; }
+.account-investigation small { color: #8f9da0; font: 9px/1.45 var(--sans); }
+.account-investigation code { color: #58696d; font: 8px var(--mono); }
+.account-investigation button { flex: none; padding: 7px 10px; }
+.account-investigation button:disabled { opacity: .5; cursor: wait; }
 .account-current { color: var(--ok); font: 8px var(--mono); letter-spacing: 1px; }
 .account-danger { width: 100%; margin-top: 18px; border-color: rgba(238,142,142,.28); color: #e9aaaa; background: rgba(150,45,45,.08); }
 

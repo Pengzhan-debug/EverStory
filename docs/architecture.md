@@ -144,6 +144,9 @@ agent role -> immutable route snapshot -> exactly one connection
 - Email one-time codes upgrade a guest in place or transactionally move its
   runtimes, saves, and usage to an existing account. Challenges store only the
   email hash and a server-keyed code HMAC; Redis limits email/IP requests.
+- Verified accounts can list compact summaries for their owned runtimes and
+  explicitly resume one across browsers. The server persists the current case
+  and rechecks target ownership before rotating the active-runtime cookie.
 - Cookie-authenticated writes use a readable CSRF cookie plus an
   `X-CSRF-Token` header, while login and privilege changes rotate both secrets.
 - API credentials are intentionally excluded from runtime documents. Full

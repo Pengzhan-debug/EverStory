@@ -7,6 +7,7 @@ SQLite in tests) without changing the HTTP contract.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import hmac
 import os
@@ -69,6 +70,57 @@ def challenge_digest(secret: bytes, challenge_id: str, code: str) -> str:
     return hmac.new(
         secret, f"{challenge_id}:{code}".encode(), hashlib.sha256
     ).hexdigest()
+
+
+def investigation_summary(
+    runtime_id: str,
+    payload: dict[str, Any] | None,
+    updated_at: datetime | None,
+    current_runtime_id: str,
+) -> dict[str, Any]:
+    document = payload if isinstance(payload, dict) else {}
+    raw_state = document.get("state")
+    state = raw_state if isinstance(raw_state, dict) else {}
+    raw_entities = state.get("entities")
+    entities = raw_entities if isinstance(raw_entities, list) else []
+    player = next(
+        (
+            item
+            for item in entities
+            if isinstance(item, dict) and item.get("id") == "player"
+        ),
+        {},
+    )
+    world_name = str(document.get("world") or "lost_lighthouse")
+    default_location_id = "storm_shore" if world_name == "lost_lighthouse" else ""
+    location_id = str(player.get("location_id") or default_location_id)
+    location = next(
+        (
+            item
+            for item in entities
+            if isinstance(item, dict) and item.get("id") == location_id
+        ),
+        {},
+    )
+    raw_extra = document.get("extra")
+    extra = raw_extra if isinstance(raw_extra, dict) else {}
+    raw_team = extra.get("team_chat")
+    team = raw_team if isinstance(raw_team, dict) else {}
+    evidence = team.get("evidence")
+    return {
+        "id": runtime_id,
+        "current": runtime_id == current_runtime_id,
+        "title": str(document.get("title") or "The Lost Lighthouse"),
+        "world": world_name,
+        "location_id": location_id,
+        "location_name": str(
+            location.get("name")
+            or ("Storm Shore" if location_id == "storm_shore" else location_id)
+        ),
+        "turn": int(state.get("turn") or 0),
+        "evidence": len(evidence) if isinstance(evidence, list) else 0,
+        "updated_at": updated_at.isoformat() if updated_at is not None else "",
+    }
 
 
 @dataclass(frozen=True)
@@ -183,7 +235,7 @@ class UsageEvent(Base):
 
 
 class FileStorage:
-    """Original local save behaviour plus a no-op runtime store."""
+    """Original local saves plus process-local identity/runtime ownership."""
 
     name = "file"
     durable_runtime = False
@@ -194,6 +246,8 @@ class FileStorage:
         self._users: dict[str, dict[str, Any]] = {}
         self._challenges: dict[str, dict[str, Any]] = {}
         self._runtime_owners: dict[str, str] = {}
+        self._runtime_documents: dict[str, dict[str, Any]] = {}
+        self._runtime_updated_at: dict[str, datetime] = {}
         configured_secret = os.getenv("AUTH_CHALLENGE_SECRET", "").encode()
         self._challenge_secret = configured_secret or _PROCESS_CHALLENGE_SECRET
         self.auth_ttl_seconds = max(
@@ -268,6 +322,7 @@ class FileStorage:
                 runtime_id = uuid.uuid4().hex
                 runtime_replaced = True
             self._runtime_owners[runtime_id] = user_id
+            self._runtime_updated_at.setdefault(runtime_id, now)
         return IdentityContext(
             user_id=user_id,
             runtime_id=runtime_id,
@@ -405,13 +460,50 @@ class FileStorage:
                     return True
         return False
 
+    def list_investigations(
+        self, user_id: str, current_runtime_id: str
+    ) -> list[dict[str, Any]]:
+        with self._identity_lock:
+            runtime_ids = [
+                runtime_id
+                for runtime_id, owner in self._runtime_owners.items()
+                if owner == user_id
+            ]
+            runtime_ids.sort(
+                key=lambda runtime_id: self._runtime_updated_at.get(
+                    runtime_id, datetime.min.replace(tzinfo=timezone.utc)
+                ),
+                reverse=True,
+            )
+            return [
+                investigation_summary(
+                    runtime_id,
+                    self._runtime_documents.get(runtime_id),
+                    self._runtime_updated_at.get(runtime_id),
+                    current_runtime_id,
+                )
+                for runtime_id in runtime_ids
+            ]
+
+    def owns_investigation(self, user_id: str, runtime_id: str) -> bool:
+        with self._identity_lock:
+            return self._runtime_owners.get(runtime_id) == user_id
+
     def load_runtime(self, user_id: str, session_id: str) -> dict[str, Any] | None:
-        return None
+        with self._identity_lock:
+            if self._runtime_owners.get(session_id) != user_id:
+                return None
+            document = self._runtime_documents.get(session_id)
+            return copy.deepcopy(document) if document is not None else None
 
     def save_runtime(
         self, user_id: str, session_id: str, payload: dict[str, Any]
     ) -> None:
-        return None
+        with self._identity_lock:
+            if self._runtime_owners.get(session_id) != user_id:
+                raise PermissionError("runtime belongs to another user")
+            self._runtime_documents[session_id] = copy.deepcopy(payload)
+            self._runtime_updated_at[session_id] = utcnow()
 
     def save_game(
         self,
@@ -757,6 +849,37 @@ class DatabaseStorage:
             if auth.revoked_at is None:
                 auth.revoked_at = utcnow()
             return True
+
+    def list_investigations(
+        self, user_id: str, current_runtime_id: str
+    ) -> list[dict[str, Any]]:
+        with Session(self.engine) as db:
+            rows = db.scalars(
+                select(PlayerSession)
+                .where(PlayerSession.user_id == user_id)
+                .order_by(PlayerSession.updated_at.desc())
+            ).all()
+            return [
+                investigation_summary(
+                    row.id,
+                    dict(row.runtime_payload) if row.runtime_payload else None,
+                    row.updated_at,
+                    current_runtime_id,
+                )
+                for row in rows
+            ]
+
+    def owns_investigation(self, user_id: str, runtime_id: str) -> bool:
+        with Session(self.engine) as db:
+            return (
+                db.scalar(
+                    select(PlayerSession.id).where(
+                        PlayerSession.id == runtime_id,
+                        PlayerSession.user_id == user_id,
+                    )
+                )
+                is not None
+            )
 
     def load_runtime(self, user_id: str, session_id: str) -> dict[str, Any] | None:
         with Session(self.engine) as db:
