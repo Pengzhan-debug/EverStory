@@ -11,10 +11,12 @@ COPY pyproject.toml README.md LICENSE ./
 COPY everstory ./everstory
 COPY alembic.ini ./
 COPY migrations ./migrations
+COPY scripts/render-start.sh ./scripts/render-start.sh
 
 RUN pip install --upgrade pip && pip install ".[web,production]" \
     && useradd --create-home --uid 10001 everstory \
     && mkdir -p /app/saves \
+    && chmod +x /app/scripts/render-start.sh \
     && chown -R everstory:everstory /app
 
 USER everstory
