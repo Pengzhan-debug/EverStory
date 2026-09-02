@@ -728,7 +728,8 @@ def create_app(
                     return JSONResponse(
                         status_code=403,
                         content={
-                            "error": "Sign in before enabling live model APIs. Offline Stub remains available."
+                            "code": "account_required",
+                            "error": "Sign in before enabling live model APIs. Offline Stub remains available.",
                         },
                     )
                 profile = account_profile(client)

@@ -658,7 +658,11 @@ class ApiTest(unittest.TestCase):
         with patch.dict(os.environ, {"LIVE_LLM_REQUIRE_ACCOUNT": "true"}):
             response = self.client.put("/api/llm/settings", json={"mode": "api"})
         self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["code"], "account_required")
         self.assertIn("Sign in", response.json()["error"])
+        script = self.client.get("/static/settings.js").text
+        self.assertIn('data.code === "account_required"', script)
+        self.assertIn('t("accountRequired")', script)
 
     def test_team_chat_has_identity_and_agent_challenge(self):
         history = self.client.get("/api/agents/chat").json()

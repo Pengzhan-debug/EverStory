@@ -367,7 +367,11 @@ async function saveSettings() {
   try {
     const response = await fetch("/api/llm/settings", {method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(collectPayload())});
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || t("saveFailed"));
+    if (!response.ok) {
+      const error = new Error(data.code === "account_required" ? t("accountRequired") : (data.error || t("saveFailed")));
+      error.code = data.code || "";
+      throw error;
+    }
     settings = data.settings;
     $("#mode").value = settings.mode;
     renderConnections();
@@ -377,6 +381,10 @@ async function saveSettings() {
     message(t("saved"), "ok");
     return true;
   } catch (error) {
+    if (error.code === "account_required" && settings) {
+      $("#mode").value = settings.mode;
+      dirty = false;
+    }
     message(error.message, "bad");
     return false;
   } finally {
