@@ -40,7 +40,8 @@
   哈希认证会话、命名存档和 Token 账本，Redis 提供 TTL、限流和会话锁。
 - Render 单实例：在 Environment 中绑定托管 PostgreSQL 的 Internal URL 和 Redis/Key
   Value URL 后启用同一套持久层；不绑定则自动回退。
-- 玩家 BYOK：当前只在服务进程内存中，完整密钥不返回浏览器，也不会明文写入数据库。
+- 玩家 BYOK：游客只在服务进程内保存；注册账号在 PostgreSQL 中保存 AES-256-GCM
+  信封密文，完整密钥不返回浏览器，也不进入运行态 JSON、Redis 或用量账本。
 - 邮箱登录：本地 `development` 模式可以在账号面板显示测试验证码；公网必须切换到
   `smtp` 并配置发件服务。Render Blueprint 默认 `disabled`，不会意外成为邮件中继。
 
@@ -67,6 +68,9 @@ AUTH_SMTP_PORT=587
 AUTH_SMTP_USERNAME=<账号>
 AUTH_SMTP_PASSWORD=<密码或应用专用密码>
 AUTH_SMTP_FROM=no-reply@example.com
+BYOK_MASTER_KEY=<至少 32 字符的随机值>
+BYOK_MASTER_KEY_ID=prod-v1
+BYOK_PREVIOUS_MASTER_KEYS={}
 RATE_LIMIT_REQUESTS=60
 RATE_LIMIT_WINDOW_SECONDS=60
 INFRA_STRICT=true
@@ -89,7 +93,8 @@ Browser
   CSRF 与设备撤销已实现；后续可增加 OAuth、数据导出和账号删除流程。
 - 数据库：PostgreSQL 持久层已实现游客/注册身份、运行态、存档和用量账本；下一步补充
   备份恢复演练和删除账号的数据生命周期。
-- 凭据：只保存密文，使用 KMS envelope encryption；日志、异常和前端响应永不包含完整 Key。
+- 凭据：已实现本地主密钥提供器的 AES-256-GCM 信封加密、账号 AAD 绑定和旧版本
+  Keyring 解密；生产环境建议再接云 KMS/Secret Manager，并做在线批量 rewrap。
 - 配额：Redis 原子会话限流 + PostgreSQL 用量账本已实现；还需增加单 IP、单账号和
   单日平台预算与告警。
 - 多实例：SSE 事件、任务锁和会话状态需要共享存储或消息系统，不能依赖单个 Python 进程。

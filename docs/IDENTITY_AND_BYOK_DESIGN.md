@@ -1,7 +1,8 @@
 # EverStory 多用户身份、BYOK 与多实例设计
 
-> 状态：v1.3 分阶段实施中。Phase A 游客身份核心与 Phase B 邮箱登录、跨设备恢复已经实现；
-> BYOK 密文持久化和多实例版本控制仍是后续阶段，不应视为已上线。
+> 状态：v1.3 分阶段实施中。Phase A 游客身份核心、Phase B 邮箱登录/跨设备恢复，以及
+> Phase C 的账号级 BYOK 信封加密与本地主密钥轮换已经实现；云 KMS 适配器、连接级 CRUD
+> 和多实例版本控制仍是后续阶段。
 
 ### 已实现的 Phase A
 
@@ -162,8 +163,10 @@ PostgreSQL: ciphertext + wrapped_data_key + nonce + key_version
 读取设置时只返回 `key_configured` 和固定长度掩码。模型调用前按需解开 data key，在本次
 请求内构造客户端；不得把明文写入 runtime JSONB、Redis、异常、trace、评测结果或前端。
 
-开发环境可以用 `BYOK_MASTER_KEY` 驱动本地 AES-GCM key provider，但生产环境必须使用
-云 KMS/Secret Manager。两者实现统一 `KeyProvider.wrap/unwrap` 接口，便于测试和迁移。
+当前实现使用 `BYOK_MASTER_KEY` 驱动 AES-GCM 主密钥提供器，每份账号配置生成独立随机
+data key，密文以 `user_id` 绑定 AAD；`BYOK_MASTER_KEY_ID` 与
+`BYOK_PREVIOUS_MASTER_KEYS` 支持读取旧版本并在下次保存时重新包装。高安全生产环境仍建议
+接入云 KMS/Secret Manager，避免应用进程直接持有主密钥。
 
 密钥轮换流程：新增 master key version → 后台逐条解包并重新包装 data key → 验证完成后
 禁用旧版本。删除连接时同时删除密文；删除账号进入短暂恢复期后物理清理。
@@ -253,8 +256,8 @@ FastAPI 的进程内 `RuntimeSlot` 只能作为热缓存。每次写前比较 Re
 2. [已完成] 回填现有数据：旧 `player_sessions.user_id` 保持指向对应 guest user，不丢档。
 3. [兼容期] 接受旧会话 Cookie，同时签发新 auth/runtime Cookie，观察一个版本。
 4. [已完成] `0003_account_auth`、游客升级/账号合并、CSRF 校验和设备撤销。
-5. [待实现] `encrypted_connections`：创建 api_connections/agent_route_assignments。
-6. [待实现] 控制台改用连接 CRUD；确认日志和响应没有密钥后再启用持久 BYOK。
+5. [已完成] `20260902_0004`：创建 `user_llm_profiles`，保存账号路由与信封加密个人连接。
+6. [部分完成] 现有控制台配置整份账号 Profile；独立连接 CRUD API 仍待拆分。
 7. [待实现] `runtime_versioning`：增加 state_version、幂等键和缓存失效。
 8. [待实现] 删除旧 Cookie 兼容层和进程内连接配置。
 
@@ -292,9 +295,10 @@ FastAPI 的进程内 `RuntimeSlot` 只能作为热缓存。每次写前比较 Re
 | A | 身份上下文、游客账号、双 Cookie、租户查询 | 游客隔离与持久会话 |
 | B1 | 邮箱验证码、游客升级、账号归属 | 注册与匿名数据迁移 |
 | B2 | 账号案件列表、运行档切换 | 显式跨设备恢复 |
-| C | AES-GCM + KMS provider、连接 CRUD | 加密 BYOK 与密钥轮换 |
+| C1 | AES-GCM 信封加密、本地主密钥版本、账号 Profile | 加密 BYOK 与密钥轮换 |
+| C2 | 云 KMS provider、连接 CRUD、在线 rewrap | 托管密钥与连接生命周期 |
 | D | 用户/IP/预算限流、幂等请求 | 多层配额与成本防护 |
 | E | state_version、缓存失效、双实例压测 | 可验证的水平扩展 |
 
-下一阶段维持 Stub 为公开演示默认值。C 阶段涉及真实秘密，必须在
-测试覆盖、日志脱敏和 KMS 配置全部完成后再上线。
+下一阶段维持 Stub 为公开演示默认值。启用账号 BYOK 前必须配置 PostgreSQL 与稳定主密钥；
+更高安全等级上线前还需完成云 KMS、预算限额、日志审计与备份恢复演练。

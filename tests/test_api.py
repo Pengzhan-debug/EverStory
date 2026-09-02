@@ -477,6 +477,100 @@ class ApiTest(unittest.TestCase):
         other.post("/api/reset")
         self.assertNotIn("player_api", other.get("/api/llm/settings").json()["connections"])
 
+    def test_registered_account_restores_personal_api_without_exposing_key(self):
+        import os
+        from unittest.mock import patch
+
+        from everstory.api.main import create_app
+        from everstory.redis_runtime import RedisRuntime
+        from everstory.storage import FileStorage
+
+        app = create_app(FileStorage(), RedisRuntime(rate_limit=0))
+        primary = TestClient(app)
+        secondary = TestClient(app)
+        outsider = TestClient(app)
+        try:
+            self.authorize_writes(primary)
+            initial = primary.get("/api/llm/settings").json()
+            connections = {
+                key: {
+                    "name": value["name"],
+                    "base_url": value["base_url"],
+                    "model": value["model"],
+                }
+                for key, value in initial["connections"].items()
+            }
+            connections["player_api"] = {
+                "name": "Private model",
+                "base_url": "https://private.example/v1",
+                "model": "private-model",
+                "api_key": "cross-device-secret-7788",
+            }
+            routes = dict(initial["agent_routes"])
+            routes["narrator"] = "player_api"
+            saved = primary.put(
+                "/api/llm/settings",
+                json={
+                    "mode": "stub",
+                    "connections": connections,
+                    "agent_routes": routes,
+                },
+            )
+            self.assertEqual(saved.status_code, 200)
+
+            with patch.dict(
+                os.environ,
+                {"AUTH_EMAIL_MODE": "development", "AUTH_DEV_EXPOSE_CODE": "true"},
+            ):
+                first = primary.post(
+                    "/api/auth/email/request",
+                    json={"email": "byok-player@example.com", "locale": "en"},
+                ).json()
+                verified = primary.post(
+                    "/api/auth/email/verify",
+                    json={
+                        "challenge_id": first["challenge_id"],
+                        "email": "byok-player@example.com",
+                        "code": first["development_code"],
+                    },
+                )
+                self.assertEqual(verified.status_code, 200)
+
+                self.authorize_writes(secondary)
+                second = secondary.post(
+                    "/api/auth/email/request",
+                    json={"email": "byok-player@example.com", "locale": "en"},
+                ).json()
+                self.assertEqual(
+                    secondary.post(
+                        "/api/auth/email/verify",
+                        json={
+                            "challenge_id": second["challenge_id"],
+                            "email": "byok-player@example.com",
+                            "code": second["development_code"],
+                        },
+                    ).status_code,
+                    200,
+                )
+
+            restored = secondary.get("/api/llm/settings")
+            self.assertEqual(restored.status_code, 200)
+            self.assertIn("player_api", restored.json()["connections"])
+            self.assertEqual(
+                restored.json()["agent_routes"]["narrator"], "player_api"
+            )
+            self.assertNotIn("cross-device-secret-7788", restored.text)
+
+            self.authorize_writes(outsider)
+            self.assertNotIn(
+                "player_api",
+                outsider.get("/api/llm/settings").json()["connections"],
+            )
+        finally:
+            primary.close()
+            secondary.close()
+            outsider.close()
+
     def test_player_can_disable_and_restore_a_platform_model_for_own_session(self):
         initial = self.client.get("/api/llm/settings").json()
         self.assertIn("reasoning", initial["platform_catalog"])

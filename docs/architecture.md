@@ -149,10 +149,11 @@ agent role -> immutable route snapshot -> exactly one connection
   and rechecks target ownership before rotating the active-runtime cookie.
 - Cookie-authenticated writes use a readable CSRF cookie plus an
   `X-CSRF-Token` header, while login and privilege changes rotate both secrets.
-- API credentials are intentionally excluded from runtime documents. Full
-  production scale still requires KMS envelope
-  encryption for BYOK, IP/account budget policies, and stateless multi-instance
-  cache invalidation.
+- API credentials are intentionally excluded from runtime documents. Verified
+  account profiles use per-save random data keys, AES-256-GCM authenticated
+  encryption, account-bound AAD, and a versioned environment master-key ring.
+  Full production scale still benefits from a cloud KMS adapter, IP/account
+  budget policies, and stateless multi-instance cache invalidation.
 
 ## 10. Runtime persistence topology
 
@@ -165,7 +166,8 @@ FastAPI runtime cache ---- Redis TTL / rate limit / runtime lock
         |
         +---- PostgreSQL player_sessions (authoritative live snapshot)
         +---- PostgreSQL save_games      (named immutable saves)
-        `---- PostgreSQL llm_usage_events (idempotent usage ledger)
+        +---- PostgreSQL llm_usage_events (idempotent usage ledger)
+        `---- PostgreSQL user_llm_profiles (envelope-encrypted BYOK)
 ```
 
 The database schema is versioned with Alembic. PostgreSQL JSONB keeps the

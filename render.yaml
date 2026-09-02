@@ -25,6 +25,12 @@ services:
         value: true
       - key: AUTH_CHALLENGE_SECRET
         generateValue: true
+      - key: BYOK_MASTER_KEY
+        generateValue: true
+      - key: BYOK_MASTER_KEY_ID
+        value: render-v1
+      - key: BYOK_PREVIOUS_MASTER_KEYS
+        value: "{}"
       - key: AUTH_EMAIL_MODE
         value: disabled
       - key: AUTH_DEV_EXPOSE_CODE

@@ -18,7 +18,7 @@ game and engineering demonstration, not yet a commercial multiplayer service.
 - [x] Conversation, team tasks, evidence, and world state survive save/load
 - [x] Per-agent OpenAI-compatible routing, tests, latency, Token diagnostics
 - [x] Shared Chinese/English UI and model-output language enforcement
-- [x] 128 deterministic tests on Python 3.11/3.12 CI
+- [x] 133 deterministic tests on Python 3.11/3.12 CI
 - [x] Live multi-model Ark benchmark with per-agent cost/latency metrics
 - [x] Docker/Compose, Render blueprint, demo GIF, screenshots, resume notes
 - [x] SQLAlchemy/PostgreSQL runtime, save-game, and usage persistence
@@ -31,6 +31,8 @@ game and engineering demonstration, not yet a commercial multiplayer service.
 - [x] Double-submit CSRF, credential rotation, device listing, revocation, and logout
 - [x] HMAC-protected login challenges with Redis email/IP request limits
 - [x] Account-owned investigation picker with explicit cross-browser resume
+- [x] Account-scoped BYOK profile persistence with AES-256-GCM envelope encryption
+- [x] Account-bound AAD, integrity failure tests, and versioned master-key rotation
 
 ## Verified measurements
 
@@ -49,7 +51,7 @@ for the reproducible report.
 
 ## Remaining production roadmap
 
-1. Add KMS-encrypted BYOK persistence, account/day budgets, and secret rotation.
+1. Add a managed cloud KMS adapter/online rewrap job and account/day budgets.
 2. Add browser-level Playwright CI for the full bilingual investigation path.
 3. Add branching cases and authoring tools for declarative TOML worlds.
 4. Compare the four-agent workflow with a controlled single-agent baseline on
@@ -67,6 +69,8 @@ multi-instance design is documented in
   identity ownership in process memory and is intended for local/demo use.
 - SMTP must be configured by the deployer; public Render defaults to disabled
   delivery and never exposes development verification codes.
+- The included envelope provider holds its master key in server environment
+  configuration; high-assurance production should move wrapping to managed KMS.
 - PostgreSQL is authoritative when configured, but the FastAPI process still
   keeps a bounded hot runtime cache; full horizontal scale needs cache
   invalidation/version checks in addition to the Redis session lock.

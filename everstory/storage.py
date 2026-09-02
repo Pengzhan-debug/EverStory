@@ -26,6 +26,7 @@ from sqlalchemy import (
     Integer,
     JSON,
     String,
+    Text,
     create_engine,
     select,
     update,
@@ -34,6 +35,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from . import persistence
+from .credential_crypto import CredentialEncryptionError, EnvelopeCipher
 from .engine import WorldSession
 
 
@@ -187,6 +189,33 @@ class LoginChallenge(Base):
     )
 
 
+class UserLlmProfile(Base):
+    __tablename__ = "user_llm_profiles"
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id"), primary_key=True
+    )
+    mode: Mapped[str] = mapped_column(String(8), default="stub", nullable=False)
+    platform_connection_ids: Mapped[list[str]] = mapped_column(
+        JsonDocument, default=list, nullable=False
+    )
+    agent_routes: Mapped[dict[str, str]] = mapped_column(
+        JsonDocument, default=dict, nullable=False
+    )
+    encrypted_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    wrapped_data_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payload_nonce: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    wrap_nonce: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    key_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    algorithm: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
 class PlayerSession(Base):
     __tablename__ = "player_sessions"
 
@@ -248,6 +277,7 @@ class FileStorage:
         self._runtime_owners: dict[str, str] = {}
         self._runtime_documents: dict[str, dict[str, Any]] = {}
         self._runtime_updated_at: dict[str, datetime] = {}
+        self._llm_profiles: dict[str, dict[str, Any]] = {}
         configured_secret = os.getenv("AUTH_CHALLENGE_SECRET", "").encode()
         self._challenge_secret = configured_secret or _PROCESS_CHALLENGE_SECRET
         self.auth_ttl_seconds = max(
@@ -489,6 +519,18 @@ class FileStorage:
         with self._identity_lock:
             return self._runtime_owners.get(runtime_id) == user_id
 
+    def load_llm_profile(self, user_id: str) -> dict[str, Any] | None:
+        with self._identity_lock:
+            profile = self._llm_profiles.get(user_id)
+            return copy.deepcopy(profile) if profile is not None else None
+
+    def save_llm_profile(self, user_id: str, profile: dict[str, Any]) -> None:
+        with self._identity_lock:
+            user = self._users.get(user_id)
+            if user is None or user.get("kind") != "registered":
+                raise PermissionError("a verified account is required")
+            self._llm_profiles[user_id] = copy.deepcopy(profile)
+
     def load_runtime(self, user_id: str, session_id: str) -> dict[str, Any] | None:
         with self._identity_lock:
             if self._runtime_owners.get(session_id) != user_id:
@@ -558,6 +600,7 @@ class DatabaseStorage:
         )
         configured_secret = os.getenv("AUTH_CHALLENGE_SECRET", "").encode()
         self._challenge_secret = configured_secret or _PROCESS_CHALLENGE_SECRET
+        self.credential_cipher = EnvelopeCipher.from_env()
         kwargs: dict[str, Any] = {"pool_pre_ping": True}
         if database_url.startswith("sqlite"):
             kwargs["connect_args"] = {"check_same_thread": False}
@@ -880,6 +923,85 @@ class DatabaseStorage:
                 )
                 is not None
             )
+
+    @staticmethod
+    def _llm_profile_aad(user_id: str) -> bytes:
+        return f"everstory:user-llm-profile:{user_id}:v1".encode()
+
+    def load_llm_profile(self, user_id: str) -> dict[str, Any] | None:
+        with Session(self.engine) as db:
+            row = db.get(UserLlmProfile, user_id)
+            if row is None:
+                return None
+            personal_connections: dict[str, Any] = {}
+            if row.encrypted_payload:
+                if self.credential_cipher is None:
+                    raise CredentialEncryptionError(
+                        "Encrypted player credentials are configured, but the master key is unavailable."
+                    )
+                decrypted = self.credential_cipher.decrypt_json(
+                    {
+                        "algorithm": row.algorithm or "",
+                        "key_id": row.key_id or "",
+                        "ciphertext": row.encrypted_payload,
+                        "payload_nonce": row.payload_nonce or "",
+                        "wrapped_data_key": row.wrapped_data_key or "",
+                        "wrap_nonce": row.wrap_nonce or "",
+                    },
+                    self._llm_profile_aad(user_id),
+                )
+                if not isinstance(decrypted, dict):
+                    raise CredentialEncryptionError(
+                        "Encrypted player credential payload is invalid."
+                    )
+                personal_connections = decrypted
+            return {
+                "mode": row.mode,
+                "platform_connection_ids": list(row.platform_connection_ids or []),
+                "agent_routes": dict(row.agent_routes or {}),
+                "personal_connections": personal_connections,
+            }
+
+    def save_llm_profile(self, user_id: str, profile: dict[str, Any]) -> None:
+        personal = profile.get("personal_connections")
+        personal_connections = personal if isinstance(personal, dict) else {}
+        envelope: dict[str, str] | None = None
+        if personal_connections:
+            if self.credential_cipher is None:
+                raise CredentialEncryptionError(
+                    "BYOK_MASTER_KEY is required before player credentials can be persisted."
+                )
+            envelope = self.credential_cipher.encrypt_json(
+                personal_connections, self._llm_profile_aad(user_id)
+            )
+        with Session(self.engine) as db, db.begin():
+            user = db.get(User, user_id)
+            if user is None or user.kind != "registered":
+                raise PermissionError("a verified account is required")
+            row = db.get(UserLlmProfile, user_id)
+            if row is None:
+                row = UserLlmProfile(user_id=user_id)
+                db.add(row)
+            row.mode = str(profile.get("mode") or "stub")[:8]
+            platform_ids = profile.get("platform_connection_ids")
+            row.platform_connection_ids = (
+                [str(item) for item in platform_ids]
+                if isinstance(platform_ids, list)
+                else []
+            )
+            routes = profile.get("agent_routes")
+            row.agent_routes = (
+                {str(key): str(value) for key, value in routes.items()}
+                if isinstance(routes, dict)
+                else {}
+            )
+            row.encrypted_payload = envelope["ciphertext"] if envelope else None
+            row.wrapped_data_key = envelope["wrapped_data_key"] if envelope else None
+            row.payload_nonce = envelope["payload_nonce"] if envelope else None
+            row.wrap_nonce = envelope["wrap_nonce"] if envelope else None
+            row.key_id = envelope["key_id"] if envelope else None
+            row.algorithm = envelope["algorithm"] if envelope else None
+            row.updated_at = utcnow()
 
     def load_runtime(self, user_id: str, session_id: str) -> dict[str, Any] | None:
         with Session(self.engine) as db:

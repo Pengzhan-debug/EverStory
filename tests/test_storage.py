@@ -11,6 +11,7 @@ from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import Session
 
 from everstory.api.main import AUTH_COOKIE, CSRF_COOKIE, SESSION_COOKIE, create_app
+from everstory.credential_crypto import EnvelopeCipher
 from everstory.engine import WorldSession
 from everstory.llm.client import LLMClient
 from everstory.persistence import session_to_dict
@@ -21,6 +22,7 @@ from everstory.storage import (
     LoginChallenge,
     PlayerSession,
     User,
+    UserLlmProfile,
     normalize_database_url,
 )
 from everstory.worlds import load_world
@@ -41,6 +43,7 @@ class DatabaseStorageTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         db_path = Path(self.tmp.name) / "everstory-test.db"
         self.storage = DatabaseStorage(f"sqlite:///{db_path.as_posix()}")
+        self.storage.credential_cipher = EnvelopeCipher("test-v1", "t" * 64)
         self.user_id = "d" * 32
         self.session_id = "a" * 32
 
@@ -141,6 +144,53 @@ class DatabaseStorageTests(unittest.TestCase):
             user = db.get(User, guest.user_id)
             self.assertIsNotNone(old_auth.revoked_at)
             self.assertEqual(user.kind, "registered")
+
+    def test_registered_llm_profile_is_encrypted_and_account_scoped(self):
+        guest = self.storage.resolve_identity("e" * 64, self.session_id)
+        challenge = self.storage.create_login_challenge("byok@example.com")
+        account = self.storage.verify_login_challenge(
+            challenge["id"],
+            "byok@example.com",
+            challenge["code"],
+            guest.user_id,
+            guest.auth_session_id,
+            guest.runtime_id,
+        )
+        profile = {
+            "mode": "api",
+            "platform_connection_ids": ["reasoning"],
+            "agent_routes": {"narrator": "player_api"},
+            "personal_connections": {
+                "player_api": {
+                    "name": "Private model",
+                    "base_url": "https://models.example/v1",
+                    "model": "private-model",
+                    "api_key": "super-secret-byok",
+                    "credential_source": "personal",
+                }
+            },
+        }
+
+        self.storage.save_llm_profile(account.user_id, profile)
+
+        with Session(self.storage.engine) as db:
+            row = db.get(UserLlmProfile, account.user_id)
+            self.assertIsNotNone(row)
+            self.assertEqual(row.key_id, "test-v1")
+            self.assertNotIn("super-secret-byok", str(row.encrypted_payload))
+            self.assertNotIn("super-secret-byok", str(row.wrapped_data_key))
+        self.assertEqual(
+            self.storage.load_llm_profile(account.user_id), profile
+        )
+        restarted = DatabaseStorage(str(self.storage.engine.url))
+        restarted.credential_cipher = EnvelopeCipher("test-v1", "t" * 64)
+        try:
+            self.assertEqual(restarted.load_llm_profile(account.user_id), profile)
+        finally:
+            restarted.engine.dispose()
+        self.assertIsNone(self.storage.load_llm_profile("f" * 32))
+        with self.assertRaises(PermissionError):
+            self.storage.save_llm_profile("f" * 32, profile)
 
     def test_existing_account_login_merges_guest_runtime(self):
         first_runtime = "1" * 32
@@ -393,6 +443,7 @@ class DatabaseStorageTests(unittest.TestCase):
             schema = inspect(engine)
             self.assertIn("auth_sessions", schema.get_table_names())
             self.assertIn("login_challenges", schema.get_table_names())
+            self.assertIn("user_llm_profiles", schema.get_table_names())
             self.assertIn(
                 "user_id",
                 {column["name"] for column in schema.get_columns("save_games")},

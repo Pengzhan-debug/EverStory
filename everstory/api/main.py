@@ -24,10 +24,16 @@ from starlette.middleware.gzip import GZipMiddleware
 from ..agents import TeamChatSession
 from ..auth_email import deliver_login_code
 from ..config import build_client
+from ..credential_crypto import CredentialEncryptionError
 from ..engine import WorldSession
 from ..models import Action
 from .. import persistence
-from ..llm.settings import client_payload, update_client
+from ..llm.settings import (
+    account_profile,
+    apply_account_profile,
+    client_payload,
+    update_client,
+)
 from ..llm.usage import usage_payload
 from ..pipeline import TurnPipeline
 from ..redis_runtime import RedisRuntime, build_redis_runtime
@@ -214,12 +220,46 @@ def create_app(
     runtimes: dict[str, RuntimeSlot] = {}
     runtimes_lock = RLock()
 
+    @app.exception_handler(CredentialEncryptionError)
+    async def credential_encryption_error_handler(request: Request, exc):
+        logger.error("Player credential storage is unavailable: %s", exc)
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Player credential storage is temporarily unavailable."},
+        )
+
+    def client_with_account_profile(user_id: str, client=None):
+        configured_client = client or build_client()
+        profile = storage.load_llm_profile(user_id)
+        return apply_account_profile(configured_client, profile)
+
+    def llm_settings_payload(request: Request, client) -> dict:
+        payload = client_payload(client)
+        registered = request.state.user_kind == "registered"
+        encrypted_at_rest = bool(
+            registered
+            and isinstance(storage, DatabaseStorage)
+            and storage.credential_cipher is not None
+        )
+        payload["credential_policy"].update(
+            {
+                "personal_keys_session_only": not registered
+                or not storage.durable_runtime,
+                "personal_keys_account_scoped": registered,
+                "personal_keys_encrypted_at_rest": encrypted_at_rest,
+            }
+        )
+        return payload
+
     def new_slot(user_id: str, client=None) -> RuntimeSlot:
         session = WorldSession(load_world("lost_lighthouse"))
+        configured_client = (
+            client if client is not None else client_with_account_profile(user_id)
+        )
         return RuntimeSlot(
             user_id=user_id,
             session=session,
-            pipeline=TurnPipeline(session, client or build_client()),
+            pipeline=TurnPipeline(session, configured_client),
         )
 
     def slot_document(slot: RuntimeSlot) -> dict:
@@ -238,7 +278,7 @@ def create_app(
         session = persistence.session_from_dict(document)
         raw_extra = document.get("extra")
         extra = raw_extra if isinstance(raw_extra, dict) else {}
-        client = build_client()
+        client = client_with_account_profile(user_id)
         usage = extra.get("usage") if isinstance(extra.get("usage"), list) else []
         if not usage:
             usage = storage.load_usage(user_id, session_id)
@@ -494,6 +534,13 @@ def create_app(
 
     @app.post("/api/auth/email/verify")
     async def verify_email_code(request: Request):
+        old_runtime_id = request.state.session_id
+        with runtimes_lock:
+            guest_slot = runtimes.get(old_runtime_id)
+        guest_profile = None
+        if guest_slot is not None:
+            with guest_slot.lock:
+                guest_profile = account_profile(guest_slot.pipeline.client)
         body = await request.json()
         challenge_id = str(body.get("challenge_id") or "").strip()
         code = str(body.get("code") or "").strip()
@@ -520,7 +567,6 @@ def create_app(
                 content={"error": "Invalid or expired verification challenge."},
             )
 
-        old_runtime_id = request.state.session_id
         with runtimes_lock:
             slot = runtimes.get(old_runtime_id)
             if slot is not None and identity.runtime_id == old_runtime_id:
@@ -536,6 +582,23 @@ def create_app(
         request.state.auth_token_to_set = identity.replacement_auth_token
         request.state.csrf_token_to_set = identity.replacement_csrf_token
         request.state.runtime_id_to_set = identity.runtime_id
+        stored_profile = storage.load_llm_profile(identity.user_id)
+        credential_profile_status = "account"
+        if stored_profile is not None:
+            if slot is not None and identity.runtime_id == old_runtime_id:
+                with slot.lock:
+                    slot.pipeline.client = apply_account_profile(
+                        slot.pipeline.client, stored_profile
+                    )
+        elif guest_profile is not None:
+            try:
+                storage.save_llm_profile(identity.user_id, guest_profile)
+            except CredentialEncryptionError:
+                credential_profile_status = "session_only"
+                logger.warning(
+                    "Verified account created without durable personal credentials; "
+                    "BYOK master key is unavailable."
+                )
         return {
             "ok": True,
             "user": {
@@ -546,6 +609,7 @@ def create_app(
                 "display_name": identity.display_name,
             },
             "runtime_id": identity.runtime_id,
+            "credential_profile_status": credential_profile_status,
         }
 
     @app.get("/api/auth/sessions")
@@ -637,7 +701,7 @@ def create_app(
     def get_llm_settings(request: Request):
         slot = slot_for(request)
         with slot.lock:
-            return client_payload(slot.pipeline.client)
+            return llm_settings_payload(request, slot.pipeline.client)
 
     @app.put("/api/llm/settings")
     async def put_llm_settings(request: Request):
@@ -646,9 +710,26 @@ def create_app(
         try:
             with slot.lock:
                 client = update_client(slot.pipeline.client, body)
+                profile = account_profile(client)
+                if request.state.user_kind == "registered":
+                    storage.save_llm_profile(request.state.user_id, profile)
                 slot.pipeline.client = client
                 persist_slot(request.state.session_id, slot)
-                return {"ok": True, "settings": client_payload(client)}
+                settings = llm_settings_payload(request, client)
+            if request.state.user_kind == "registered":
+                with runtimes_lock:
+                    sibling_slots = [
+                        sibling
+                        for sibling in runtimes.values()
+                        if sibling is not slot
+                        and sibling.user_id == request.state.user_id
+                    ]
+                for sibling in sibling_slots:
+                    with sibling.lock:
+                        sibling.pipeline.client = apply_account_profile(
+                            sibling.pipeline.client, profile
+                        )
+            return {"ok": True, "settings": settings}
         except ValueError as exc:
             return JSONResponse(status_code=400, content={"error": str(exc)})
 

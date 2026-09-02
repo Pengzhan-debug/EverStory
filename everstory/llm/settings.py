@@ -106,6 +106,70 @@ def client_payload(client: LLMClient) -> dict:
     }
 
 
+def account_profile(client: LLMClient) -> dict:
+    """Return the internal account profile; callers must encrypt before storage."""
+    personal_connections = {
+        connection_id: dict(connection)
+        for connection_id, connection in client.connections.items()
+        if str(connection.get("credential_source") or "personal").lower()
+        == "personal"
+    }
+    platform_connection_ids = [
+        connection_id
+        for connection_id, connection in client.connections.items()
+        if str(connection.get("credential_source") or "platform").lower()
+        == "platform"
+    ]
+    return {
+        "mode": client.mode,
+        "platform_connection_ids": platform_connection_ids,
+        "personal_connections": personal_connections,
+        "agent_routes": dict(client.agent_routes),
+    }
+
+
+def apply_account_profile(current: LLMClient, profile: object) -> LLMClient:
+    """Restore an internal profile onto a fresh/current platform catalog."""
+    if not isinstance(profile, dict):
+        return current
+    raw_platform_ids = profile.get("platform_connection_ids")
+    platform_ids = raw_platform_ids if isinstance(raw_platform_ids, list) else []
+    connections: dict[str, dict] = {}
+    for connection_id in platform_ids:
+        normalized_id = str(connection_id)
+        catalog_connection = current.platform_catalog.get(normalized_id)
+        if catalog_connection:
+            public_connection = dict(catalog_connection)
+            public_connection.pop("api_key", None)
+            connections[normalized_id] = public_connection
+    raw_personal = profile.get("personal_connections")
+    if isinstance(raw_personal, dict):
+        for connection_id, connection in raw_personal.items():
+            if isinstance(connection, dict):
+                connections[str(connection_id)] = dict(connection)
+    if not connections:
+        return current
+    first_connection = next(iter(connections))
+    raw_routes = profile.get("agent_routes")
+    route_values = raw_routes if isinstance(raw_routes, dict) else {}
+    routes = {
+        agent["id"]: (
+            str(route_values.get(agent["id"]))
+            if str(route_values.get(agent["id"]) or "") in connections
+            else first_connection
+        )
+        for agent in AGENT_CATALOG
+    }
+    return update_client(
+        current,
+        {
+            "mode": profile.get("mode") or current.mode,
+            "connections": connections,
+            "agent_routes": routes,
+        },
+    )
+
+
 def _validated_url(value: object, fallback: str) -> str:
     raw = str(value or fallback).strip().rstrip("/")
     if len(raw) > 500:

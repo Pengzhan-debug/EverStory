@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-128%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-133%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Identity/BYOK design](docs/IDENTITY_AND_BYOK_DESIGN.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
@@ -52,7 +52,7 @@ Each investigation and runtime role can use an independent or shared OpenAI-comp
 
 - **Deterministic AI world engine** — typed actions are validated against real state before anything changes.
 - **Persistent world state** — entities, items, locations, relationships, time, flags, quests and snapshots remain structured and inspectable.
-- **Production persistence path** — optional PostgreSQL stores guest users, hashed auth sessions, tenant-owned runtime snapshots, save games, and an idempotent LLM usage ledger; Redis supplies session TTL, mutation quotas, and cross-process player locks.
+- **Production persistence path** — optional PostgreSQL stores guest users, hashed auth sessions, tenant-owned runtime snapshots, save games, an idempotent LLM usage ledger, and AES-256-GCM envelope-encrypted account BYOK profiles; Redis supplies session TTL, mutation quotas, and cross-process player locks.
 - **Guest-to-account and cross-device resume** — email one-time codes upgrade or merge a guest without reloading the case; verified players can list and resume only their own investigations across browsers. Double-submit CSRF, auth rotation, device listing/revocation, hashed challenges, and SMTP/development delivery modes protect the account boundary.
 - **Natural-language gameplay** — players can say things like `walk toward the lighthouse`, `take the rusty key`, or `talk to the keeper` instead of learning a command language.
 - **Grounded narration** — the LLM narrates the state transition that the engine actually applied.
@@ -242,7 +242,7 @@ LLM_CHEAP_MODEL=deepseek-chat
 
 The strong role (intent parsing + consistency judging) and the cheap role (narration) are independent, so vendors can be mixed freely. Restart the server after editing `.env` because configuration is read at startup.
 
-Platform credentials come only from the server environment and are read-only in the browser. A player can add a personal connection in `/settings`; that key remains server-side in the current runtime, is never returned by the settings API, has separate accounting, and is never used as a fallback target. With `DATABASE_URL`, anonymous world/team runtimes and usage records survive process restarts. BYOK secrets still remain process-local and are never written as plaintext; authenticated accounts and KMS envelope encryption are required before claiming production secret persistence.
+Platform credentials come only from the server environment and are read-only in the browser. A player can add a personal connection in `/settings`; its key is never returned by the settings API, has separate accounting, and is never used as a fallback target. Guests keep personal keys only in the current process. With `DATABASE_URL` and `BYOK_MASTER_KEY`, verified accounts restore model routes and envelope-encrypted BYOK profiles across browsers and restarts; plaintext keys are excluded from runtime JSON, usage records and browser responses. The built-in provider uses an environment-held master key with key IDs and a previous-key ring; a managed cloud KMS adapter remains a production-hardening option.
 
 ### PostgreSQL and Redis
 
@@ -256,15 +256,19 @@ the corresponding local fallback remains available.
 ```ini
 DATABASE_URL=postgresql+psycopg://everstory:password@postgres:5432/everstory
 REDIS_URL=redis://redis:6379/0
+BYOK_MASTER_KEY=<at-least-32-random-characters>
+BYOK_MASTER_KEY_ID=prod-v1
+BYOK_PREVIOUS_MASTER_KEYS={}
 RATE_LIMIT_REQUESTS=60
 RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
 Schema changes are tracked with Alembic (`alembic upgrade head`). Email-code
 account login is available when SMTP is configured; the Render blueprint keeps
-delivery disabled until the owner supplies it. BYOK secrets are deliberately
-not written to the database yet, so KMS envelope encryption remains the next
-security milestone.
+delivery disabled until the owner supplies it. Migration `20260902_0004` adds
+account model profiles. Each personal-connection payload uses a fresh random
+data key and AES-256-GCM nonce; the data key is separately wrapped by the active
+master-key version and bound to the account id as authenticated data.
 
 The optional Volcengine Ark catalog uses one shared Base URL and a separate API credential for each of its seven named models. The empirically selected route map uses DeepSeek V4 Pro for directing, Doubao Seed 2.0 Lite for field work, intent parsing and NPC dialogue, GLM 5.3 for analysis, Kimi K2.7 Code for skeptical review, DeepSeek V4 Flash for consistency checks, and MiniMax M3 for narration. Run `python -m scripts.test_model_connections` for a credential-safe health check, or `python -m scripts.run_full_agent_evaluation` for the checkpointed benchmark. Verify the Coding Plan usage rules before using its coding-only endpoint for a non-coding game workload; a standard Ark model API or agent-oriented plan is the safer production choice.
 
