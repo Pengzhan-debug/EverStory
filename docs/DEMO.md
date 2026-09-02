@@ -75,5 +75,7 @@ The storm alone proves the failure was accidental.
 
 **生产化还缺什么？**
 
-当前是完整的本地作品集版本。上线多人服务还需 Postgres/Redis、认证、限流、密钥
-管理和多实例会话协调；这些边界在 Roadmap 中明确记录。
+当前已经部署了 PostgreSQL、Redis/Valkey、游客与邮箱账号边界、租户隔离、限流、
+跨设备案件恢复和加密 BYOK。公开演示仍默认 Stub 且邮件投递关闭；正式商业运营还需
+托管 KMS、账号/日预算、SMTP 或 OAuth、备份恢复演练、可观测性与多实例缓存失效机制。
+这些边界在 Roadmap 中明确记录。

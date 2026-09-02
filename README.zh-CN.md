@@ -4,10 +4,12 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![测试](https://img.shields.io/badge/tests-128%20passing-22C55E)
+![测试](https://img.shields.io/badge/tests-133%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
-[English README](README.md) · [系统架构](docs/architecture.md) · [真实模型评测](reports/agent-routing-evaluation-zh.md) · [公开部署](docs/DEPLOYMENT.md) · [身份与 BYOK 设计](docs/IDENTITY_AND_BYOK_DESIGN.md) · [面试演示](docs/DEMO.md) · [简历模板](docs/RESUME.md)
+[在线试玩](https://everstory.onrender.com/) · [English README](README.md) · [系统架构](docs/architecture.md) · [真实模型评测](reports/agent-routing-evaluation-zh.md) · [公开部署](docs/DEPLOYMENT.md) · [身份与 BYOK 设计](docs/IDENTITY_AND_BYOK_DESIGN.md) · [面试演示](docs/DEMO.md) · [简历模板](docs/RESUME.md)
+
+> Render 公开演示默认使用费用可控的确定性 Stub；线上运行态已经验证为 PostgreSQL 持久化与 Redis/Valkey 协调。免费实例闲置后会休眠，首次打开可能需要约一分钟唤醒。
 
 EverStory 是一个解决 **LLM 长程交互不可靠**（遗忘、自相矛盾、编造状态）问题的
 混合架构项目：玩家用自然语言行动，大模型负责"听懂"和"叙述"，但世界的真相——
@@ -203,7 +205,9 @@ CSRF，账号面板支持设备会话查看、下线和退出。
 Redis 管理会话 TTL、写请求限流与跨进程
 会话锁。未配置 `DATABASE_URL` / `REDIS_URL` 时仍可使用原来的本地模式。数据库迁移由
 Alembic 管理，Docker Compose 会直接启动 Web、PostgreSQL 16、Redis 7 三个服务。
-玩家 BYOK 目前仍不写入数据库；正式商业部署还需 KMS 信封加密与密钥轮换。
+游客 BYOK 只保存在当前服务进程；注册账号的 BYOK 已使用 AES-256-GCM 信封加密写入
+PostgreSQL，并支持带版本的主密钥轮换。正式商业部署仍建议接入托管 KMS/Secret Manager，
+完成在线 rewrap、预算告警和密钥轮换演练。
 
 ## 目录结构
 

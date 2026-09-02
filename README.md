@@ -9,7 +9,9 @@
 ![Tests](https://img.shields.io/badge/tests-133%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
-[Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Identity/BYOK design](docs/IDENTITY_AND_BYOK_DESIGN.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
+[Play the live demo](https://everstory.onrender.com/) · [Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Identity/BYOK design](docs/IDENTITY_AND_BYOK_DESIGN.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
+
+> The public Render demo runs in deterministic Stub mode for predictable cost. Its verified runtime uses PostgreSQL for durable tenant data and Redis/Valkey for session coordination. Free instances can take up to about a minute to wake after inactivity.
 
 EverStory is a hybrid architecture for long-horizon AI interaction: an LLM *proposes* actions in natural language, while a deterministic state machine *decides*. The world — entities, items, locations, relationships, time, flags and quests — lives in a structured, versioned state graph that the LLM can never directly mutate.
 

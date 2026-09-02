@@ -1,5 +1,16 @@
 # EverStory 公开演示部署指南
 
+## 当前公开环境
+
+- 在线地址：<https://everstory.onrender.com/>
+- 部署形态：Render Web Service + PostgreSQL + Redis-compatible Key Value
+- 健康检查：<https://everstory.onrender.com/api/health>
+- 默认模型模式：`stub`，不会消耗平台模型额度
+- 已验证后端：`database.backend=postgresql`、`coordination.backend=redis`
+
+免费 Web Service 闲置后会休眠，因此第一次访问可能需要约一分钟。这个地址适合作品集
+评审和面试演示，不应被描述为带 SLA 的商业生产服务。
+
 ## 推荐的作品集演示方案
 
 公开演示默认使用 **Stub 模式**。它不需要 API Key、费用可控、行为稳定，也能完整展示
