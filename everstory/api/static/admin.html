@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="theme-color" content="#071019"/>
+  <title>EverStory · 运营控制台</title>
+  <link rel="icon" href="/static/everstory-mark.svg" type="image/svg+xml"/>
+  <link rel="stylesheet" href="/static/admin.css?v=1"/>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/static/everstory-mark.svg" alt=""/><span>EverStory</span></a>
+    <div class="topbar-copy"><strong>运营控制台</strong><small>真实模型灰度与服务健康</small></div>
+    <div class="topbar-actions"><span id="service-state" class="state pending">正在检查</span><button id="refresh" type="button">刷新</button><a href="/settings">模型控制台</a><a href="/">返回游戏</a></div>
+  </header>
+  <main>
+    <section id="access-denied" class="notice danger" hidden>
+      <strong>需要管理员账号</strong>
+      <span>请先返回游戏，通过邮箱验证码登录已配置在 ADMIN_EMAILS 中的账号。</span>
+    </section>
+    <section id="dashboard" hidden>
+      <div class="section-head"><div><span>OVERVIEW</span><h1>灰度运行概览</h1></div><time id="generated-at">—</time></div>
+      <div class="metric-grid">
+        <article><span>24 小时活跃玩家</span><strong id="active-users">0</strong><small id="user-breakdown">—</small></article>
+        <article><span>调查存档</span><strong id="investigations">0</strong><small id="session-breakdown">—</small></article>
+        <article><span>24 小时 Token</span><strong id="tokens-24h">0</strong><small id="calls-24h">—</small></article>
+        <article><span>7 天成功率</span><strong id="success-rate">100%</strong><small id="failure-breakdown">—</small></article>
+      </div>
+
+      <div class="layout">
+        <section class="panel providers-panel">
+          <div class="panel-head"><div><span>PROVIDERS</span><h2>平台模型状态</h2></div><span id="provider-summary" class="badge">—</span></div>
+          <div id="providers" class="providers"></div>
+        </section>
+        <aside class="panel readiness-panel">
+          <div class="panel-head"><div><span>READINESS</span><h2>上线保护</h2></div></div>
+          <dl class="readiness">
+            <div><dt>默认运行模式</dt><dd id="llm-mode">—</dd></div>
+            <div><dt>在线 API 账号限制</dt><dd id="account-gate">—</dd></div>
+            <div><dt>邮件验证码</dt><dd id="email-mode">—</dd></div>
+            <div><dt>账号每日预算</dt><dd id="daily-limit">—</dd></div>
+            <div><dt>数据库</dt><dd id="database-backend">—</dd></div>
+            <div><dt>协调与熔断</dt><dd id="coordination-backend">—</dd></div>
+          </dl>
+        </aside>
+      </div>
+
+      <div class="layout charts">
+        <section class="panel"><div class="panel-head"><div><span>AGENTS</span><h2>智能体 Token 分布</h2></div></div><div id="agent-chart" class="bar-chart"></div></section>
+        <section class="panel"><div class="panel-head"><div><span>MODELS</span><h2>模型 Token 分布</h2></div></div><div id="model-chart" class="bar-chart"></div></section>
+      </div>
+      <section class="panel split-usage">
+        <div><span>平台默认 API</span><strong id="platform-tokens">0</strong><small>7 天 Token</small></div>
+        <div><span>玩家 BYOK</span><strong id="personal-tokens">0</strong><small>7 天 Token</small></div>
+        <div><span>全部请求</span><strong id="calls-7d">0</strong><small>7 天调用</small></div>
+      </section>
+    </section>
+  </main>
+  <footer><span id="footer-status">等待载入。</span><span>页面不返回邮箱、密钥或调用正文</span></footer>
+  <script src="/static/admin.js?v=1"></script>
+</body>
+</html>

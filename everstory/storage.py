@@ -28,6 +28,7 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
+    func,
     select,
     update,
 )
@@ -122,6 +123,74 @@ def investigation_summary(
         "turn": int(state.get("turn") or 0),
         "evidence": len(evidence) if isinstance(evidence, list) else 0,
         "updated_at": updated_at.isoformat() if updated_at is not None else "",
+    }
+
+
+def _aggregate_admin_usage(
+    calls: list[dict[str, Any]], *, now: datetime | None = None
+) -> dict[str, Any]:
+    """Build a compact, PII-free seven-day operations summary."""
+    now = now or utcnow()
+    day_ago = now - timedelta(days=1)
+    totals_by_model: dict[str, dict[str, int]] = {}
+    totals_by_agent: dict[str, dict[str, int]] = {}
+    calls_24h = tokens_24h = tokens_7d = failures_7d = 0
+    platform_tokens = personal_tokens = 0
+    for call in calls:
+        raw_time = call.get("created_at")
+        try:
+            created_at = datetime.fromisoformat(str(raw_time).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            created_at = now
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        tokens = int(call.get("total_tokens") or 0) or (
+            int(call.get("prompt_tokens") or 0)
+            + int(call.get("completion_tokens") or 0)
+        )
+        tokens_7d += tokens
+        if created_at >= day_ago:
+            calls_24h += 1
+            tokens_24h += tokens
+        if not call.get("ok"):
+            failures_7d += 1
+        source = str(call.get("credential_source") or "personal")
+        if source == "platform":
+            platform_tokens += tokens
+        else:
+            personal_tokens += tokens
+        for target, key in (
+            (totals_by_model, str(call.get("model") or "unassigned")),
+            (totals_by_agent, str(call.get("agent") or "unassigned")),
+        ):
+            bucket = target.setdefault(key, {"calls": 0, "tokens": 0, "failures": 0})
+            bucket["calls"] += 1
+            bucket["tokens"] += tokens
+            if not call.get("ok"):
+                bucket["failures"] += 1
+
+    def ranked(source: dict[str, dict[str, int]]) -> list[dict[str, Any]]:
+        return [
+            {"id": key, **value}
+            for key, value in sorted(
+                source.items(), key=lambda item: item[1]["tokens"], reverse=True
+            )[:12]
+        ]
+
+    total_calls = len(calls)
+    return {
+        "calls_24h": calls_24h,
+        "tokens_24h": tokens_24h,
+        "calls_7d": total_calls,
+        "tokens_7d": tokens_7d,
+        "failures_7d": failures_7d,
+        "success_rate_7d": round(
+            (total_calls - failures_7d) / total_calls * 100, 1
+        ) if total_calls else 100.0,
+        "platform_tokens_7d": platform_tokens,
+        "personal_tokens_7d": personal_tokens,
+        "by_model": ranked(totals_by_model),
+        "by_agent": ranked(totals_by_agent),
     }
 
 
@@ -582,6 +651,30 @@ class FileStorage:
         self, user_id: str, session_id: str, limit: int = 2000
     ) -> list[dict[str, Any]]:
         return []
+
+    def admin_overview(self) -> dict[str, Any]:
+        """Return browser-safe aggregate metrics for local development."""
+        now = utcnow()
+        with self._identity_lock:
+            users = list(self._users.values())
+            active_sessions = sum(
+                1
+                for row in self._auth_sessions.values()
+                if row["revoked_at"] is None and row["expires_at"] > now
+            )
+            registered = sum(1 for user in users if user.get("kind") == "registered")
+            return {
+                "generated_at": now.isoformat(),
+                "users": {
+                    "total": len(users),
+                    "registered": registered,
+                    "guests": sum(1 for user in users if user.get("kind") == "guest"),
+                    "active_24h": len(users),
+                },
+                "auth": {"active_sessions": active_sessions},
+                "investigations": {"total": len(self._runtime_owners)},
+                "usage": _aggregate_admin_usage([]),
+            }
 
     def health(self) -> dict[str, Any]:
         return {"backend": self.name, "ok": True, "durable_runtime": False}
@@ -1134,6 +1227,69 @@ class DatabaseStorage:
                 .limit(limit)
             ).all()
             return [dict(row.payload) for row in reversed(rows)]
+
+    def admin_overview(self) -> dict[str, Any]:
+        """Aggregate service-level metrics without returning user PII."""
+        now = utcnow()
+        day_ago = now - timedelta(days=1)
+        week_ago = now - timedelta(days=7)
+        with Session(self.engine) as db:
+            users_total = int(db.scalar(select(func.count()).select_from(User)) or 0)
+            registered = int(
+                db.scalar(
+                    select(func.count()).select_from(User).where(User.kind == "registered")
+                )
+                or 0
+            )
+            guests = int(
+                db.scalar(select(func.count()).select_from(User).where(User.kind == "guest"))
+                or 0
+            )
+            active_users = int(
+                db.scalar(
+                    select(func.count()).select_from(User).where(User.last_seen_at >= day_ago)
+                )
+                or 0
+            )
+            active_sessions = int(
+                db.scalar(
+                    select(func.count())
+                    .select_from(AuthSession)
+                    .where(
+                        AuthSession.revoked_at.is_(None),
+                        AuthSession.expires_at > now,
+                    )
+                )
+                or 0
+            )
+            investigations = int(
+                db.scalar(select(func.count()).select_from(PlayerSession)) or 0
+            )
+            rows = db.scalars(
+                select(UsageEvent)
+                .where(UsageEvent.created_at >= week_ago)
+                .order_by(UsageEvent.created_at.asc())
+            ).all()
+            calls = []
+            for row in rows:
+                call = dict(row.payload)
+                call.setdefault("total_tokens", row.total_tokens)
+                call.setdefault("agent", row.agent)
+                call.setdefault("model", row.model)
+                call["created_at"] = row.created_at.isoformat()
+                calls.append(call)
+        return {
+            "generated_at": now.isoformat(),
+            "users": {
+                "total": users_total,
+                "registered": registered,
+                "guests": guests,
+                "active_24h": active_users,
+            },
+            "auth": {"active_sessions": active_sessions},
+            "investigations": {"total": investigations},
+            "usage": _aggregate_admin_usage(calls, now=now),
+        }
 
     def health(self) -> dict[str, Any]:
         try:

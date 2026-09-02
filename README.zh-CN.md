@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![测试](https://img.shields.io/badge/tests-138%20passing-22C55E)
+![测试](https://img.shields.io/badge/tests-140%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [在线试玩](https://everstory.onrender.com/) · [English README](README.md) · [系统架构](docs/architecture.md) · [真实模型评测](reports/agent-routing-evaluation-zh.md) · [公开部署](docs/DEPLOYMENT.md) · [身份与 BYOK 设计](docs/IDENTITY_AND_BYOK_DESIGN.md) · [面试演示](docs/DEMO.md) · [简历模板](docs/RESUME.md)
@@ -153,7 +153,7 @@ everstory-learn       # 规则归纳报告
 python -m unittest discover -s tests -v   # 测试
 ```
 
-当前包含 **128 项**无需 API Key 的自动化测试，完整验收路径覆盖智能体提议移动、
+当前包含 **140 项**无需 API Key 的自动化测试，完整验收路径覆盖智能体提议移动、
 三次证人询问、三项证据检查、分析师复核以及受证据链约束的最终指控。
 
 ## 配置真实模型（.env）
@@ -201,7 +201,7 @@ LLM_CHEAP_MODEL=deepseek-v4-flash
 取回。玩家可在 `/settings` 新增自己的 OpenAI 兼容连接；密钥只留在当前服务进程，
 用量独立统计，调用失败也不会切换到平台密钥。
 
-v1.3 身份系统已在 v1.2 持久层之上拆分 `everstory_auth` 与 `everstory_runtime`：PostgreSQL
+v1.4 身份与运营系统已在 v1.2 持久层之上拆分 `everstory_auth` 与 `everstory_runtime`：PostgreSQL
 只保存认证令牌哈希，并以 `user_id + runtime_id` 隔离实时世界、调查记忆、命名存档和
 幂等 Token 用量账本；邮箱一次性验证码支持游客原地升级或合并到已有账号，验证后当前
 案件不刷新、不丢失；账号面板可以列出名下案件并在不同浏览器间恢复。写接口使用双提交
@@ -212,6 +212,10 @@ Alembic 管理，Docker Compose 会直接启动 Web、PostgreSQL 16、Redis 7 �
 游客 BYOK 只保存在当前服务进程；注册账号的 BYOK 已使用 AES-256-GCM 信封加密写入
 PostgreSQL，并支持带版本的主密钥轮换。正式商业部署仍建议接入托管 KMS/Secret Manager，
 完成在线 rewrap、预算告警和密钥轮换演练。
+
+管理员可通过 `ADMIN_EMAILS` 配置逗号分隔的已验证邮箱白名单，并访问 `/admin` 查看
+活跃用户、调查存档、Token、成功率、模型/智能体分布、平台凭据就绪状态和熔断状态。
+该接口只返回聚合数据，不返回玩家邮箱、模型密钥或调用正文。
 
 ## 目录结构
 

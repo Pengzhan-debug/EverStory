@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "everstory"
-version = "1.3.0"
+version = "1.4.0"
 description = "State-consistent persistent AI world engine: LLM proposes, state machine decides."
 readme = "README.md"
 requires-python = ">=3.11"

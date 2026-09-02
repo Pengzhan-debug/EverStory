@@ -1467,6 +1467,9 @@ body.truth-open .truth-backdrop { visibility: visible; opacity: 1; }
 .account-investigation button:disabled { opacity: .5; cursor: wait; }
 .account-current { color: var(--ok); font: 8px var(--mono); letter-spacing: 1px; }
 .account-danger { width: 100%; margin-top: 18px; border-color: rgba(238,142,142,.28); color: #e9aaaa; background: rgba(150,45,45,.08); }
+.account-admin { display: block; margin-top: 18px; border: 1px solid rgba(88,195,204,.34); border-radius: 6px; padding: 10px 13px; color: #bce9ec; background: rgba(88,195,204,.08); text-align: center; text-decoration: none; font: 600 10px var(--sans); letter-spacing: .04em; }
+.account-admin[hidden] { display: none !important; }
+.account-admin + .account-danger { margin-top: 9px; }
 
 @media (max-width: 800px) {
   .controls #account-btn { display: inline-flex; }

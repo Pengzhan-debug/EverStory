@@ -238,7 +238,7 @@ class ApiTest(unittest.TestCase):
         self.assertIn('id="game-language"', page)
         self.assertIn('id="account-btn"', page)
         self.assertIn('id="account-panel"', page)
-        self.assertIn('src="/static/auth.js?v=4"', page)
+        self.assertIn('src="/static/auth.js?v=5"', page)
         self.assertIn('data-i18n="worldStable"', page)
         self.assertIn('src="/static/i18n.js?v=7"', page)
         self.assertIn('localStorage.getItem("everstory_locale")', locale)
@@ -663,6 +663,55 @@ class ApiTest(unittest.TestCase):
         script = self.client.get("/static/settings.js").text
         self.assertIn('data.code === "account_required"', script)
         self.assertIn('t("accountRequired")', script)
+
+    def test_admin_overview_requires_allowlisted_verified_email(self):
+        import os
+        from unittest.mock import patch
+
+        denied = self.client.get("/api/admin/overview")
+        self.assertEqual(denied.status_code, 403)
+        email = "ops-admin@example.com"
+        with patch.dict(
+            os.environ,
+            {
+                "AUTH_EMAIL_MODE": "development",
+                "AUTH_DEV_EXPOSE_CODE": "true",
+                "ADMIN_EMAILS": email,
+            },
+        ):
+            challenge = self.client.post(
+                "/api/auth/email/request", json={"email": email, "locale": "zh-CN"}
+            ).json()
+            verified = self.client.post(
+                "/api/auth/email/verify",
+                json={
+                    "challenge_id": challenge["challenge_id"],
+                    "email": email,
+                    "code": challenge["development_code"],
+                },
+            )
+            self.assertEqual(verified.status_code, 200)
+            self.assertTrue(verified.json()["user"]["is_admin"])
+            self.client.headers.update(
+                {"X-CSRF-Token": self.client.cookies.get("everstory_csrf")}
+            )
+            session = self.client.get("/api/auth/session").json()
+            self.assertTrue(session["user"]["is_admin"])
+            response = self.client.get("/api/admin/overview")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("users", data)
+        self.assertIn("usage", data)
+        self.assertIn("service", data)
+        self.assertIn("providers", data["service"])
+        self.assertNotIn("email", data["users"])
+
+        page = self.client.get("/admin").text
+        script = self.client.get("/static/admin.js").text
+        self.assertIn('id="provider-summary"', page)
+        self.assertIn("/api/admin/overview", script)
+        self.assertIn('id="account-admin"', self.client.get("/").text)
 
     def test_team_chat_has_identity_and_agent_challenge(self):
         history = self.client.get("/api/agents/chat").json()

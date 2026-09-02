@@ -23,7 +23,8 @@
 2. 在 Render 选择 **New → Blueprint**，连接 EverStory 仓库。
 3. Render 会读取仓库根目录的 `render.yaml`，使用 `Dockerfile` 构建 Web，并创建同区的
    PostgreSQL 与 Key Value；容器每次启动前都会执行 `alembic upgrade head`。
-4. 首次演示保留 `LLM_MODE=stub` 和 `ARK_ENABLE_CATALOG=false`，无需填写模型密钥。
+4. 首次演示保留 `LLM_MODE=stub`；`ARK_ENABLE_CATALOG=true` 只展示目录，未填写密钥的
+   模型不会被分配或调用。
 5. 等待 `/api/health` 健康检查通过，Render 会生成类似
    `https://everstory-xxxx.onrender.com` 的地址；该平台实际生成的域名才是公开演示地址。
 6. 如需自定义域名，在 Render 的 **Settings → Custom Domains** 中绑定域名并按提示配置 DNS。
@@ -59,8 +60,11 @@ PostgreSQL 升级为付费实例并开启备份，Key Value 是否付费取决�
   PostgreSQL 保存权威数据，Key Value 仅承担 TTL、限流和运行档锁。
 - 玩家 BYOK：游客只在服务进程内保存；注册账号在 PostgreSQL 中保存 AES-256-GCM
   信封密文，完整密钥不返回浏览器，也不进入运行态 JSON、Redis 或用量账本。
-- 邮箱登录：本地 `development` 模式可以在账号面板显示测试验证码；公网必须切换到
-  `smtp` 并配置发件服务。Render Blueprint 默认 `disabled`，不会意外成为邮件中继。
+- 邮箱登录：本地 `development` 模式可以在账号面板显示测试验证码；公网可使用 SMTP，
+  也可设置 `AUTH_EMAIL_MODE=resend`、`AUTH_RESEND_API_KEY` 与 `AUTH_EMAIL_FROM`。
+  Render Blueprint 默认 `disabled`，不会意外成为邮件中继。
+- 运营控制台：`ADMIN_EMAILS` 配置逗号分隔的管理员邮箱；该邮箱完成验证码登录后可访问
+  `/admin`，查看不含 PII 和密钥的灰度用量、供应商就绪与熔断状态。
 
 ### 数据库初始化与迁移
 
@@ -86,6 +90,11 @@ AUTH_SMTP_PORT=587
 AUTH_SMTP_USERNAME=<账号>
 AUTH_SMTP_PASSWORD=<密码或应用专用密码>
 AUTH_SMTP_FROM=no-reply@example.com
+# 或使用 Resend：
+# AUTH_EMAIL_MODE=resend
+# AUTH_RESEND_API_KEY=<服务端密钥>
+# AUTH_EMAIL_FROM=EverStory <login@example.com>
+ADMIN_EMAILS=owner@example.com
 BYOK_MASTER_KEY=<至少 32 字符的随机值>
 BYOK_MASTER_KEY_ID=prod-v1
 BYOK_PREVIOUS_MASTER_KEYS={}
@@ -99,7 +108,7 @@ LIVE_LLM_REQUIRE_ACCOUNT=true
 INFRA_STRICT=true
 ```
 
-## 多用户生产版本还应增加
+## 多用户生产版本的后续增强
 
 ```text
 Browser
@@ -118,8 +127,8 @@ Browser
   备份恢复演练和删除账号的数据生命周期。
 - 凭据：已实现本地主密钥提供器的 AES-256-GCM 信封加密、账号 AAD 绑定和旧版本
   Keyring 解密；生产环境建议再接云 KMS/Secret Manager，并做在线批量 rewrap。
-- 配额：Redis 原子会话限流 + PostgreSQL 用量账本已实现；还需增加单 IP、单账号和
-  单日平台预算与告警。
+- 配额：Redis 原子会话限流、账号每日预算、供应商熔断、PostgreSQL 用量账本与管理员
+  聚合面板已实现；生产告警仍建议接入托管监控服务。
 - 多实例：SSE 事件、任务锁和会话状态需要共享存储或消息系统，不能依赖单个 Python 进程。
 - 运维：结构化日志、错误追踪、调用延迟/失败率、成本告警、数据库备份和删除账号流程。
 

@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware.gzip import GZipMiddleware
 
 from ..agents import TeamChatSession
-from ..auth_email import deliver_login_code
+from ..auth_email import deliver_login_code, email_delivery_status
 from ..config import build_client
 from ..credential_crypto import CredentialEncryptionError
 from ..engine import WorldSession
@@ -59,6 +59,21 @@ SESSION_ID_RE = re.compile(r"^[a-f0-9]{32}$")
 AUTH_TOKEN_RE = re.compile(r"^[a-f0-9]{64}$")
 CSRF_TOKEN_RE = re.compile(r"^[a-f0-9]{64}$")
 MAX_RUNTIME_SESSIONS = 128
+
+
+def configured_admin_emails() -> set[str]:
+    return {
+        email.strip().lower()
+        for email in os.getenv("ADMIN_EMAILS", "").split(",")
+        if email.strip()
+    }
+
+
+def is_admin_identity(request: Request) -> bool:
+    return (
+        request.state.user_kind == "registered"
+        and str(request.state.user_email or "").lower() in configured_admin_emails()
+    )
 
 
 @dataclass
@@ -212,7 +227,7 @@ def create_app(
     storage: FileStorage | DatabaseStorage | None = None,
     redis_runtime: RedisRuntime | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="EverStory", version="1.3.0")
+    app = FastAPI(title="EverStory", version="1.4.0")
     app.add_middleware(GZipMiddleware, minimum_size=500)
     storage = storage or build_storage()
     redis_runtime = redis_runtime or build_redis_runtime()
@@ -464,6 +479,10 @@ def create_app(
     def settings_page():
         return FileResponse(STATIC_DIR / "settings.html")
 
+    @app.get("/admin")
+    def admin_page():
+        return FileResponse(STATIC_DIR / "admin.html")
+
     @app.get("/api/health")
     def health():
         database = storage.health()
@@ -471,7 +490,7 @@ def create_app(
         ready = bool(database.get("ok")) and bool(coordination.get("ok"))
         payload = {
             "status": "ok" if ready else "degraded",
-            "version": "1.3.0",
+            "version": "1.4.0",
             "database": database,
             "coordination": coordination,
         }
@@ -479,6 +498,7 @@ def create_app(
 
     @app.get("/api/auth/session")
     def auth_session(request: Request):
+        email_status = email_delivery_status()
         return {
             "user": {
                 "id": request.state.user_id,
@@ -486,11 +506,54 @@ def create_app(
                 "registered": request.state.user_kind == "registered",
                 "email": request.state.user_email,
                 "display_name": request.state.user_display_name,
+                "is_admin": is_admin_identity(request),
             },
             "runtime_id": request.state.session_id,
+            "email_login": email_status,
             "csrf_protected": os.getenv("CSRF_ENFORCE", "true").lower()
             in {"1", "true", "yes"},
         }
+
+    @app.get("/api/admin/overview")
+    def admin_overview(request: Request):
+        if not is_admin_identity(request):
+            return JSONResponse(
+                status_code=403,
+                content={"code": "admin_required", "error": "Administrator access is required."},
+            )
+        overview = storage.admin_overview()
+        reference_client = build_client("stub")
+        providers = []
+        for connection_id, connection in reference_client.platform_catalog.items():
+            circuit = redis_runtime.circuit_status(
+                f"platform-circuit:{connection_id}"
+            )
+            providers.append(
+                {
+                    "id": connection_id,
+                    "name": str(connection.get("name") or connection_id),
+                    "provider": str(connection.get("provider") or "openai_compatible"),
+                    "model": str(connection.get("model") or ""),
+                    "configured": bool(connection.get("api_key")),
+                    "circuit": circuit,
+                }
+            )
+        overview["service"] = {
+            "version": "1.4.0",
+            "llm_mode": os.getenv("LLM_MODE", "stub"),
+            "live_requires_account": os.getenv(
+                "LIVE_LLM_REQUIRE_ACCOUNT", "false"
+            ).lower() in {"1", "true", "yes"},
+            "email_mode": email_delivery_status()["mode"],
+            "email_configured": email_delivery_status()["configured"],
+            "daily_token_limit": int(
+                os.getenv("PLATFORM_ACCOUNT_DAILY_TOKEN_LIMIT", "0") or 0
+            ),
+            "database": storage.health(),
+            "coordination": redis_runtime.health(),
+            "providers": providers,
+        }
+        return overview
 
     @app.post("/api/auth/email/request", status_code=202)
     async def request_email_code(request: Request):
@@ -614,6 +677,7 @@ def create_app(
                 "registered": True,
                 "email": identity.email,
                 "display_name": identity.display_name,
+                "is_admin": is_admin_identity(request),
             },
             "runtime_id": identity.runtime_id,
             "credential_profile_status": credential_profile_status,

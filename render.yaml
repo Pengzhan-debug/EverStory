@@ -37,6 +37,12 @@ services:
         value: "{}"
       - key: AUTH_EMAIL_MODE
         value: disabled
+      - key: AUTH_RESEND_API_KEY
+        sync: false
+      - key: AUTH_EMAIL_FROM
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
       - key: AUTH_DEV_EXPOSE_CODE
         value: false
       - key: AUTH_REQUEST_LIMIT
@@ -56,7 +62,7 @@ services:
       - key: LIVE_LLM_REQUIRE_ACCOUNT
         value: true
       - key: ARK_ENABLE_CATALOG
-        value: false
+        value: true
       - key: ARK_KIMI_K27_CODE_API_KEY
         sync: false
       - key: ARK_DEEPSEEK_V4_PRO_API_KEY

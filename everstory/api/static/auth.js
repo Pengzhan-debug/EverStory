@@ -91,6 +91,11 @@
       $("#account-name").textContent = identity.user.display_name || text("Investigator", "调查员");
       $("#account-email-label").textContent = identity.user.email || "";
     }
+    const adminLink = $("#account-admin");
+    if (adminLink) {
+      adminLink.hidden = !Boolean(identity.user.is_admin);
+      adminLink.textContent = text("Open operations console", "打开运营控制台");
+    }
   }
 
   async function loadIdentity() {
@@ -221,7 +226,12 @@
     try {
       await loadIdentity();
       if (identity.user.registered) await loadAccountData();
-      else $("#account-email")?.focus();
+      else if (!identity.email_login?.configured) {
+        status(text(
+          "Email sign-in is not configured on this deployment yet.",
+          "当前部署尚未配置邮箱登录服务。"
+        ), true);
+      } else $("#account-email")?.focus();
     } catch (error) {
       status(error.message, true);
     }

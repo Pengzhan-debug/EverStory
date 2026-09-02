@@ -61,6 +61,37 @@ class DatabaseStorageTests(unittest.TestCase):
         self.assertEqual(restored["world"], "lost_lighthouse")
         self.assertEqual(restored["state"]["turn"], 0)
 
+    def test_admin_overview_returns_aggregate_metrics_without_pii(self):
+        world = WorldSession(load_world("lost_lighthouse"))
+        self.storage.save_runtime(
+            self.user_id,
+            self.session_id,
+            session_to_dict(world, extra={"pipeline": {"transcript": []}}),
+        )
+        self.storage.sync_usage(
+            self.user_id,
+            self.session_id,
+            [
+                {
+                    "id": "b" * 32,
+                    "agent": "narrator",
+                    "model": "demo-model",
+                    "total_tokens": 321,
+                    "credential_source": "platform",
+                    "ok": True,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ],
+        )
+
+        data = self.storage.admin_overview()
+
+        self.assertEqual(data["investigations"]["total"], 1)
+        self.assertEqual(data["usage"]["calls_7d"], 1)
+        self.assertEqual(data["usage"]["tokens_7d"], 321)
+        self.assertEqual(data["usage"]["by_agent"][0]["id"], "narrator")
+        self.assertNotIn("email", data["users"])
+
     def test_guest_auth_token_is_hashed_and_identity_is_stable(self):
         token = "f" * 64
         first = self.storage.resolve_identity(token, self.session_id)

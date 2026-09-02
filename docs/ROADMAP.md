@@ -1,11 +1,11 @@
-# EverStory v1.3 identity-core status and roadmap
+# EverStory v1.4 gray-launch status and roadmap
 
-EverStory v1.3 is the GitHub- and resume-ready game release. This first v1.3
+EverStory v1.4 is the GitHub- and resume-ready game release. This release
 production-hardening slice adds durable guest identity and tenant isolation
 on top of the optional PostgreSQL/Redis path. It remains a complete single-case
 game and engineering demonstration, not yet a commercial multiplayer service.
 
-## v1.3 acceptance status
+## v1.4 acceptance status
 
 - [x] Storm Shore narrative opening with clear onboarding
 - [x] Deterministic world state, typed actions, validation, snapshots/rollback
@@ -18,7 +18,7 @@ game and engineering demonstration, not yet a commercial multiplayer service.
 - [x] Conversation, team tasks, evidence, and world state survive save/load
 - [x] Per-agent OpenAI-compatible routing, tests, latency, Token diagnostics
 - [x] Shared Chinese/English UI and model-output language enforcement
-- [x] 138 deterministic tests on Python 3.11/3.12 CI
+- [x] 140 deterministic tests on Python 3.11/3.12 CI
 - [x] Live multi-model Ark benchmark with per-agent cost/latency metrics
 - [x] Docker/Compose, Render blueprint, demo GIF, screenshots, resume notes
 - [x] SQLAlchemy/PostgreSQL runtime, save-game, and usage persistence
@@ -35,6 +35,8 @@ game and engineering demonstration, not yet a commercial multiplayer service.
 - [x] Account-bound AAD, integrity failure tests, and versioned master-key rotation
 - [x] Account/day platform Token reservation, settlement, and provider circuit breakers
 - [x] Public guest Stub enforcement before verified-account live API access
+- [x] Allowlisted administrator dashboard with PII-free service aggregates
+- [x] SMTP and Resend email-code delivery adapters with browser-safe readiness
 
 ## Verified measurements
 
