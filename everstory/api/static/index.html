@@ -64,6 +64,7 @@
 </span><span data-i18n="worldStable">WORLD STABLE</span></div>
 <div class="controls">
 <span id="mode-chip" class="chip mono">TURN 0 · TIME 0</span>
+<button id="account-btn" class="btn-ghost account-btn" type="button" data-i18n="guestAccount">Guest</button>
 <a id="settings-btn" class="btn-ghost" href="/settings" target="_blank" rel="opener" aria-label="Open API signal console in a new tab">API</a>
 <select id="game-language" class="language-switch" aria-label="Language"><option value="zh-CN">中</option><option value="en">EN</option></select>
 <button id="team-btn" class="btn-ghost" type="button" aria-expanded="false" aria-controls="team-panel" data-i18n="team">Team</button>
@@ -207,11 +208,38 @@
   <div id="team-status" class="team-status" data-i18n="leadStatus">You are the Lead Investigator.</div>
 </section>
 <div id="team-backdrop" class="team-backdrop" aria-hidden="true"></div>
+<div id="account-backdrop" class="account-backdrop" aria-hidden="true"></div>
+<section id="account-panel" class="account-panel" aria-hidden="true" aria-labelledby="account-title">
+  <header class="account-panel-head">
+    <div><span class="account-kicker">EVERSTORY ID</span><h2 id="account-title" data-i18n="accountTitle">Player account</h2></div>
+    <button id="account-close" type="button" aria-label="Close account panel">×</button>
+  </header>
+  <div id="account-status" class="account-status" aria-live="polite"></div>
+  <div id="account-guest-view">
+    <p class="account-copy" data-i18n="guestAccountHelp">You are playing as a guest. Verify an email to attach this investigation to your account.</p>
+    <form id="account-email-form" class="account-form">
+      <label><span data-i18n="emailAddress">Email address</span><input id="account-email" type="email" maxlength="320" autocomplete="email" required/></label>
+      <button type="submit" data-i18n="sendCode">Send code</button>
+    </form>
+    <form id="account-code-form" class="account-form" hidden>
+      <label><span data-i18n="verificationCode">Verification code</span><input id="account-code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required/></label>
+      <button type="submit" data-i18n="verifyAndSave">Verify and save</button>
+    </form>
+  </div>
+  <div id="account-user-view" hidden>
+    <div class="account-identity"><span class="account-avatar">LI</span><div><strong id="account-name">—</strong><small id="account-email-label">—</small></div></div>
+    <p class="account-copy" data-i18n="accountSynced">This investigation belongs to your verified account.</p>
+    <div class="account-section-head"><span data-i18n="activeSessions">Active sessions</span><button id="account-refresh-sessions" type="button" data-i18n="refresh">Refresh</button></div>
+    <div id="account-sessions" class="account-sessions"></div>
+    <button id="account-logout" class="account-danger" type="button" data-i18n="logout">Sign out</button>
+  </div>
+</section>
 <div class="corner-hud bottom-left">
 <span class="keycap">I</span> <span data-i18n="inventory">INVENTORY</span></div>
 <div class="corner-hud bottom-right">
 <span class="keycap">V</span> <span data-i18n="worldTruth">WORLD TRUTH</span></div>
 <script src="/static/i18n.js?v=6"></script>
+<script src="/static/auth.js?v=2"></script>
 <script src="/static/app.js?v=20">
 </script>
 <script src="/static/immersive.js?v=17">

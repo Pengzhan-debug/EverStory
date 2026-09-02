@@ -8,6 +8,13 @@ except ImportError:  # pragma: no cover
 
 @unittest.skipIf(TestClient is None, "fastapi/httpx not installed")
 class ApiTest(unittest.TestCase):
+    @staticmethod
+    def authorize_writes(client):
+        client.get("/api/auth/session")
+        client.headers.update(
+            {"X-CSRF-Token": client.cookies.get("everstory_csrf")}
+        )
+
     def setUp(self):
         import os
 
@@ -16,6 +23,7 @@ class ApiTest(unittest.TestCase):
         from everstory.api.main import app
 
         self.client = TestClient(app)
+        self.authorize_writes(self.client)
         self.client.post("/api/reset")
 
     def tearDown(self):
@@ -58,6 +66,59 @@ class ApiTest(unittest.TestCase):
         self.assertNotEqual(issued, attacker_selected)
         self.assertEqual(len(issued), 64)
 
+    def test_csrf_rejects_cookie_authenticated_write_without_header(self):
+        attacker = TestClient(self.client.app)
+        try:
+            attacker.get("/api/auth/session")
+            rejected = attacker.post("/api/reset")
+            self.assertEqual(rejected.status_code, 403)
+            attacker.headers.update(
+                {"X-CSRF-Token": attacker.cookies.get("everstory_csrf")}
+            )
+            self.assertEqual(attacker.post("/api/reset").status_code, 200)
+        finally:
+            attacker.close()
+
+    def test_email_code_upgrades_guest_without_losing_runtime(self):
+        import os
+        from unittest.mock import patch
+
+        before = self.client.get("/api/auth/session").json()
+        self.client.post("/api/turn", json={"text": "wait"})
+        with patch.dict(
+            os.environ,
+            {"AUTH_EMAIL_MODE": "development", "AUTH_DEV_EXPOSE_CODE": "true"},
+        ):
+            challenge = self.client.post(
+                "/api/auth/email/request",
+                json={"email": "player@example.com", "locale": "en"},
+            )
+            self.assertEqual(challenge.status_code, 202)
+            challenge_data = challenge.json()
+            verified = self.client.post(
+                "/api/auth/email/verify",
+                json={
+                    "challenge_id": challenge_data["challenge_id"],
+                    "email": "player@example.com",
+                    "code": challenge_data["development_code"],
+                },
+            )
+
+        self.assertEqual(verified.status_code, 200)
+        data = verified.json()
+        self.assertTrue(data["user"]["registered"])
+        self.assertEqual(data["runtime_id"], before["runtime_id"])
+        self.assertEqual(self.client.get("/api/world").json()["turn"], 1)
+        self.client.headers.update(
+            {"X-CSRF-Token": self.client.cookies.get("everstory_csrf")}
+        )
+        sessions = self.client.get("/api/auth/sessions").json()["sessions"]
+        self.assertEqual(len(sessions), 1)
+        self.assertTrue(sessions[0]["current"])
+        self.assertEqual(self.client.post("/api/auth/logout").status_code, 200)
+        after_logout = self.client.get("/api/auth/session").json()
+        self.assertFalse(after_logout["user"]["registered"])
+
     def test_forged_runtime_cookie_is_not_an_authority_boundary(self):
         other = TestClient(self.client.app)
         try:
@@ -78,6 +139,9 @@ class ApiTest(unittest.TestCase):
         page = self.client.get("/").text
         locale = self.client.get("/static/i18n.js").text
         self.assertIn('id="game-language"', page)
+        self.assertIn('id="account-btn"', page)
+        self.assertIn('id="account-panel"', page)
+        self.assertIn('src="/static/auth.js?v=2"', page)
         self.assertIn('data-i18n="worldStable"', page)
         self.assertIn('src="/static/i18n.js?v=6"', page)
         self.assertIn('localStorage.getItem("everstory_locale")', locale)
@@ -115,6 +179,7 @@ class ApiTest(unittest.TestCase):
         gameplay = self.client.get("/static/gameplay-core.js").text
         app_script = self.client.get("/static/app.js").text
         settings = self.client.get("/static/settings.js").text
+        auth = self.client.get("/static/auth.js").text
 
         self.assertIn('target="_blank"', game)
         self.assertIn('rel="opener"', game)
@@ -128,6 +193,7 @@ class ApiTest(unittest.TestCase):
         self.assertIn('href="/?resume=1"', console)
         self.assertIn("window.opener.focus()", settings)
         self.assertIn("window.close()", settings)
+        self.assertIn('headers.set("X-CSRF-Token", csrf)', auth)
 
     def test_large_workspace_shells_are_available(self):
         page = self.client.get("/").text
@@ -310,6 +376,7 @@ class ApiTest(unittest.TestCase):
 
         from everstory.api.main import app
         other = TestClient(app)
+        self.authorize_writes(other)
         other.post("/api/reset")
         self.assertNotIn("player_api", other.get("/api/llm/settings").json()["connections"])
 
@@ -642,6 +709,12 @@ class ApiTest(unittest.TestCase):
         )
         other.cookies.set(
             "everstory_auth", self.client.cookies.get("everstory_auth")
+        )
+        other.cookies.set(
+            "everstory_csrf", self.client.cookies.get("everstory_csrf")
+        )
+        other.headers.update(
+            {"X-CSRF-Token": self.client.cookies.get("everstory_csrf")}
         )
         try:
             def wait_turn(client):

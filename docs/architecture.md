@@ -141,8 +141,13 @@ agent role -> immutable route snapshot -> exactly one connection
 - With `REDIS_URL`, Redis tracks session TTL, enforces an atomic fixed-window
   mutation quota, and serializes writes to the same player session across
   processes. A local lock/rate-bucket fallback keeps development deterministic.
+- Email one-time codes upgrade a guest in place or transactionally move its
+  runtimes, saves, and usage to an existing account. Challenges store only the
+  email hash and a server-keyed code HMAC; Redis limits email/IP requests.
+- Cookie-authenticated writes use a readable CSRF cookie plus an
+  `X-CSRF-Token` header, while login and privilege changes rotate both secrets.
 - API credentials are intentionally excluded from runtime documents. Full
-  production scale still requires registered-account login, CSRF enforcement, KMS envelope
+  production scale still requires KMS envelope
   encryption for BYOK, IP/account budget policies, and stateless multi-instance
   cache invalidation.
 

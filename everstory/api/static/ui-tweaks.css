@@ -1418,3 +1418,48 @@ body.truth-open .truth-backdrop { visibility: visible; opacity: 1; }
   .user-speaker { height: 25px; }
   .msg.user .bubble { padding: 10px 13px; font-size: 13px !important; text-align: left; }
 }
+
+/* v1.3 account identity panel */
+.account-btn { max-width: 128px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-btn::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: #8e9aa0; }
+.account-btn.is-registered::before { background: var(--ok); box-shadow: 0 0 9px rgba(82, 213, 155, .65); }
+.account-backdrop { position: fixed; inset: 0; z-index: 70; opacity: 0; visibility: hidden; background: rgba(0, 4, 8, .62); backdrop-filter: blur(5px); transition: opacity .2s ease, visibility .2s ease; }
+.account-backdrop.open { opacity: 1; visibility: visible; }
+.account-panel { position: fixed; z-index: 71; top: 82px; right: 24px; width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 106px); overflow-y: auto; padding: 22px; opacity: 0; visibility: hidden; transform: translateY(-10px) scale(.985); border: 1px solid rgba(228, 182, 93, .24); border-radius: 10px; background: linear-gradient(160deg, rgba(8, 19, 27, .98), rgba(3, 9, 14, .98)); box-shadow: 0 28px 90px rgba(0, 0, 0, .58); transition: opacity .2s ease, transform .2s ease, visibility .2s ease; }
+.account-panel.open { opacity: 1; visibility: visible; transform: none; }
+.account-panel-head, .account-identity, .account-section-head, .account-session { display: flex; align-items: center; }
+.account-panel-head { justify-content: space-between; padding-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, .09); }
+.account-kicker { color: var(--gold); font: 600 8px var(--mono); letter-spacing: 2px; }
+.account-panel h2 { margin: 5px 0 0; color: #ebe6da; font: 600 19px var(--display); }
+.account-panel-head button { width: 34px; height: 34px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 50%; color: #aeb9bb; background: transparent; cursor: pointer; }
+.account-status { min-height: 20px; margin: 13px 0; color: var(--sea); font: 10px/1.5 var(--mono); }
+.account-status.error { color: #ee8e8e; }
+.account-copy { color: #97a5a8; font-size: 12px; line-height: 1.7; }
+.account-form[hidden], #account-guest-view[hidden], #account-user-view[hidden] { display: none !important; }
+.account-form { display: grid; gap: 11px; margin-top: 14px; }
+.account-form label { display: grid; gap: 7px; color: #aab5b7; font-size: 10px; }
+.account-form input { width: 100%; padding: 12px 13px; border: 1px solid rgba(255, 255, 255, .13); border-radius: 6px; outline: none; color: #f1eee6; background: rgba(0, 0, 0, .28); font: 12px var(--mono); }
+.account-form input:focus { border-color: rgba(228, 182, 93, .58); }
+.account-form button, .account-section-head button, .account-session button, .account-danger { border: 1px solid rgba(228, 182, 93, .32); border-radius: 6px; padding: 10px 13px; color: #efe5cf; background: rgba(228, 182, 93, .1); font: 600 10px var(--sans); cursor: pointer; }
+.account-form button:hover { background: rgba(228, 182, 93, .2); }
+.account-form button:disabled { opacity: .5; cursor: wait; }
+.account-identity { gap: 12px; margin: 8px 0 17px; }
+.account-identity > div { display: grid; gap: 4px; }
+.account-identity strong { color: #eee9df; font: 600 14px var(--display); }
+.account-identity small { color: #829194; font: 9px var(--mono); }
+.account-avatar { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid rgba(82, 213, 155, .35); border-radius: 50%; color: var(--ok); background: rgba(82, 213, 155, .08); font: 700 9px var(--mono); }
+.account-section-head { justify-content: space-between; margin: 19px 0 9px; color: #c8d0ce; font-size: 10px; }
+.account-section-head button { padding: 5px 9px; border-color: rgba(255,255,255,.12); background: transparent; }
+.account-sessions { display: grid; gap: 7px; color: #78878a; font-size: 10px; }
+.account-session { justify-content: space-between; gap: 12px; padding: 11px; border: 1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.16); }
+.account-session > div { display: grid; gap: 4px; }
+.account-session strong { color: #cdd5d3; font-size: 10px; }
+.account-session small { color: #6e7e82; font: 8px var(--mono); }
+.account-session button { padding: 6px 9px; border-color: rgba(238,142,142,.25); color: #e7aaaa; background: transparent; }
+.account-current { color: var(--ok); font: 8px var(--mono); letter-spacing: 1px; }
+.account-danger { width: 100%; margin-top: 18px; border-color: rgba(238,142,142,.28); color: #e9aaaa; background: rgba(150,45,45,.08); }
+
+@media (max-width: 800px) {
+  .controls #account-btn { display: inline-flex; }
+  .account-panel { top: 70px; right: 16px; }
+}

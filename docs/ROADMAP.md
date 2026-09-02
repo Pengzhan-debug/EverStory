@@ -18,7 +18,7 @@ game and engineering demonstration, not yet a commercial multiplayer service.
 - [x] Conversation, team tasks, evidence, and world state survive save/load
 - [x] Per-agent OpenAI-compatible routing, tests, latency, Token diagnostics
 - [x] Shared Chinese/English UI and model-output language enforcement
-- [x] 119 deterministic tests on Python 3.11/3.12 CI
+- [x] 126 deterministic tests on Python 3.11/3.12 CI
 - [x] Live multi-model Ark benchmark with per-agent cost/latency metrics
 - [x] Docker/Compose, Render blueprint, demo GIF, screenshots, resume notes
 - [x] SQLAlchemy/PostgreSQL runtime, save-game, and usage persistence
@@ -27,6 +27,9 @@ game and engineering demonstration, not yet a commercial multiplayer service.
 - [x] Separate server-issued guest auth and active-runtime HttpOnly cookies
 - [x] Hashed auth-session storage, expiry rotation, and legacy-session adoption
 - [x] Explicit user ownership filters for runtime, save, and usage persistence
+- [x] Email-code guest upgrade and existing-account data merge without game reload
+- [x] Double-submit CSRF, credential rotation, device listing, revocation, and logout
+- [x] HMAC-protected login challenges with Redis email/IP request limits
 
 ## Verified measurements
 
@@ -45,8 +48,8 @@ for the reproducible report.
 
 ## Remaining production roadmap
 
-1. Add email-code authentication and upgrade/merge guest principals into registered accounts.
-2. Add KMS-encrypted BYOK persistence, IP/account/day budgets, and secret rotation.
+1. Add an account-owned investigation picker for explicit cross-device resume.
+2. Add KMS-encrypted BYOK persistence, account/day budgets, and secret rotation.
 3. Add browser-level Playwright CI for the full bilingual investigation path.
 4. Add branching cases and authoring tools for declarative TOML worlds.
 5. Compare the four-agent workflow with a controlled single-agent baseline on
@@ -60,8 +63,12 @@ multi-instance design is documented in
 
 - One mystery has the fully authored multi-agent ending; Ghost Train remains an
   engine-content example rather than an equally polished campaign.
-- Guest identity is durable only when PostgreSQL is configured; file mode keeps
+- Account identity is durable only when PostgreSQL is configured; file mode keeps
   identity ownership in process memory and is intended for local/demo use.
+- SMTP must be configured by the deployer; public Render defaults to disabled
+  delivery and never exposes development verification codes.
+- Verified ownership persists, but switching to an older investigation from a
+  different browser still needs the planned account investigation picker.
 - PostgreSQL is authoritative when configured, but the FastAPI process still
   keeps a bounded hot runtime cache; full horizontal scale needs cache
   invalidation/version checks in addition to the Redis session lock.

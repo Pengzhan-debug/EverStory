@@ -1,7 +1,7 @@
 # EverStory 简历与面试模板
 
 以下内容按真实实现范围编写，可直接裁剪后放入中文或英文简历。PostgreSQL/Redis
-运行路径和游客身份隔离已经实现，但注册登录、KMS 密钥托管和完整多实例无状态化仍属于后续工作。
+运行路径、游客身份隔离和邮箱验证码登录已经实现，但 KMS 密钥托管和完整多实例无状态化仍属于后续工作。
 
 ## 中文简历模板
 
@@ -19,7 +19,9 @@
   管理 Schema、Docker Compose 编排 Web/PostgreSQL/Redis 三服务。
 - 将用户身份与游戏运行档拆分为双 HttpOnly Cookie，数据库仅保存认证令牌哈希；所有
   运行态、存档与用量查询均以 `user_id + runtime_id` 进行租户隔离，并兼容旧游客存档。
-- 建立 119 项离线自动化测试与可断点恢复的真实模型评测；覆盖 8 类角色、23 个
+- 实现邮箱一次性验证码登录、游客原地升级/账号合并、登录令牌轮换、双提交 CSRF 和
+  设备会话撤销；验证码以服务端密钥 HMAC 保存，并按 IP/邮箱实施 Redis 限频。
+- 建立 126 项离线自动化测试与可断点恢复的真实模型评测；覆盖 8 类角色、23 个
   角色—模型组合、6 条跨智能体交换链和 3 个完整案件，推荐路由平均分 98.8%，
   信息传递、来源保留、污染拒绝、证据落地与完整破案均为 100%。
 
@@ -43,7 +45,7 @@
 2. 打开联合调查室，让一个智能体提出任务、另一个智能体质疑。
 3. 玩家批准检查，展示只有引擎确认的事实才进入证据板。
 4. 打开模型控制台，展示不同角色的路由和 Token/延迟统计。
-5. 用架构图解释权威状态边界，再展示 119 项测试和真实模型评测报告。
+5. 用架构图解释权威状态边界，再展示 126 项测试和真实模型评测报告。
 
 ## English version
 
@@ -64,7 +66,9 @@
 - Split guest identity from game runtimes with separate HttpOnly cookies,
   server-issued hashed auth tokens, and user/runtime tenant filters on every
   durable runtime, save, and usage query.
-- Created 119 offline tests and a checkpointed live-model benchmark covering
+- Added email-code guest upgrades/account merges, auth rotation, double-submit
+  CSRF, device revocation, HMAC-protected challenges, and scoped Redis limits.
+- Created 126 offline tests and a checkpointed live-model benchmark covering
   23 role/model combinations, six cross-agent exchange chains, and three full
   cases; selected routes averaged 98.8% with 100% transfer, provenance,
   poison rejection, evidence grounding, and completion.
@@ -72,6 +76,6 @@
 ## 诚实的项目边界
 
 EverStory v1.3 是可运行、可测试、可部署的作品集版本，不是已经商业化的多人在线服务。
-PostgreSQL/Redis 生产路径和匿名游客身份隔离已经实现并覆盖自动化测试，但还没有邮箱
-注册/跨设备登录，BYOK 密钥仍保存在服务进程中。正式多实例环境仍需账号体系、KMS/Secret Manager、IP/账号级
+PostgreSQL/Redis 生产路径、游客隔离和邮箱登录已经实现并覆盖自动化测试；实际发送邮件
+仍需部署者配置 SMTP，BYOK 密钥仍保存在服务进程中。正式多实例环境仍需 KMS/Secret Manager、IP/账号级
 预算、缓存失效、监控和备份恢复。详细方案见 [DEPLOYMENT.md](DEPLOYMENT.md)。

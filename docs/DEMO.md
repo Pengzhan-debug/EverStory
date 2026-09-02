@@ -53,7 +53,7 @@ The storm alone proves the failure was accidental.
 
 > “每个角色可以共享或独立配置 OpenAI-compatible API。真实方舟评测覆盖 23 个
 > 角色—模型组合、6 条信息交换链和 3 个完整案件；推荐路由平均 98.8%，信息传递、
-> 证据落地和破案均为 100%。项目还有 119 项离线测试、Python 3.11/3.12 CI、Docker、
+> 证据落地和破案均为 100%。项目还有 126 项离线测试、Python 3.11/3.12 CI、Docker、
 > 双语 UI 和完整存档。”
 
 ## 高频追问

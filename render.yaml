@@ -21,6 +21,18 @@ services:
         value: 60
       - key: COOKIE_SECURE
         value: true
+      - key: CSRF_ENFORCE
+        value: true
+      - key: AUTH_CHALLENGE_SECRET
+        generateValue: true
+      - key: AUTH_EMAIL_MODE
+        value: disabled
+      - key: AUTH_DEV_EXPOSE_CODE
+        value: false
+      - key: AUTH_REQUEST_LIMIT
+        value: 5
+      - key: AUTH_REQUEST_WINDOW_SECONDS
+        value: 600
       - key: PLATFORM_SESSION_TOKEN_LIMIT
         value: 50000
       - key: ARK_ENABLE_CATALOG

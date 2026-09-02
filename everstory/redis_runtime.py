@@ -58,24 +58,32 @@ class RedisRuntime:
 
     def allow(self, key: str) -> tuple[bool, int]:
         """Fixed-window request quota. Returns (allowed, remaining)."""
-        if self.rate_limit <= 0:
+        return self.allow_quota(key, self.rate_limit, self.rate_window)
+
+    def allow_quota(
+        self, key: str, limit: int, window_seconds: int
+    ) -> tuple[bool, int]:
+        """Apply an explicit fixed-window quota for auth or budget scopes."""
+        limit = max(0, limit)
+        window_seconds = max(1, window_seconds)
+        if limit <= 0:
             return True, -1
-        window = int(time.time()) // self.rate_window
+        window = int(time.time()) // window_seconds
         bucket = f"everstory:rate:{key}:{window}"
         if self._client is not None:
             try:
                 pipe = self._client.pipeline()
                 pipe.incr(bucket)
-                pipe.expire(bucket, self.rate_window + 1)
+                pipe.expire(bucket, window_seconds + 1)
                 count, _ = pipe.execute()
-                return count <= self.rate_limit, max(0, self.rate_limit - count)
+                return count <= limit, max(0, limit - count)
             except Exception as exc:  # pragma: no cover - external service
                 self._fail(exc)
         with self._local_guard:
             seen_window, count = self._local_buckets.get(key, (window, 0))
             count = count + 1 if seen_window == window else 1
             self._local_buckets[key] = (window, count)
-            return count <= self.rate_limit, max(0, self.rate_limit - count)
+            return count <= limit, max(0, limit - count)
 
     @contextmanager
     def session_lock(self, session_id: str) -> Iterator[None]:

@@ -1,6 +1,6 @@
 # EverStory 多用户身份、BYOK 与多实例设计
 
-> 状态：v1.3 分阶段实施中。Phase A 游客身份核心已经实现；注册登录、CSRF 强制校验、
+> 状态：v1.3 分阶段实施中。Phase A 游客身份核心与 Phase B1 邮箱登录已经实现；
 > BYOK 密文持久化和多实例版本控制仍是后续阶段，不应视为已上线。
 
 ### 已实现的 Phase A
@@ -11,6 +11,15 @@
 - 运行态、命名存档和 Token 用量查询均同时约束 `user_id + runtime_id`。
 - `GET /api/auth/session` 返回最小游客身份摘要，健康检查和静态资源不会制造游客记录。
 - Alembic `20260901_0002` 完成旧数据回填，并有空库迁移、跨用户伪造和重启恢复测试。
+
+### 已实现的 Phase B1
+
+- 邮箱六位一次性验证码可将游客原地升级，或把游客运行档事务性合并到已有账号。
+- `login_challenges` 只保存邮箱 SHA-256 和带服务端密钥的验证码 HMAC；10 分钟过期、
+  最多尝试 5 次，Redis 同时限制邮箱哈希与 IP 哈希的请求频率。
+- 登录成功轮换认证与 CSRF 令牌，当前案件无需刷新即可继续；支持活跃会话列表、下线和退出。
+- Cookie 认证写接口强制校验 `everstory_csrf` 与 `X-CSRF-Token` 双提交值。
+- 开发模式可显式显示验证码；生产模式通过 SMTP 发送，Render 默认关闭邮件功能。
 
 ## 1. 目标
 
@@ -60,7 +69,7 @@ User
 - `everstory_auth`：256-bit 随机不透明令牌，只在浏览器 Cookie 中出现；数据库只保存
   SHA-256 哈希。`HttpOnly + Secure + SameSite=Lax`。
 - `everstory_runtime`：当前游戏局 UUID。它只能访问 `everstory_auth` 所属用户的数据。
-- CSRF（待 Phase B）：为所有 Cookie 认证的写接口增加双提交 Token 或服务端 CSRF Token。
+- CSRF：所有 Cookie 认证的写接口使用双提交 Token；前端统一请求层添加请求头。
 
 Cookie 轮换发生在登录、提权和账号合并之后，避免 session fixation。
 
@@ -90,8 +99,8 @@ Cookie 轮换发生在登录、提权和账号合并之后，避免 session fixa
 
 ### login_challenges
 
-保存邮箱验证码挑战的哈希、尝试次数和过期时间。短期状态优先放 Redis，PostgreSQL 只记录
-审计结果。验证码 10 分钟过期、最多 5 次尝试；同邮箱和 IP 都要限频。
+PostgreSQL 保存邮箱哈希、验证码 HMAC、尝试次数、过期和消费时间；Redis 保存邮箱/IP
+限频计数。验证码 10 分钟过期、最多 5 次尝试，数据库不保存验证码或挑战邮箱明文。
 
 ### player_sessions
 
@@ -237,7 +246,7 @@ FastAPI 的进程内 `RuntimeSlot` 只能作为热缓存。每次写前比较 Re
 1. [已完成] `0002_identity_core`：扩展 users，创建 auth_sessions，给业务表补 user_id。
 2. [已完成] 回填现有数据：旧 `player_sessions.user_id` 保持指向对应 guest user，不丢档。
 3. [兼容期] 接受旧会话 Cookie，同时签发新 auth/runtime Cookie，观察一个版本。
-4. [待实现] 登录挑战与游客升级/账号合并，并启用 CSRF 校验和设备撤销。
+4. [已完成] `0003_account_auth`、游客升级/账号合并、CSRF 校验和设备撤销。
 5. [待实现] `encrypted_connections`：创建 api_connections/agent_route_assignments。
 6. [待实现] 控制台改用连接 CRUD；确认日志和响应没有密钥后再启用持久 BYOK。
 7. [待实现] `runtime_versioning`：增加 state_version、幂等键和缓存失效。
@@ -275,10 +284,11 @@ FastAPI 的进程内 `RuntimeSlot` 只能作为热缓存。每次写前比较 Re
 | 阶段 | 交付内容 | 可在简历上声明 |
 | --- | --- | --- |
 | A | 身份上下文、游客账号、双 Cookie、租户查询 | 游客隔离与持久会话 |
-| B | 邮箱验证码、游客升级、跨设备存档 | 注册与匿名数据迁移 |
+| B1 | 邮箱验证码、游客升级、账号归属 | 注册与匿名数据迁移 |
+| B2 | 账号案件列表、运行档切换 | 显式跨设备恢复 |
 | C | AES-GCM + KMS provider、连接 CRUD | 加密 BYOK 与密钥轮换 |
 | D | 用户/IP/预算限流、幂等请求 | 多层配额与成本防护 |
 | E | state_version、缓存失效、双实例压测 | 可验证的水平扩展 |
 
-推荐下一次编码只完成 A+B，并维持 Stub 为公开演示默认值。C 阶段涉及真实秘密，必须在
+推荐下一次编码先完成 B2，并维持 Stub 为公开演示默认值。C 阶段涉及真实秘密，必须在
 测试覆盖、日志脱敏和 KMS 配置全部完成后再上线。

@@ -36,6 +36,11 @@
       investigationRecord: "INVESTIGATION RECORD", keepersJournal: "The Keeper's Journal",
       personalEffects: "PERSONAL EFFECTS", closeInventoryHint: "Press I or ESC to close",
       carriedItem: "Carried item", packEmpty: "Your pack is empty.",
+      guestAccount: "Guest", accountTitle: "Player account",
+      guestAccountHelp: "You are playing as a guest. Verify an email to attach this investigation to your account.",
+      emailAddress: "Email address", sendCode: "Send code", verificationCode: "Verification code",
+      verifyAndSave: "Verify and save", accountSynced: "This investigation belongs to your verified account.",
+      activeSessions: "Active sessions", refresh: "Refresh", logout: "Sign out", revoke: "Revoke",
     },
     "zh-CN": {
       enter: "进入 ›", tagline: "一个不会说谎的世界", taglineCaps: "一个不会说谎的世界", worldStable: "世界状态稳定",
@@ -71,6 +76,11 @@
       investigationRecord: "调查记录", keepersJournal: "守塔人日志",
       personalEffects: "随身物品", closeInventoryHint: "按 I 或 ESC 关闭",
       carriedItem: "随身携带", packEmpty: "你的背包还是空的。",
+      guestAccount: "游客", accountTitle: "玩家账号",
+      guestAccountHelp: "你正在以游客身份调查。验证邮箱后，可将当前案件归入你的账号。",
+      emailAddress: "邮箱地址", sendCode: "发送验证码", verificationCode: "验证码",
+      verifyAndSave: "验证并保存", accountSynced: "当前调查已归属于你的已验证账号。",
+      activeSessions: "活跃设备", refresh: "刷新", logout: "退出登录", revoke: "下线",
     },
   };
 

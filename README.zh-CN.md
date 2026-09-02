@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![测试](https://img.shields.io/badge/tests-119%20passing-22C55E)
+![测试](https://img.shields.io/badge/tests-126%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [English README](README.md) · [系统架构](docs/architecture.md) · [真实模型评测](reports/agent-routing-evaluation-zh.md) · [公开部署](docs/DEPLOYMENT.md) · [身份与 BYOK 设计](docs/IDENTITY_AND_BYOK_DESIGN.md) · [面试演示](docs/DEMO.md) · [简历模板](docs/RESUME.md)
@@ -147,7 +147,7 @@ everstory-learn       # 规则归纳报告
 python -m unittest discover -s tests -v   # 测试
 ```
 
-当前包含 **119 项**无需 API Key 的自动化测试，完整验收路径覆盖智能体提议移动、
+当前包含 **126 项**无需 API Key 的自动化测试，完整验收路径覆盖智能体提议移动、
 三次证人询问、三项证据检查、分析师复核以及受证据链约束的最终指控。
 
 ## 配置真实模型（.env）
@@ -195,9 +195,11 @@ LLM_CHEAP_MODEL=deepseek-v4-flash
 取回。玩家可在 `/settings` 新增自己的 OpenAI 兼容连接；密钥只留在当前服务进程，
 用量独立统计，调用失败也不会切换到平台密钥。
 
-v1.3 身份核心已在 v1.2 持久层之上拆分 `everstory_auth` 与 `everstory_runtime`：PostgreSQL
+v1.3 身份系统已在 v1.2 持久层之上拆分 `everstory_auth` 与 `everstory_runtime`：PostgreSQL
 只保存认证令牌哈希，并以 `user_id + runtime_id` 隔离实时世界、调查记忆、命名存档和
-幂等 Token 用量账本；Redis 管理会话 TTL、写请求限流与跨进程
+幂等 Token 用量账本；邮箱一次性验证码支持游客原地升级或合并到已有账号，验证后当前
+案件不刷新、不丢失。写接口使用双提交 CSRF，账号面板支持设备会话查看、下线和退出。
+Redis 管理会话 TTL、写请求限流与跨进程
 会话锁。未配置 `DATABASE_URL` / `REDIS_URL` 时仍可使用原来的本地模式。数据库迁移由
 Alembic 管理，Docker Compose 会直接启动 Web、PostgreSQL 16、Redis 7 三个服务。
 玩家 BYOK 目前仍不写入数据库；正式商业部署还需账号登录与 KMS 信封加密。

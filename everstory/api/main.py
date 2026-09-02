@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 import mimetypes
 import os
 import re
@@ -20,6 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware.gzip import GZipMiddleware
 
 from ..agents import TeamChatSession
+from ..auth_email import deliver_login_code
 from ..config import build_client
 from ..engine import WorldSession
 from ..models import Action
@@ -28,10 +31,11 @@ from ..llm.settings import client_payload, update_client
 from ..llm.usage import usage_payload
 from ..pipeline import TurnPipeline
 from ..redis_runtime import RedisRuntime, build_redis_runtime
-from ..storage import DatabaseStorage, FileStorage, build_storage
+from ..storage import DatabaseStorage, FileStorage, build_storage, normalize_email
 from ..worlds import load_world
 
 STATIC_DIR = Path(__file__).parent / "static"
+logger = logging.getLogger(__name__)
 
 # Some Windows MIME registries do not include WebP. Register it explicitly so
 # StaticFiles returns a portable content type in local and packaged builds.
@@ -39,12 +43,14 @@ mimetypes.add_type("image/webp", ".webp")
 
 AUTH_COOKIE = "everstory_auth"
 RUNTIME_COOKIE = "everstory_runtime"
+CSRF_COOKIE = "everstory_csrf"
 LEGACY_SESSION_COOKIE = "everstory_session"
 # Backward-compatible import used by clients/tests; it now identifies a game
 # runtime rather than an authenticated user.
 SESSION_COOKIE = RUNTIME_COOKIE
 SESSION_ID_RE = re.compile(r"^[a-f0-9]{32}$")
 AUTH_TOKEN_RE = re.compile(r"^[a-f0-9]{64}$")
+CSRF_TOKEN_RE = re.compile(r"^[a-f0-9]{64}$")
 MAX_RUNTIME_SESSIONS = 128
 
 
@@ -287,6 +293,7 @@ def create_app(
             return await call_next(request)
         raw_auth = request.cookies.get(AUTH_COOKIE, "")
         raw_runtime = request.cookies.get(RUNTIME_COOKIE, "")
+        raw_csrf = request.cookies.get(CSRF_COOKIE, "")
         raw_legacy = request.cookies.get(LEGACY_SESSION_COOKIE, "")
         is_new_auth = AUTH_TOKEN_RE.fullmatch(raw_auth) is None
         auth_token = secrets.token_hex(32) if is_new_auth else raw_auth
@@ -301,6 +308,7 @@ def create_app(
             auth_token,
             requested_runtime,
             legacy_id if is_new_auth else "",
+            raw_csrf if CSRF_TOKEN_RE.fullmatch(raw_csrf) else "",
         )
         if identity.replacement_auth_token:
             auth_token = identity.replacement_auth_token
@@ -308,62 +316,89 @@ def create_app(
         request.state.user_id = identity.user_id
         request.state.session_id = identity.runtime_id
         request.state.user_kind = identity.kind
+        request.state.auth_session_id = identity.auth_session_id
+        request.state.user_email = identity.email
+        request.state.user_display_name = identity.display_name
         cookie_secure = (
             request.url.scheme == "https"
             or os.getenv("COOKIE_SECURE", "false").lower() in {"1", "true", "yes"}
         )
+
+        def apply_identity_cookies(response):
+            if getattr(request.state, "clear_identity_cookies", False):
+                for cookie_name in (AUTH_COOKIE, RUNTIME_COOKIE, CSRF_COOKIE):
+                    response.delete_cookie(cookie_name, path="/")
+                return response
+            auth_to_set = getattr(request.state, "auth_token_to_set", "")
+            csrf_to_set = getattr(request.state, "csrf_token_to_set", "")
+            runtime_to_set = getattr(request.state, "runtime_id_to_set", "")
+            if auth_to_set or is_new_auth:
+                response.set_cookie(
+                    AUTH_COOKIE,
+                    auth_to_set or auth_token,
+                    max_age=redis_runtime.session_ttl,
+                    httponly=True,
+                    secure=cookie_secure,
+                    samesite="lax",
+                    path="/",
+                )
+            if csrf_to_set or identity.replacement_csrf_token:
+                response.set_cookie(
+                    CSRF_COOKIE,
+                    csrf_to_set or identity.replacement_csrf_token,
+                    max_age=redis_runtime.session_ttl,
+                    httponly=False,
+                    secure=cookie_secure,
+                    samesite="strict",
+                    path="/",
+                )
+            if runtime_to_set or is_new_runtime or identity.runtime_replaced:
+                response.set_cookie(
+                    RUNTIME_COOKIE,
+                    runtime_to_set or identity.runtime_id,
+                    max_age=redis_runtime.session_ttl,
+                    httponly=True,
+                    secure=cookie_secure,
+                    samesite="lax",
+                    path="/",
+                )
+            if legacy_id:
+                response.delete_cookie(LEGACY_SESSION_COOKIE, path="/")
+            return response
+
         redis_runtime.touch(request.state.session_id)
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            csrf_enforced = os.getenv("CSRF_ENFORCE", "true").lower() in {
+                "1",
+                "true",
+                "yes",
+            }
+            csrf_header = request.headers.get("X-CSRF-Token", "")
+            csrf_cookie_valid = bool(
+                CSRF_TOKEN_RE.fullmatch(raw_csrf)
+                and not identity.replacement_csrf_token
+            )
+            if csrf_enforced and (
+                not csrf_cookie_valid
+                or not secrets.compare_digest(csrf_header, raw_csrf)
+            ):
+                return apply_identity_cookies(
+                    JSONResponse(
+                        status_code=403,
+                        content={"error": "CSRF verification failed."},
+                    )
+                )
             allowed, _ = redis_runtime.allow(request.state.session_id)
             if not allowed:
-                response = JSONResponse(
-                    status_code=429,
-                    content={"error": "Too many requests. Retry after the rate window."},
-                    headers={"Retry-After": str(redis_runtime.rate_window)},
+                return apply_identity_cookies(
+                    JSONResponse(
+                        status_code=429,
+                        content={"error": "Too many requests. Retry after the rate window."},
+                        headers={"Retry-After": str(redis_runtime.rate_window)},
+                    )
                 )
-                if is_new_auth:
-                    response.set_cookie(
-                        AUTH_COOKIE,
-                        auth_token,
-                        max_age=redis_runtime.session_ttl,
-                        httponly=True,
-                        secure=cookie_secure,
-                        samesite="lax",
-                        path="/",
-                    )
-                if is_new_runtime or identity.runtime_replaced:
-                    response.set_cookie(
-                        RUNTIME_COOKIE,
-                        identity.runtime_id,
-                        max_age=redis_runtime.session_ttl,
-                        httponly=True,
-                        secure=cookie_secure,
-                        samesite="lax",
-                        path="/",
-                    )
-                return response
         response = await call_next(request)
-        if is_new_auth:
-            response.set_cookie(
-                AUTH_COOKIE,
-                auth_token,
-                max_age=redis_runtime.session_ttl,
-                httponly=True,
-                secure=cookie_secure,
-                samesite="lax",
-                path="/",
-            )
-        if is_new_runtime or identity.runtime_replaced:
-            response.set_cookie(
-                RUNTIME_COOKIE,
-                identity.runtime_id,
-                max_age=redis_runtime.session_ttl,
-                httponly=True,
-                secure=cookie_secure,
-                samesite="lax",
-                path="/",
-            )
-        return response
+        return apply_identity_cookies(response)
 
     @app.middleware("http")
     async def cache_static_images(request: Request, call_next):
@@ -402,9 +437,147 @@ def create_app(
                 "id": request.state.user_id,
                 "kind": request.state.user_kind,
                 "registered": request.state.user_kind == "registered",
+                "email": request.state.user_email,
+                "display_name": request.state.user_display_name,
             },
             "runtime_id": request.state.session_id,
+            "csrf_protected": os.getenv("CSRF_ENFORCE", "true").lower()
+            in {"1", "true", "yes"},
         }
+
+    @app.post("/api/auth/email/request", status_code=202)
+    async def request_email_code(request: Request):
+        body = await request.json()
+        try:
+            email = normalize_email(str(body.get("email") or ""))
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={"error": str(exc)})
+        locale = "zh-CN" if body.get("locale") == "zh-CN" else "en"
+        ip_address = request.client.host if request.client else "unknown"
+        ip_hash = hashlib.sha256(ip_address.encode()).hexdigest()
+        email_hash = hashlib.sha256(email.encode()).hexdigest()
+        limit = max(1, int(os.getenv("AUTH_REQUEST_LIMIT", "5")))
+        window = max(60, int(os.getenv("AUTH_REQUEST_WINDOW_SECONDS", "600")))
+        ip_allowed, _ = redis_runtime.allow_quota(
+            f"auth:ip:{ip_hash}", limit, window
+        )
+        email_allowed, _ = redis_runtime.allow_quota(
+            f"auth:email:{email_hash}", limit, window
+        )
+        if not ip_allowed or not email_allowed:
+            return JSONResponse(
+                status_code=429,
+                content={"error": "Too many verification requests. Try again later."},
+                headers={"Retry-After": str(window)},
+            )
+
+        challenge = storage.create_login_challenge(email, locale)
+        try:
+            expose_code = await run_in_threadpool(
+                deliver_login_code, email, challenge["code"], locale
+            )
+        except Exception:
+            logger.exception("Email verification delivery failed")
+            return JSONResponse(
+                status_code=503,
+                content={"error": "Email delivery is temporarily unavailable."},
+            )
+        payload = {
+            "ok": True,
+            "challenge_id": challenge["id"],
+            "expires_in": challenge["expires_in"],
+            "message": "If the address can receive mail, a code has been sent.",
+        }
+        if expose_code:
+            payload["development_code"] = challenge["code"]
+        return payload
+
+    @app.post("/api/auth/email/verify")
+    async def verify_email_code(request: Request):
+        body = await request.json()
+        challenge_id = str(body.get("challenge_id") or "").strip()
+        code = str(body.get("code") or "").strip()
+        email = str(body.get("email") or "").strip()
+        if not SESSION_ID_RE.fullmatch(challenge_id) or not re.fullmatch(
+            r"\d{6}", code
+        ):
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Invalid or expired verification challenge."},
+            )
+        try:
+            identity = storage.verify_login_challenge(
+                challenge_id,
+                email,
+                code,
+                request.state.user_id,
+                request.state.auth_session_id,
+                request.state.session_id,
+            )
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Invalid or expired verification challenge."},
+            )
+
+        old_runtime_id = request.state.session_id
+        with runtimes_lock:
+            slot = runtimes.get(old_runtime_id)
+            if slot is not None and identity.runtime_id == old_runtime_id:
+                slot.user_id = identity.user_id
+            elif identity.runtime_id != old_runtime_id:
+                runtimes.pop(identity.runtime_id, None)
+        request.state.user_id = identity.user_id
+        request.state.session_id = identity.runtime_id
+        request.state.user_kind = identity.kind
+        request.state.auth_session_id = identity.auth_session_id
+        request.state.user_email = identity.email
+        request.state.user_display_name = identity.display_name
+        request.state.auth_token_to_set = identity.replacement_auth_token
+        request.state.csrf_token_to_set = identity.replacement_csrf_token
+        request.state.runtime_id_to_set = identity.runtime_id
+        return {
+            "ok": True,
+            "user": {
+                "id": identity.user_id,
+                "kind": identity.kind,
+                "registered": True,
+                "email": identity.email,
+                "display_name": identity.display_name,
+            },
+            "runtime_id": identity.runtime_id,
+        }
+
+    @app.get("/api/auth/sessions")
+    def auth_sessions(request: Request):
+        return {
+            "sessions": storage.list_auth_sessions(
+                request.state.user_id, request.state.auth_session_id
+            )
+        }
+
+    @app.delete("/api/auth/sessions/{auth_session_id}")
+    def revoke_auth_session(auth_session_id: str, request: Request):
+        revoked = storage.revoke_auth_session(
+            request.state.user_id, auth_session_id
+        )
+        if not revoked:
+            return JSONResponse(status_code=404, content={"error": "Session not found."})
+        if auth_session_id == request.state.auth_session_id:
+            request.state.clear_identity_cookies = True
+        return {
+            "ok": True,
+            "current_session_revoked": auth_session_id
+            == request.state.auth_session_id,
+        }
+
+    @app.post("/api/auth/logout")
+    def logout(request: Request):
+        storage.revoke_auth_session(
+            request.state.user_id, request.state.auth_session_id
+        )
+        request.state.clear_identity_cookies = True
+        return {"ok": True}
 
     @app.get("/api/llm/settings")
     def get_llm_settings(request: Request):

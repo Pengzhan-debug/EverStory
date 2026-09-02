@@ -41,6 +41,8 @@
 - Render 单实例：在 Environment 中绑定托管 PostgreSQL 的 Internal URL 和 Redis/Key
   Value URL 后启用同一套持久层；不绑定则自动回退。
 - 玩家 BYOK：当前只在服务进程内存中，完整密钥不返回浏览器，也不会明文写入数据库。
+- 邮箱登录：本地 `development` 模式可以在账号面板显示测试验证码；公网必须切换到
+  `smtp` 并配置发件服务。Render Blueprint 默认 `disabled`，不会意外成为邮件中继。
 
 ### 数据库初始化与迁移
 
@@ -57,6 +59,14 @@ DATABASE_URL=postgresql+psycopg://user:password@host:5432/everstory
 REDIS_URL=redis://host:6379/0
 SESSION_TTL_SECONDS=2592000
 COOKIE_SECURE=true
+CSRF_ENFORCE=true
+AUTH_CHALLENGE_SECRET=<至少 32 字节随机值>
+AUTH_EMAIL_MODE=smtp
+AUTH_SMTP_HOST=smtp.example.com
+AUTH_SMTP_PORT=587
+AUTH_SMTP_USERNAME=<账号>
+AUTH_SMTP_PASSWORD=<密码或应用专用密码>
+AUTH_SMTP_FROM=no-reply@example.com
 RATE_LIMIT_REQUESTS=60
 RATE_LIMIT_WINDOW_SECONDS=60
 INFRA_STRICT=true
@@ -75,10 +85,10 @@ Browser
       → Model providers
 ```
 
-- 身份：服务端签发的游客认证会话、双 Cookie 和租户过滤已实现；下一步增加邮箱验证码
-  或 OAuth，并将游客原地升级为可跨设备登录的账号。
-- 数据库：PostgreSQL 持久层已实现游客身份、运行态、存档和用量账本；下一步把游客
-  主体绑定到正式账号，并补充数据导出、删除和备份恢复演练。
+- 身份：游客会话、双 Cookie、租户过滤、邮箱验证码、游客升级/合并、CSRF 与设备撤销
+  已实现；后续可增加 OAuth、数据导出和账号删除流程。
+- 数据库：PostgreSQL 持久层已实现游客/注册身份、运行态、存档和用量账本；下一步补充
+  备份恢复演练和删除账号的数据生命周期。
 - 凭据：只保存密文，使用 KMS envelope encryption；日志、异常和前端响应永不包含完整 Key。
 - 配额：Redis 原子会话限流 + PostgreSQL 用量账本已实现；还需增加单 IP、单账号和
   单日平台预算与告警。

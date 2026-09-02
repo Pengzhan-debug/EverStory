@@ -8,7 +8,9 @@ SQLite in tests) without changing the HTTP contract.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import os
+import re
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -17,7 +19,16 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, create_engine, select
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    create_engine,
+    select,
+    update,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
@@ -26,6 +37,8 @@ from .engine import WorldSession
 
 
 JsonDocument = JSON().with_variant(JSONB, "postgresql")
+_PROCESS_CHALLENGE_SECRET = secrets.token_bytes(32)
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def utcnow() -> datetime:
@@ -41,14 +54,34 @@ def normalize_database_url(database_url: str) -> str:
     return database_url
 
 
+def normalize_email(value: str) -> str:
+    email = value.strip().lower()
+    if len(email) > 320 or not _EMAIL_RE.fullmatch(email):
+        raise ValueError("invalid email address")
+    return email
+
+
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+def challenge_digest(secret: bytes, challenge_id: str, code: str) -> str:
+    return hmac.new(
+        secret, f"{challenge_id}:{code}".encode(), hashlib.sha256
+    ).hexdigest()
+
+
 @dataclass(frozen=True)
 class IdentityContext:
     user_id: str
     runtime_id: str
     kind: str = "guest"
     auth_session_id: str = ""
+    email: str = ""
+    display_name: str = ""
     runtime_replaced: bool = False
     replacement_auth_token: str = ""
+    replacement_csrf_token: str = ""
 
 
 class Base(DeclarativeBase):
@@ -83,6 +116,21 @@ class AuthSession(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class LoginChallenge(Base):
+    __tablename__ = "login_challenges"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    email_hash: Mapped[str] = mapped_column(String(64), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    locale: Mapped[str] = mapped_column(String(8), default="en", nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
@@ -142,29 +190,79 @@ class FileStorage:
 
     def __init__(self):
         self._identity_lock = RLock()
-        self._auth_users: dict[str, str] = {}
+        self._auth_sessions: dict[str, dict[str, Any]] = {}
+        self._users: dict[str, dict[str, Any]] = {}
+        self._challenges: dict[str, dict[str, Any]] = {}
         self._runtime_owners: dict[str, str] = {}
+        configured_secret = os.getenv("AUTH_CHALLENGE_SECRET", "").encode()
+        self._challenge_secret = configured_secret or _PROCESS_CHALLENGE_SECRET
+        self.auth_ttl_seconds = max(
+            60, int(os.getenv("SESSION_TTL_SECONDS", "2592000"))
+        )
+
+    def _issue_auth_locked(
+        self, user_id: str
+    ) -> tuple[str, str, dict[str, Any]]:
+        now = utcnow()
+        auth_token = secrets.token_hex(32)
+        csrf_token = secrets.token_hex(32)
+        record = {
+            "id": uuid.uuid4().hex,
+            "user_id": user_id,
+            "csrf_hash": sha256_text(csrf_token),
+            "created_at": now,
+            "last_seen_at": now,
+            "expires_at": now + timedelta(seconds=self.auth_ttl_seconds),
+            "revoked_at": None,
+        }
+        self._auth_sessions[sha256_text(auth_token)] = record
+        return auth_token, csrf_token, record
 
     def _root(self, session_id: str) -> Path:
         return Path(persistence.SAVES_DIR) / session_id
 
     def resolve_identity(
-        self, auth_token: str, runtime_id: str, legacy_session_id: str = ""
+        self,
+        auth_token: str,
+        runtime_id: str,
+        legacy_session_id: str = "",
+        csrf_token: str = "",
     ) -> IdentityContext:
-        token_hash = hashlib.sha256(auth_token.encode()).hexdigest()
+        token_hash = sha256_text(auth_token)
         runtime_replaced = False
         replacement_auth_token = ""
+        replacement_csrf_token = ""
         with self._identity_lock:
-            user_id = self._auth_users.get(token_hash)
-            if user_id is None:
+            now = utcnow()
+            auth = self._auth_sessions.get(token_hash)
+            auth_valid = bool(
+                auth
+                and auth["revoked_at"] is None
+                and auth["expires_at"] > now
+            )
+            if not auth_valid:
                 # Never accept a caller-chosen unknown token as an authority
                 # credential.  The server issues the token that becomes valid.
-                replacement_auth_token = secrets.token_hex(32)
-                token_hash = hashlib.sha256(
-                    replacement_auth_token.encode()
-                ).hexdigest()
                 user_id = legacy_session_id or uuid.uuid4().hex
-                self._auth_users[token_hash] = user_id
+                self._users.setdefault(
+                    user_id,
+                    {"id": user_id, "kind": "guest", "email": "", "display_name": ""},
+                )
+                replacement_auth_token, replacement_csrf_token, auth = (
+                    self._issue_auth_locked(user_id)
+                )
+            else:
+                user_id = str(auth["user_id"])
+                auth["last_seen_at"] = now
+                if not csrf_token or not hmac.compare_digest(
+                    str(auth["csrf_hash"]), sha256_text(csrf_token)
+                ):
+                    replacement_csrf_token = secrets.token_hex(32)
+                    auth["csrf_hash"] = sha256_text(replacement_csrf_token)
+            user = self._users.setdefault(
+                user_id,
+                {"id": user_id, "kind": "guest", "email": "", "display_name": ""},
+            )
             owner = self._runtime_owners.get(runtime_id)
             if owner is not None and owner != user_id:
                 runtime_id = uuid.uuid4().hex
@@ -173,9 +271,139 @@ class FileStorage:
         return IdentityContext(
             user_id=user_id,
             runtime_id=runtime_id,
+            kind=str(user["kind"]),
+            auth_session_id=str(auth["id"]),
+            email=str(user.get("email") or ""),
+            display_name=str(user.get("display_name") or ""),
             runtime_replaced=runtime_replaced,
             replacement_auth_token=replacement_auth_token,
+            replacement_csrf_token=replacement_csrf_token,
         )
+
+    def create_login_challenge(
+        self, email: str, locale: str = "en"
+    ) -> dict[str, Any]:
+        normalized = normalize_email(email)
+        challenge_id = uuid.uuid4().hex
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        now = utcnow()
+        with self._identity_lock:
+            self._challenges[challenge_id] = {
+                "email_hash": sha256_text(normalized),
+                "code_hash": challenge_digest(
+                    self._challenge_secret, challenge_id, code
+                ),
+                "locale": "zh-CN" if locale == "zh-CN" else "en",
+                "attempts": 0,
+                "created_at": now,
+                "expires_at": now + timedelta(minutes=10),
+                "consumed_at": None,
+            }
+        return {"id": challenge_id, "code": code, "expires_in": 600}
+
+    def verify_login_challenge(
+        self,
+        challenge_id: str,
+        email: str,
+        code: str,
+        current_user_id: str,
+        current_auth_session_id: str,
+        runtime_id: str,
+    ) -> IdentityContext:
+        normalized = normalize_email(email)
+        now = utcnow()
+        with self._identity_lock:
+            challenge = self._challenges.get(challenge_id)
+            if (
+                challenge is None
+                or challenge["consumed_at"] is not None
+                or challenge["expires_at"] <= now
+                or challenge["attempts"] >= 5
+                or not hmac.compare_digest(
+                    str(challenge["email_hash"]), sha256_text(normalized)
+                )
+            ):
+                raise ValueError("invalid or expired verification challenge")
+            challenge["attempts"] += 1
+            expected = challenge_digest(self._challenge_secret, challenge_id, code)
+            if not hmac.compare_digest(str(challenge["code_hash"]), expected):
+                raise ValueError("invalid or expired verification challenge")
+            challenge["consumed_at"] = now
+
+            current = self._users[current_user_id]
+            target = next(
+                (
+                    user
+                    for user in self._users.values()
+                    if user.get("kind") == "registered"
+                    and user.get("email") == normalized
+                ),
+                None,
+            )
+            if target is None:
+                target = current
+                target["kind"] = "registered"
+                target["email"] = normalized
+                target["display_name"] = normalized.split("@", 1)[0][:80]
+            elif target["id"] != current_user_id and current["kind"] == "guest":
+                for owned_runtime, owner in list(self._runtime_owners.items()):
+                    if owner == current_user_id:
+                        self._runtime_owners[owned_runtime] = target["id"]
+                current["kind"] = "disabled"
+
+            for record in self._auth_sessions.values():
+                if record["id"] == current_auth_session_id or (
+                    current["kind"] == "disabled"
+                    and record["user_id"] == current_user_id
+                ):
+                    record["revoked_at"] = now
+
+            target_id = str(target["id"])
+            if self._runtime_owners.get(runtime_id) != target_id:
+                runtime_id = uuid.uuid4().hex
+                self._runtime_owners[runtime_id] = target_id
+            auth_token, csrf_token, auth = self._issue_auth_locked(target_id)
+            return IdentityContext(
+                user_id=target_id,
+                runtime_id=runtime_id,
+                kind="registered",
+                auth_session_id=str(auth["id"]),
+                email=str(target.get("email") or ""),
+                display_name=str(target.get("display_name") or ""),
+                replacement_auth_token=auth_token,
+                replacement_csrf_token=csrf_token,
+            )
+
+    def list_auth_sessions(
+        self, user_id: str, current_auth_session_id: str
+    ) -> list[dict[str, Any]]:
+        with self._identity_lock:
+            rows = [
+                record
+                for record in self._auth_sessions.values()
+                if record["user_id"] == user_id and record["revoked_at"] is None
+            ]
+            rows.sort(key=lambda row: row["last_seen_at"], reverse=True)
+            return [
+                {
+                    "id": row["id"],
+                    "current": row["id"] == current_auth_session_id,
+                    "created_at": row["created_at"].isoformat(),
+                    "last_seen_at": row["last_seen_at"].isoformat(),
+                    "expires_at": row["expires_at"].isoformat(),
+                }
+                for row in rows
+            ]
+
+    def revoke_auth_session(
+        self, user_id: str, auth_session_id: str
+    ) -> bool:
+        with self._identity_lock:
+            for record in self._auth_sessions.values():
+                if record["id"] == auth_session_id and record["user_id"] == user_id:
+                    record["revoked_at"] = utcnow()
+                    return True
+        return False
 
     def load_runtime(self, user_id: str, session_id: str) -> dict[str, Any] | None:
         return None
@@ -236,6 +464,8 @@ class DatabaseStorage:
         self.auth_ttl_seconds = max(
             60, int(os.getenv("SESSION_TTL_SECONDS", "2592000"))
         )
+        configured_secret = os.getenv("AUTH_CHALLENGE_SECRET", "").encode()
+        self._challenge_secret = configured_secret or _PROCESS_CHALLENGE_SECRET
         kwargs: dict[str, Any] = {"pool_pre_ping": True}
         if database_url.startswith("sqlite"):
             kwargs["connect_args"] = {"check_same_thread": False}
@@ -271,13 +501,34 @@ class DatabaseStorage:
         db.flush()
         return player_session
 
+    def _issue_auth(
+        self, db: Session, user_id: str, now: datetime
+    ) -> tuple[str, str, AuthSession]:
+        auth_token = secrets.token_hex(32)
+        csrf_token = secrets.token_hex(32)
+        auth = AuthSession(
+            id=uuid.uuid4().hex,
+            user_id=user_id,
+            token_hash=sha256_text(auth_token),
+            csrf_hash=sha256_text(csrf_token),
+            expires_at=now + timedelta(seconds=self.auth_ttl_seconds),
+        )
+        db.add(auth)
+        db.flush()
+        return auth_token, csrf_token, auth
+
     def resolve_identity(
-        self, auth_token: str, runtime_id: str, legacy_session_id: str = ""
+        self,
+        auth_token: str,
+        runtime_id: str,
+        legacy_session_id: str = "",
+        csrf_token: str = "",
     ) -> IdentityContext:
-        token_hash = hashlib.sha256(auth_token.encode()).hexdigest()
+        token_hash = sha256_text(auth_token)
         now = utcnow()
         runtime_replaced = False
         replacement_auth_token = ""
+        replacement_csrf_token = ""
         with Session(self.engine) as db, db.begin():
             auth = db.scalar(
                 select(AuthSession).where(AuthSession.token_hash == token_hash)
@@ -296,9 +547,8 @@ class DatabaseStorage:
                 # so both missing and expired credentials receive a new
                 # server-generated secret before they are persisted.
                 replacement_auth_token = secrets.token_hex(32)
-                token_hash = hashlib.sha256(
-                    replacement_auth_token.encode()
-                ).hexdigest()
+                replacement_csrf_token = secrets.token_hex(32)
+                token_hash = sha256_text(replacement_auth_token)
                 if auth is not None:
                     if auth.revoked_at is None:
                         auth.revoked_at = now
@@ -313,12 +563,18 @@ class DatabaseStorage:
                     id=uuid.uuid4().hex,
                     user_id=user.id,
                     token_hash=token_hash,
+                    csrf_hash=sha256_text(replacement_csrf_token),
                     expires_at=now + timedelta(seconds=self.auth_ttl_seconds),
                 )
                 db.add(auth)
             else:
                 user = db.get(User, auth.user_id)
                 auth.last_seen_at = now
+                if not csrf_token or not hmac.compare_digest(
+                    auth.csrf_hash, sha256_text(csrf_token)
+                ):
+                    replacement_csrf_token = secrets.token_hex(32)
+                    auth.csrf_hash = sha256_text(replacement_csrf_token)
             user.last_seen_at = now
 
             player_session = db.get(PlayerSession, runtime_id)
@@ -334,9 +590,173 @@ class DatabaseStorage:
                 runtime_id=runtime_id,
                 kind=user.kind,
                 auth_session_id=auth.id,
+                email=user.email or "",
+                display_name=user.display_name or "",
                 runtime_replaced=runtime_replaced,
                 replacement_auth_token=replacement_auth_token,
+                replacement_csrf_token=replacement_csrf_token,
             )
+
+    def create_login_challenge(
+        self, email: str, locale: str = "en"
+    ) -> dict[str, Any]:
+        normalized = normalize_email(email)
+        challenge_id = uuid.uuid4().hex
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        now = utcnow()
+        with Session(self.engine) as db, db.begin():
+            db.add(
+                LoginChallenge(
+                    id=challenge_id,
+                    email_hash=sha256_text(normalized),
+                    code_hash=challenge_digest(
+                        self._challenge_secret, challenge_id, code
+                    ),
+                    locale="zh-CN" if locale == "zh-CN" else "en",
+                    expires_at=now + timedelta(minutes=10),
+                )
+            )
+        return {"id": challenge_id, "code": code, "expires_in": 600}
+
+    def verify_login_challenge(
+        self,
+        challenge_id: str,
+        email: str,
+        code: str,
+        current_user_id: str,
+        current_auth_session_id: str,
+        runtime_id: str,
+    ) -> IdentityContext:
+        normalized = normalize_email(email)
+        now = utcnow()
+        identity: IdentityContext | None = None
+        with Session(self.engine) as db, db.begin():
+            challenge = db.scalar(
+                select(LoginChallenge)
+                .where(LoginChallenge.id == challenge_id)
+                .with_for_update()
+            )
+            expires_at = challenge.expires_at if challenge is not None else None
+            if expires_at is not None and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if (
+                challenge is None
+                or challenge.consumed_at is not None
+                or expires_at is None
+                or expires_at <= now
+                or challenge.attempts >= 5
+                or not hmac.compare_digest(
+                    challenge.email_hash, sha256_text(normalized)
+                )
+            ):
+                raise ValueError("invalid or expired verification challenge")
+            challenge.attempts += 1
+            expected = challenge_digest(self._challenge_secret, challenge_id, code)
+            if hmac.compare_digest(challenge.code_hash, expected):
+                challenge.consumed_at = now
+
+                current = db.get(User, current_user_id)
+                if current is None or current.kind == "disabled":
+                    raise ValueError("current user is unavailable")
+                target = db.scalar(select(User).where(User.email == normalized))
+                if target is None:
+                    target = current
+                    target.kind = "registered"
+                    target.email = normalized
+                    target.email_verified_at = now
+                    if not target.display_name:
+                        target.display_name = normalized.split("@", 1)[0][:80]
+                elif target.id != current.id and current.kind == "guest":
+                    db.execute(
+                        update(PlayerSession)
+                        .where(PlayerSession.user_id == current.id)
+                        .values(user_id=target.id)
+                    )
+                    db.execute(
+                        update(SaveGame)
+                        .where(SaveGame.user_id == current.id)
+                        .values(user_id=target.id)
+                    )
+                    db.execute(
+                        update(UsageEvent)
+                        .where(UsageEvent.user_id == current.id)
+                        .values(user_id=target.id)
+                    )
+                    db.execute(
+                        update(AuthSession)
+                        .where(
+                            AuthSession.user_id == current.id,
+                            AuthSession.revoked_at.is_(None),
+                        )
+                        .values(revoked_at=now)
+                    )
+                    current.kind = "disabled"
+
+                current_auth = db.get(AuthSession, current_auth_session_id)
+                if current_auth is not None and current_auth.revoked_at is None:
+                    current_auth.revoked_at = now
+
+                player_session = db.get(PlayerSession, runtime_id)
+                if player_session is None or player_session.user_id != target.id:
+                    runtime_id = uuid.uuid4().hex
+                    db.add(PlayerSession(id=runtime_id, user_id=target.id))
+
+                auth_token, csrf_token, auth = self._issue_auth(db, target.id, now)
+                target.last_seen_at = now
+                identity = IdentityContext(
+                    user_id=target.id,
+                    runtime_id=runtime_id,
+                    kind="registered",
+                    auth_session_id=auth.id,
+                    email=target.email or "",
+                    display_name=target.display_name or "",
+                    replacement_auth_token=auth_token,
+                    replacement_csrf_token=csrf_token,
+                )
+
+        if identity is None:
+            # Raise only after the transaction commits the failed attempt count.
+            raise ValueError("invalid or expired verification challenge")
+        return identity
+
+    def list_auth_sessions(
+        self, user_id: str, current_auth_session_id: str
+    ) -> list[dict[str, Any]]:
+        with Session(self.engine) as db:
+            rows = db.scalars(
+                select(AuthSession)
+                .where(
+                    AuthSession.user_id == user_id,
+                    AuthSession.revoked_at.is_(None),
+                )
+                .order_by(AuthSession.last_seen_at.desc())
+            ).all()
+            return [
+                {
+                    "id": row.id,
+                    "current": row.id == current_auth_session_id,
+                    "created_at": row.created_at.isoformat(),
+                    "last_seen_at": row.last_seen_at.isoformat(),
+                    "expires_at": row.expires_at.isoformat(),
+                }
+                for row in rows
+            ]
+
+    def revoke_auth_session(
+        self, user_id: str, auth_session_id: str
+    ) -> bool:
+        with Session(self.engine) as db, db.begin():
+            auth = db.scalar(
+                select(AuthSession).where(
+                    AuthSession.id == auth_session_id,
+                    AuthSession.user_id == user_id,
+                )
+            )
+            if auth is None:
+                return False
+            if auth.revoked_at is None:
+                auth.revoked_at = utcnow()
+            return True
 
     def load_runtime(self, user_id: str, session_id: str) -> dict[str, Any] | None:
         with Session(self.engine) as db:

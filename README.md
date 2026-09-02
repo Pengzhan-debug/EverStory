@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-119%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-126%20passing-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Identity/BYOK design](docs/IDENTITY_AND_BYOK_DESIGN.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
@@ -53,6 +53,7 @@ Each investigation and runtime role can use an independent or shared OpenAI-comp
 - **Deterministic AI world engine** — typed actions are validated against real state before anything changes.
 - **Persistent world state** — entities, items, locations, relationships, time, flags, quests and snapshots remain structured and inspectable.
 - **Production persistence path** — optional PostgreSQL stores guest users, hashed auth sessions, tenant-owned runtime snapshots, save games, and an idempotent LLM usage ledger; Redis supplies session TTL, mutation quotas, and cross-process player locks.
+- **Guest-to-account upgrade** — email one-time codes upgrade or merge a guest without reloading the case; double-submit CSRF, auth rotation, device listing/revocation, hashed challenges, and SMTP/development delivery modes cover the account boundary.
 - **Natural-language gameplay** — players can say things like `walk toward the lighthouse`, `take the rusty key`, or `talk to the keeper` instead of learning a command language.
 - **Grounded narration** — the LLM narrates the state transition that the engine actually applied.
 - **Fact checking** — generated narration is checked against the state delta and can be retried when it contradicts the world.
@@ -259,9 +260,11 @@ RATE_LIMIT_REQUESTS=60
 RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
-Schema changes are tracked with Alembic (`alembic upgrade head`). BYOK secrets
-are deliberately not written to the database yet; production account login and
-KMS envelope encryption remain the next security milestone.
+Schema changes are tracked with Alembic (`alembic upgrade head`). Email-code
+account login is available when SMTP is configured; the Render blueprint keeps
+delivery disabled until the owner supplies it. BYOK secrets are deliberately
+not written to the database yet, so KMS envelope encryption remains the next
+security milestone.
 
 The optional Volcengine Ark catalog uses one shared Base URL and a separate API credential for each of its seven named models. The empirically selected route map uses DeepSeek V4 Pro for directing, Doubao Seed 2.0 Lite for field work, intent parsing and NPC dialogue, GLM 5.3 for analysis, Kimi K2.7 Code for skeptical review, DeepSeek V4 Flash for consistency checks, and MiniMax M3 for narration. Run `python -m scripts.test_model_connections` for a credential-safe health check, or `python -m scripts.run_full_agent_evaluation` for the checkpointed benchmark. Verify the Coding Plan usage rules before using its coding-only endpoint for a non-coding game workload; a standard Ark model API or agent-oriented plan is the safer production choice.
 
