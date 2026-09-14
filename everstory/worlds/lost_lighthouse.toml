@@ -31,6 +31,11 @@ default = "The keeper eyes you wearily. \"The light has been out for a year, and
 gave_oil = "She accepts the oil can with trembling hands. \"You'd make a fine keeper... The last one disappeared the night the light failed. His logbook says the lamp was sabotaged.\""
 learned_secret = "\"Some say the old keeper still walks the cliffs at night. Finish what he started — light the lamp.\""
 
+[entities.attributes.dialogue_zh]
+default = "守塔人疲惫地打量着你。‘灯已经熄灭一年了，海也变得越来越不安。’"
+gave_oil = "她用颤抖的双手接过油罐。‘你会成为一名好守塔人……上一任守塔人在灯熄灭的那晚失踪了。他的日志说，灯是被人蓄意破坏的。’"
+learned_secret = "‘有人说老守塔人夜里仍在悬崖上游荡。完成他未竟的事——点亮灯塔。’"
+
 [[entities]]
 id = "elias"
 kind = "character"
@@ -48,6 +53,9 @@ persona = "Saltrock's controlled, defensive harbormaster. He denies entering the
 [entities.attributes.dialogue]
 default = "Elias straightens his cuffs. \"I never entered that lighthouse. The lamp failed in the storm, and every crate I recovered was lawful salvage.\""
 
+[entities.attributes.dialogue_zh]
+default = "伊莱亚斯整理了一下袖口。‘我从没进过那座灯塔。灯是在暴风雨中坏掉的，我打捞的每一箱货物也都合法。’"
+
 [[entities]]
 id = "celia"
 kind = "character"
@@ -61,6 +69,9 @@ persona = "A precise coastal researcher who records times, tides, and weather ob
 
 [entities.attributes.dialogue]
 default = "Celia taps her tide chart. \"The storm arrived after midnight. The lighthouse fuel line was already failing before the first squall—and I saw Elias's launch leave the dock at eleven.\""
+
+[entities.attributes.dialogue_zh]
+default = "西莉亚轻敲着潮汐图。‘暴风雨是在午夜之后到的。第一阵狂风来临之前，灯塔的燃料管线就已经出了问题——而且我看见伊莱亚斯的小艇在十一点离开了码头。’"
 
 [[entities]]
 id = "storm_shore"

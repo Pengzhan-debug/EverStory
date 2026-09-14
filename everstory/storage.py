@@ -41,6 +41,11 @@ from .engine import WorldSession
 
 
 JsonDocument = JSON().with_variant(JSONB, "postgresql")
+
+
+class RuntimeConflict(RuntimeError):
+    """A stale request must never overwrite a newer investigation."""
+
 _PROCESS_CHALLENGE_SECRET = secrets.token_bytes(32)
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -291,6 +296,7 @@ class PlayerSession(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     runtime_payload: Mapped[dict[str, Any] | None] = mapped_column(JsonDocument)
+    runtime_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, index=True
@@ -608,13 +614,18 @@ class FileStorage:
             return copy.deepcopy(document) if document is not None else None
 
     def save_runtime(
-        self, user_id: str, session_id: str, payload: dict[str, Any]
-    ) -> None:
+        self, user_id: str, session_id: str, payload: dict[str, Any], *, expected_revision: int | None = None
+    ) -> int:
         with self._identity_lock:
             if self._runtime_owners.get(session_id) != user_id:
                 raise PermissionError("runtime belongs to another user")
-            self._runtime_documents[session_id] = copy.deepcopy(payload)
+            revision = self._runtime_documents.get(session_id, {}).get("runtime_revision", 0)
+            if expected_revision is not None and revision != expected_revision:
+                raise RuntimeConflict("Investigation changed; reload before retrying.")
+            revision += 1
+            self._runtime_documents[session_id] = {**copy.deepcopy(payload), "runtime_revision": revision}
             self._runtime_updated_at[session_id] = utcnow()
+            return revision
 
     def save_game(
         self,
@@ -1104,15 +1115,24 @@ class DatabaseStorage:
                     PlayerSession.user_id == user_id,
                 )
             )
-            return dict(row.runtime_payload) if row and row.runtime_payload else None
+            return {**row.runtime_payload, "runtime_revision": row.runtime_revision} if row and row.runtime_payload else None
 
     def save_runtime(
-        self, user_id: str, session_id: str, payload: dict[str, Any]
-    ) -> None:
+        self, user_id: str, session_id: str, payload: dict[str, Any], *, expected_revision: int | None = None
+    ) -> int:
         with Session(self.engine) as db, db.begin():
             row = self._ensure_session(db, user_id, session_id)
-            row.runtime_payload = payload
-            row.updated_at = utcnow()
+            revision = row.runtime_revision if expected_revision is None else expected_revision
+            result = db.execute(
+                update(PlayerSession)
+                .where(PlayerSession.id == session_id, PlayerSession.user_id == user_id,
+                       PlayerSession.runtime_revision == revision)
+                .values(runtime_payload=payload, runtime_revision=revision + 1, updated_at=utcnow())
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount != 1:
+                raise RuntimeConflict("Investigation changed; reload before retrying.")
+            return revision + 1
 
     def save_game(
         self,

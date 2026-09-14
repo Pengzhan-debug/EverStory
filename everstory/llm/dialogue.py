@@ -8,8 +8,24 @@ the story. The character never changes state — it can only talk.
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from ..config import LLM_CHEAP_MODEL
 from .language import ensure_output_locale, guarded_stream
+
+
+@lru_cache(maxsize=1)
+def _bundled_dialogue_zh() -> dict[str, str]:
+    # Old saves embed their original entity attributes, so translations also
+    # resolve by exact canonical line against the current bundled content.
+    from ..worlds import load_world
+    result = {}
+    for entity in load_world("lost_lighthouse").initial_state.entities.values():
+        translated = entity.attributes.get("dialogue_zh", {})
+        for key, line in entity.attributes.get("dialogue", {}).items():
+            if key in translated:
+                result[line] = translated[key]
+    return result
 
 SYSTEM_PROMPT = """You are an NPC in a text-adventure game, speaking in character.
 STRICT RULES:
@@ -160,9 +176,12 @@ def npc_reply_stub(
         "default", f"{character.name} has nothing to say."
     )
     if locale == "zh-CN":
-        translated = {
-            'The keeper eyes you wearily. "The light has been out for a year, and the sea has grown restless."': "守塔人疲惫地打量着你。‘灯已经熄灭一年了，海也变得越来越不安。’",
-            '"Some say the old keeper still walks the cliffs at night. Finish what he started — light the lamp."': "‘有人说老守塔人夜里仍在悬崖上游荡。完成他未竟的事——点亮灯塔。’",
-        }.get(line)
-        return translated or f"{character.name} 沉默片刻，提醒你继续核对已经确认的线索。"
+        script = character.attributes.get("dialogue", {})
+        localized = character.attributes.get("dialogue_zh", {})
+        for key, canonical in script.items():
+            if canonical == line and localized.get(key):
+                return localized[key]
+        translated = _bundled_dialogue_zh().get(line)
+        # Preserve evidence for custom worlds even if their translation is missing.
+        return translated or line
     return f"{character.name}: {line}"

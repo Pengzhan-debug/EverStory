@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-141%20passing-22C55E)
+![Tests](https://img.shields.io/badge/local_tests-162_passed-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [Play the live demo](https://everstory.onrender.com/) · [Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Identity/BYOK design](docs/IDENTITY_AND_BYOK_DESIGN.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
@@ -310,6 +310,12 @@ The selected routes average **98.8%** with a **93.3%** minimum role score;
 information transfer, provenance retention, poison rejection, proposal
 accuracy, evidence grounding, and case completion all scored **100%**. The
 final comparable dataset contains 123 live calls and 118,513 tokens.
+
+These are historical, fixed-scenario results, not evidence of general autonomous
+case-solving or superiority to a single agent. The September reliability repair
+uses offline regression tests and does not rerun paid model APIs. See the
+[repair and release checklist](docs/RELIABILITY_REPAIR_2026-09-06.md) for scope,
+UI verification, database migration, and local PostgreSQL/Redis validation.
 
 | Signal | Result |
 | --- | ---: |

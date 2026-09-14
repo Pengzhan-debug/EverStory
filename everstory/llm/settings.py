@@ -6,6 +6,7 @@ import re
 from urllib.parse import urlparse
 
 from .client import LLMClient
+from .transport import validate_endpoint
 
 
 MODEL_RE = re.compile(r"^[^\x00-\x1f\x7f]{1,120}$")
@@ -189,6 +190,7 @@ def _validated_url(value: object, fallback: str) -> str:
     raw = str(value or fallback).strip().rstrip("/")
     if len(raw) > 500:
         raise ValueError("Base URL is too long.")
+    validate_endpoint(raw)
     parsed = urlparse(raw)
     if not parsed.hostname or parsed.username or parsed.password:
         raise ValueError("Base URL must be an absolute URL without credentials.")

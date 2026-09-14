@@ -85,6 +85,7 @@ class RuleEngine:
                     action_type="take",
                     description="Take an item that is here and unowned.",
                     checks=[
+                        Check("portable", subject="$param.item", message="That cannot be carried."),
                         Check(
                             "here",
                             subject="$param.item",
@@ -124,6 +125,7 @@ class RuleEngine:
                     action_type="use",
                     description="Use an item from your inventory.",
                     checks=[
+                        Check("accessible", subject="$param.target", target="$actor", message="That target is not within reach."),
                         Check(
                             "inventory",
                             subject="$param.item",
@@ -340,6 +342,14 @@ class WorldSession:
         st = self.state
         subj = self.resolve_ref(chk.subject, action)
         tgt = self.resolve_ref(chk.target, action) if chk.target else None
+
+        # Reject missing and invented identifiers before any rule dereferences
+        # an entity. Invalid commands are ordinary failed actions, not crashes.
+        if chk.kind != "flag" and (subj not in st.entities or (chk.target and tgt not in st.entities)):
+            return False, "I don't know what that refers to."
+        if chk.kind == "portable":
+            ent = st.entity(subj)
+            return ent.kind == EntityKind.ITEM and ent.attributes.get("portable", True), None
 
         if chk.kind == "here":
             if subj is None or tgt is None:

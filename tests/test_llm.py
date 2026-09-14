@@ -83,7 +83,7 @@ class IntentTest(unittest.TestCase):
             "choices": [{"message": {"content": "ok"}}],
             "usage": {},
         }
-        with patch("requests.post", return_value=response) as post:
+        with patch("everstory.llm.client.post_completion", return_value=response) as post:
             client.chat(
                 [{"role": "user", "content": "hi"}],
                 model="shared-model",
@@ -116,7 +116,7 @@ class IntentTest(unittest.TestCase):
             "choices": [{"message": {"content": "ok"}}],
             "usage": {"prompt_tokens": 5, "completion_tokens": 2},
         }
-        with patch("requests.post", return_value=response) as post:
+        with patch("everstory.llm.client.post_completion", return_value=response) as post:
             client.chat(
                 [{"role": "user", "content": "analyze"}],
                 role="cheap",
@@ -154,7 +154,7 @@ class IntentTest(unittest.TestCase):
             agent_routes={"case_analyst": "personal_api"},
         )
         failure = Mock(status_code=503, text="unavailable")
-        with patch("requests.post", return_value=failure) as post, patch("time.sleep"):
+        with patch("everstory.llm.client.post_completion", return_value=failure) as post, patch("time.sleep"):
             with self.assertRaises(LLMError):
                 client.chat([{"role": "user", "content": "analyze"}], agent="case_analyst")
         self.assertEqual(post.call_count, 3)
@@ -169,7 +169,7 @@ class IntentTest(unittest.TestCase):
             "credential_source": "platform", "prompt_tokens": 8,
             "completion_tokens": 2, "ok": True,
         })
-        with patch("requests.post") as post:
+        with patch("everstory.llm.client.post_completion") as post:
             with self.assertRaisesRegex(LLMError, "allowance exhausted"):
                 client.chat([{"role": "user", "content": "hi"}], agent="case_director")
         post.assert_not_called()
@@ -189,7 +189,7 @@ class IntentTest(unittest.TestCase):
             "choices": [{"message": {"content": "ok"}}],
             "usage": {"prompt_tokens": 10, "completion_tokens": 5},
         }
-        with patch("requests.post", return_value=response):
+        with patch("everstory.llm.client.post_completion", return_value=response):
             client.chat([{"role": "user", "content": "hi"}], agent="case_director")
         status = guard.status(["reasoning"])
         self.assertEqual(status["daily_tokens_used"], 15)
@@ -205,11 +205,11 @@ class IntentTest(unittest.TestCase):
             mode="api", strong_api_key="platform-key", platform_guard=guard
         )
         failure = Mock(status_code=503, text="unavailable")
-        with patch("requests.post", return_value=failure), patch("time.sleep"):
+        with patch("everstory.llm.client.post_completion", return_value=failure), patch("time.sleep"):
             for _ in range(2):
                 with self.assertRaises(LLMError):
                     client.chat([{"role": "user", "content": "hi"}], agent="case_director")
-            with patch("requests.post") as blocked:
+            with patch("everstory.llm.client.post_completion") as blocked:
                 with self.assertRaisesRegex(LLMError, "circuit"):
                     client.chat([{"role": "user", "content": "hi"}], agent="case_director")
                 blocked.assert_not_called()

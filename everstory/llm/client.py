@@ -12,6 +12,7 @@ import json
 import uuid
 from collections import deque
 from datetime import datetime, timezone
+from .transport import post_completion
 
 from ..config import (
     LLM_CHEAP_API_KEY,
@@ -326,7 +327,7 @@ class LLMClient:
         started = time.perf_counter()
         for attempt in range(3):  # transient network failures are common
             try:
-                resp = requests.post(
+                resp = post_completion(
                     url,
                     json=payload,
                     headers={
@@ -354,7 +355,7 @@ class LLMClient:
                 last_error = LLMError(
                     f"LLM API error {resp.status_code}: {resp.text[:200]}"
                 )
-            except requests.exceptions.RequestException as exc:
+            except (requests.exceptions.RequestException, ValueError, OSError) as exc:
                 last_error = exc
             time.sleep(2 * (attempt + 1))
         else:
@@ -459,7 +460,7 @@ class LLMClient:
         resp = None
         for attempt in range(3):
             try:
-                resp = requests.post(
+                resp = post_completion(
                     url,
                     json=payload,
                     headers={
@@ -488,7 +489,7 @@ class LLMClient:
                 last_error = LLMError(
                     f"LLM API error {resp.status_code}: {resp.text[:200]}"
                 )
-            except requests.exceptions.RequestException as exc:
+            except (requests.exceptions.RequestException, ValueError, OSError) as exc:
                 last_error = exc
             time.sleep(2 * (attempt + 1))
         else:

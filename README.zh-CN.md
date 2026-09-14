@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![测试](https://img.shields.io/badge/tests-141%20passing-22C55E)
+![测试](https://img.shields.io/badge/local_tests-162_passed-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [在线试玩](https://everstory.onrender.com/) · [English README](README.md) · [系统架构](docs/architecture.md) · [真实模型评测](reports/agent-routing-evaluation-zh.md) · [公开部署](docs/DEPLOYMENT.md) · [身份与 BYOK 设计](docs/IDENTITY_AND_BYOK_DESIGN.md) · [面试演示](docs/DEMO.md) · [简历模板](docs/RESUME.md)
@@ -20,6 +20,10 @@ EverStory 是一个解决 **LLM 长程交互不可靠**（遗忘、自相矛盾�
 才能把确定性世界中的观察写入证据板。世界、群聊、任务和证据都支持存档恢复。
 
 ## 界面展示
+
+本轮修复与验收见[稳定性修复报告](docs/RELIABILITY_REPAIR_2026-09-06.md)。
+历史真实模型分数来自固定样例，不代表一般化自主破案能力或多智能体优于单智能体；
+本轮未重跑付费模型接口；PostgreSQL/Redis 独立集成测试已在本地通过，CI 仍待推送后验证。
 
 ![EverStory 产品演示](docs/assets/readme/everstory-demo.gif)
 
@@ -153,7 +157,7 @@ everstory-learn       # 规则归纳报告
 python -m unittest discover -s tests -v   # 测试
 ```
 
-当前包含 **141 项**无需 API Key 的自动化测试，完整验收路径覆盖智能体提议移动、
+当前本地验收为 **162 项全部通过**，其中 3 项接入一次性 PostgreSQL 16 / Redis 7 服务真实执行，均无需模型 API Key。完整验收路径覆盖智能体提议移动、
 三次证人询问、三项证据检查、分析师复核以及受证据链约束的最终指控。
 
 ## 配置真实模型（.env）

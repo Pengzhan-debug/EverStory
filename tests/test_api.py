@@ -305,7 +305,7 @@ class ApiTest(unittest.TestCase):
         page = self.client.get("/").text
         ui_css = self.client.get("/static/ui-tweaks.css").text
 
-        self.assertIn('ui-tweaks.css?v=20', page)
+        self.assertRegex(page, r'ui-tweaks\.css\?v=\d+')
         self.assertIn("left: clamp(390px, 31vw, 470px)", ui_css)
         self.assertIn("#messages { left: 7%; right: 7%; }", ui_css)
         self.assertIn(".scene-presence:not(:has(.presence-card))", ui_css)
@@ -329,7 +329,7 @@ class ApiTest(unittest.TestCase):
         self.assertIn("data-display", app_script)
         self.assertIn("send(text, displayText = text)", gameplay)
         self.assertIn('addMessage("user", displayText)', gameplay)
-        self.assertIn('gameplay-core.js?v=8', page)
+        self.assertRegex(page, r'gameplay-core\.js\?v=\d+')
 
     def test_console_and_game_share_the_same_locale_values(self):
         console = self.client.get("/settings").text

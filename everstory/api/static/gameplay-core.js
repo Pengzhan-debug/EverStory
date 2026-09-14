@@ -227,10 +227,12 @@
             continue;
           }
           if (ev.type === "text") {
+            const messages = $("#messages");
+            const follow = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 64;
             bubble.classList.remove("is-pending");
             full += ev.delta;
             bubbleText.textContent = full;
-            $("#messages").scrollTop = $("#messages").scrollHeight;
+            if (follow) messages.scrollTop = messages.scrollHeight;
           } else if (ev.type === "replace") {
             bubble.classList.remove("is-pending");
             full = ev.text;
@@ -242,6 +244,7 @@
           }
         }
       }
+      if (!done) throw new Error(local("Connection interrupted. Check the current state before retrying.", "连接中断，未确认回合完成。请先刷新查看进度，再决定是否重试。"));
       bubbleText.dataset.rawText = full;
       bubbleText.textContent = full ? tv(full) : t("noNarrationReturned");
       bubble.classList.remove("is-pending");

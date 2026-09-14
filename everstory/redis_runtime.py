@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 import time
 from contextlib import contextmanager
-from threading import RLock
-from typing import Iterator
+from threading import Event, RLock, Thread
+from typing import Callable, Iterator
 
 
 class RedisRuntime:
@@ -36,7 +36,7 @@ class RedisRuntime:
                 import redis
 
                 self._client = redis.Redis.from_url(
-                    self.url, decode_responses=True, socket_connect_timeout=2
+                    self.url, decode_responses=True, socket_connect_timeout=2, socket_timeout=3
                 )
             except Exception as exc:  # pragma: no cover - optional dependency
                 self._fail(exc)
@@ -54,7 +54,9 @@ class RedisRuntime:
         if self._client is None:
             return
         try:
-            self._client.setex(f"everstory:session:{session_id}", self.session_ttl, "1")
+            self._client.set(
+                f"everstory:session:{session_id}", "1", ex=self.session_ttl
+            )
         except Exception as exc:  # pragma: no cover - external service
             self._fail(exc)
 
@@ -211,32 +213,55 @@ class RedisRuntime:
             return self.circuit_status(key)
 
     @contextmanager
-    def session_lock(self, session_id: str) -> Iterator[None]:
+    def session_lock(self, session_id: str) -> Iterator[Callable[[], None]]:
+        if self.url and self._client is None:
+            raise RuntimeError("Session coordination unavailable; retry shortly.")
         if self._client is not None:
             lock = None
             try:
                 lock = self._client.lock(
-                    f"everstory:lock:{session_id}", timeout=130, blocking_timeout=10
+                    f"everstory:lock:{session_id}", timeout=130, blocking_timeout=10, thread_local=False
                 )
                 if not lock.acquire(blocking=True):
                     raise RuntimeError("Session is busy; retry shortly.")
             except RuntimeError:
                 raise
             except Exception as exc:  # pragma: no cover - external service
-                self._fail(exc)
+                raise RuntimeError("Session coordination unavailable; retry shortly.") from exc
             if lock is not None and lock.owned():
+                stopped, lost = Event(), Event()
+
+                def renew():
+                    while not stopped.wait(30):
+                        try:
+                            if not lock.extend(130, replace_ttl=True):
+                                lost.set()
+                                return
+                        except Exception:
+                            lost.set()
+                            return
+
+                def assert_owned():
+                    if lost.is_set() or not lock.owned():
+                        raise RuntimeError("Session lease lost; reload before retrying.")
+
+                heartbeat = Thread(target=renew, daemon=True, name="everstory-session-lease")
+                heartbeat.start()
                 try:
-                    yield
+                    yield assert_owned
                 finally:
+                    stopped.set()
+                    heartbeat.join(timeout=3)
                     try:
                         lock.release()
                     except Exception as exc:  # lock expiry must never repeat the mutation
                         self._fail(exc)
                 return
+            raise RuntimeError("Session lease lost; retry shortly.")
         with self._local_guard:
             lock = self._local_locks.setdefault(session_id, RLock())
         with lock:
-            yield
+            yield lambda: None
 
     def health(self) -> dict:
         if self._client is None:

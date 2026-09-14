@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import asyncio
 import json
 import logging
 import mimetypes
@@ -11,9 +12,11 @@ import re
 import secrets
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from threading import RLock
+from threading import Event, RLock
+from typing import Callable
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -38,7 +41,7 @@ from ..llm.guardrails import PlatformGuardrails
 from ..llm.usage import usage_payload
 from ..pipeline import TurnPipeline
 from ..redis_runtime import RedisRuntime, build_redis_runtime
-from ..storage import DatabaseStorage, FileStorage, build_storage, normalize_email
+from ..storage import DatabaseStorage, FileStorage, RuntimeConflict, build_storage, normalize_email
 from ..worlds import load_world
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -84,9 +87,11 @@ class RuntimeSlot:
     team_chat: TeamChatSession = field(default_factory=TeamChatSession)
     lock: RLock = field(default_factory=RLock)
     touched_at: float = field(default_factory=time.monotonic)
+    revision: int = 0
+    commit_guard: Callable[[], None] = field(default=lambda: None, repr=False)
 
 
-def world_payload(session: WorldSession) -> dict:
+def world_payload(session: WorldSession, *, reveal_unseen: bool = False) -> dict:
     st = session.state
     actor_id = session.player_id()
     actor = st.entity(actor_id)
@@ -116,6 +121,7 @@ def world_payload(session: WorldSession) -> dict:
         }
         for e in st.entities.values()
         if e.kind.value == "character"
+        and (reveal_unseen or e.location_id == actor.location_id)
     ]
     items = [
         {
@@ -128,10 +134,12 @@ def world_payload(session: WorldSession) -> dict:
         }
         for e in st.entities.values()
         if e.kind.value == "item"
+        and (reveal_unseen or e.location_id == actor.location_id or e.owner_id == actor_id)
     ]
     relationships = [
         {"type": r.type, "from": r.source_id, "to": r.target_id}
         for r in st.relationships
+        if reveal_unseen or (r.source_id in {c["id"] for c in characters} and r.target_id in {c["id"] for c in characters})
     ]
     quests = [
         {
@@ -201,6 +209,11 @@ def world_payload(session: WorldSession) -> dict:
             "location_id": actor.location_id,
             "location_name": loc.name,
             "inventory": inventory,
+            "inventory_items": [
+                {"id": e.id, "name": e.name, "description": e.description}
+                for e in st.entities.values()
+                if e.kind.value == "item" and e.owner_id == actor_id
+            ],
         },
         "locations": locations,
         "characters": characters,
@@ -235,6 +248,11 @@ def create_app(
     app.state.redis_runtime = redis_runtime
     runtimes: dict[str, RuntimeSlot] = {}
     runtimes_lock = RLock()
+    stream_tasks: set[asyncio.Task] = set()
+
+    @app.exception_handler(RuntimeConflict)
+    async def runtime_conflict_handler(request: Request, exc):
+        return JSONResponse(status_code=409, content={"error": str(exc), "code": "runtime_conflict"})
 
     @app.exception_handler(CredentialEncryptionError)
     async def credential_encryption_error_handler(request: Request, exc):
@@ -312,10 +330,12 @@ def create_app(
             session=session,
             pipeline=pipeline,
             team_chat=TeamChatSession.from_dict(extra.get("team_chat")),
+            revision=int(document.get("runtime_revision", 0)),
         )
 
     def persist_slot(session_id: str, slot: RuntimeSlot) -> None:
-        storage.save_runtime(slot.user_id, session_id, slot_document(slot))
+        slot.commit_guard()
+        slot.revision = storage.save_runtime(slot.user_id, session_id, slot_document(slot), expected_revision=slot.revision)
         storage.sync_usage(
             slot.user_id, session_id, list(slot.pipeline.client.call_history)
         )
@@ -332,9 +352,9 @@ def create_app(
             if slot is None:
                 if len(runtimes) >= MAX_RUNTIME_SESSIONS:
                     oldest_id = min(runtimes, key=lambda key: runtimes[key].touched_at)
-                    oldest = runtimes.pop(oldest_id, None)
-                    if oldest is not None:
-                        persist_slot(oldest_id, oldest)
+                    # Mutations commit explicitly. Eviction must not write a
+                    # stale cache back over another worker's newer document.
+                    runtimes.pop(oldest_id, None)
                 document = storage.load_runtime(user_id, session_id)
                 slot = (
                     restore_slot(document, user_id, session_id)
@@ -344,6 +364,38 @@ def create_app(
                 runtimes[session_id] = slot
             slot.touched_at = time.monotonic()
             return slot
+
+    @contextmanager
+    def locked_slot(request: Request):
+        # Resolve the slot only AFTER acquiring the cross-worker lock, including
+        # reads/reset/load. No request may retain a pre-lock state snapshot.
+        with redis_runtime.session_lock(request.state.session_id) as assert_owned:
+            slot = slot_for(request)
+            with slot.lock:
+                document = storage.load_runtime(request.state.user_id, request.state.session_id)
+                if document and int(document.get("runtime_revision", 0)) != slot.revision:
+                    fresh = restore_slot(document, request.state.user_id, request.state.session_id)
+                    # Guest credentials are intentionally process-local.
+                    if request.state.user_kind != "registered":
+                        usage = list(fresh.pipeline.client.call_history)
+                        fresh.pipeline.client = slot.pipeline.client
+                        fresh.pipeline.client.call_history.clear()
+                        fresh.pipeline.client.call_history.extend(usage)
+                    slot.session, slot.pipeline, slot.team_chat = fresh.session, fresh.pipeline, fresh.team_chat
+                    slot.revision = fresh.revision
+                elif request.state.user_kind == "registered":
+                    profile = storage.load_llm_profile(request.state.user_id)
+                    if profile is not None:
+                        slot.pipeline.client = apply_account_profile(slot.pipeline.client, profile)
+                try:
+                    slot.commit_guard = assert_owned
+                    yield slot
+                except Exception:
+                    with runtimes_lock:
+                        runtimes.pop(request.state.session_id, None)
+                    raise
+                finally:
+                    slot.commit_guard = lambda: None
 
     @app.middleware("http")
     async def isolate_world_session(request: Request, call_next):
@@ -473,11 +525,11 @@ def create_app(
 
     @app.get("/")
     def index():
-        return FileResponse(STATIC_DIR / "index.html")
+        return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
     @app.get("/settings")
     def settings_page():
-        return FileResponse(STATIC_DIR / "settings.html")
+        return FileResponse(STATIC_DIR / "settings.html", headers={"Cache-Control": "no-cache"})
 
     @app.get("/admin")
     def admin_page():
@@ -722,10 +774,8 @@ def create_app(
 
         previous_runtime_id = request.state.session_id
         if runtime_id != previous_runtime_id:
-            previous_slot = slot_for(request)
-
             def persist_previous() -> None:
-                with previous_slot.lock:
+                with locked_slot(request) as previous_slot:
                     persist_slot(previous_runtime_id, previous_slot)
 
             await run_in_threadpool(persist_previous)
@@ -733,9 +783,10 @@ def create_app(
             request.state.runtime_id_to_set = runtime_id
             redis_runtime.touch(runtime_id)
 
-        active_slot = slot_for(request)
-        with active_slot.lock:
-            active_world = world_payload(active_slot.session)
+        def read_active():
+            with locked_slot(request) as active_slot:
+                return world_payload(active_slot.session)
+        active_world = await run_in_threadpool(read_active)
         return {
             "ok": True,
             "runtime_id": runtime_id,
@@ -770,16 +821,14 @@ def create_app(
 
     @app.get("/api/llm/settings")
     def get_llm_settings(request: Request):
-        slot = slot_for(request)
-        with slot.lock:
+        with locked_slot(request) as slot:
             return llm_settings_payload(request, slot.pipeline.client)
 
     @app.put("/api/llm/settings")
     async def put_llm_settings(request: Request):
-        slot = slot_for(request)
         body = await request.json()
-        try:
-            with slot.lock:
+        def update_locked():
+            with locked_slot(request) as slot:
                 client = update_client(slot.pipeline.client, body)
                 live_requires_account = os.getenv(
                     "LIVE_LLM_REQUIRE_ACCOUNT", "false"
@@ -802,32 +851,20 @@ def create_app(
                 slot.pipeline.client = client
                 persist_slot(request.state.session_id, slot)
                 settings = llm_settings_payload(request, client)
-            if request.state.user_kind == "registered":
-                with runtimes_lock:
-                    sibling_slots = [
-                        sibling
-                        for sibling in runtimes.values()
-                        if sibling is not slot
-                        and sibling.user_id == request.state.user_id
-                    ]
-                for sibling in sibling_slots:
-                    with sibling.lock:
-                        sibling.pipeline.client = apply_account_profile(
-                            sibling.pipeline.client, profile
-                        )
             return {"ok": True, "settings": settings}
+        try:
+            return await run_in_threadpool(update_locked)
         except ValueError as exc:
             return JSONResponse(status_code=400, content={"error": str(exc)})
 
     @app.post("/api/llm/test")
     async def test_llm_connection(request: Request):
-        slot = slot_for(request)
         body = await request.json()
         connection_id = str(body.get("connection_id") or "").strip()
         agent = str(body.get("agent") or "").strip()
 
         def test_locked():
-            with slot.lock:
+            with locked_slot(request) as slot:
                 client = slot.pipeline.client
                 if connection_id and connection_id not in client.connections:
                     raise ValueError("Unknown connection.")
@@ -843,6 +880,7 @@ def create_app(
                         "model": model,
                         "latency_ms": 0,
                         "message": "Offline stub mode is ready.",
+                        "mode": "stub",
                     }
                 started = time.perf_counter()
                 client.chat(
@@ -855,6 +893,7 @@ def create_app(
                     agent=agent or None,
                     connection_id=connection_id or None,
                 )
+                persist_slot(request.state.session_id, slot)
                 return {
                     "ok": True,
                     "connection_id": route_id,
@@ -863,11 +902,11 @@ def create_app(
                     "latency_ms": round((time.perf_counter() - started) * 1000),
                     "usage": dict(client.last_usage),
                     "message": "Connection verified.",
+                    "mode": "api",
                 }
 
         try:
             result = await run_in_threadpool(test_locked)
-            await run_in_threadpool(persist_slot, request.state.session_id, slot)
             return result
         except ValueError as exc:
             return JSONResponse(status_code=400, content={"error": str(exc)})
@@ -889,9 +928,8 @@ def create_app(
         metric: str = "tokens",
         group_by: str = "source",
     ):
-        slot = slot_for(request)
         try:
-            with slot.lock:
+            with locked_slot(request) as slot:
                 return usage_payload(
                     slot.pipeline.client,
                     range_key=range,
@@ -903,11 +941,9 @@ def create_app(
 
     @app.post("/api/reset")
     def reset(request: Request):
-        with runtimes_lock:
-            current = runtimes.get(request.state.session_id)
-            client = current.pipeline.client if current else build_client()
-            slot = new_slot(request.state.user_id, client)
-            runtimes[request.state.session_id] = slot
+        with locked_slot(request) as slot:
+            fresh = new_slot(request.state.user_id, slot.pipeline.client)
+            slot.session, slot.pipeline, slot.team_chat = fresh.session, fresh.pipeline, fresh.team_chat
             persist_slot(request.state.session_id, slot)
         return {"ok": True}
 
@@ -915,10 +951,8 @@ def create_app(
     async def save(request: Request):
         body = await request.json()
         name = (body.get("name") or "autosave").strip() or "autosave"
-        slot = slot_for(request)
-
         def save_locked():
-            with redis_runtime.session_lock(request.state.session_id), slot.lock:
+            with locked_slot(request) as slot:
                 extra = {
                     "team_chat": slot.team_chat.to_dict(),
                     "pipeline": slot.pipeline.memory_payload(),
@@ -965,46 +999,34 @@ def create_app(
             )
         except ValueError:
             return JSONResponse(status_code=400, content={"error": "invalid save path"})
-        team_chat = TeamChatSession.from_dict(extra.get("team_chat"))
-        with runtimes_lock:
-            current = runtimes.get(request.state.session_id)
-            client = current.pipeline.client if current else build_client()
-            usage = extra.get("usage") if isinstance(extra.get("usage"), list) else []
-            client.call_history.clear()
-            client.call_history.extend(call for call in usage if isinstance(call, dict))
-            pipeline = TurnPipeline(session, client)
-            pipeline.restore_memory(extra.get("pipeline"))
-            slot = RuntimeSlot(
-                user_id=request.state.user_id,
-                session=session,
-                pipeline=pipeline,
-                team_chat=team_chat,
-            )
-            runtimes[request.state.session_id] = slot
-            persist_slot(request.state.session_id, slot)
-        return world_payload(session)
+        def load_locked():
+            with locked_slot(request) as slot:
+                # Model usage is an account cost ledger, not rewindable game state.
+                pipeline = TurnPipeline(session, slot.pipeline.client)
+                pipeline.restore_memory(extra.get("pipeline"))
+                slot.session, slot.pipeline = session, pipeline
+                slot.team_chat = TeamChatSession.from_dict(extra.get("team_chat"))
+                persist_slot(request.state.session_id, slot)
+                return world_payload(session)
+        return await run_in_threadpool(load_locked)
 
     @app.get("/api/world")
     def world(request: Request):
-        slot = slot_for(request)
-        with slot.lock:
+        with locked_slot(request) as slot:
             return world_payload(slot.session)
 
     @app.get("/api/agents/chat")
     def agent_chat_history(request: Request):
-        slot = slot_for(request)
-        with slot.lock:
+        with locked_slot(request) as slot:
             return slot.team_chat.payload()
 
     @app.get("/api/conversation")
     def conversation_history(request: Request):
-        slot = slot_for(request)
-        with slot.lock:
+        with locked_slot(request) as slot:
             return {"messages": list(slot.pipeline.transcript)}
 
     @app.post("/api/agents/chat")
     async def agent_chat_post(request: Request):
-        slot = slot_for(request)
         body = await request.json()
         text = str(body.get("text") or "").strip()
         locale = "zh-CN" if body.get("locale") == "zh-CN" else "en"
@@ -1012,7 +1034,7 @@ def create_app(
             return JSONResponse(status_code=400, content={"error": "empty message"})
 
         def discuss_locked():
-            with redis_runtime.session_lock(request.state.session_id), slot.lock:
+            with locked_slot(request) as slot:
                 actor = slot.session.player_id()
                 context = slot.session.visible_summary(actor)
                 view = world_payload(slot.session)
@@ -1034,10 +1056,8 @@ def create_app(
 
     @app.post("/api/agents/tasks/{task_id}/approve")
     async def agent_task_approve(task_id: str, request: Request):
-        slot = slot_for(request)
-
         def approve_locked():
-            with redis_runtime.session_lock(request.state.session_id), slot.lock:
+            with locked_slot(request) as slot:
                 def execute(action_spec: dict):
                     result = slot.session.act(
                         Action(
@@ -1069,21 +1089,15 @@ def create_app(
 
     @app.post("/api/turn")
     async def turn(request: Request):
-        slot = slot_for(request)
         body = await request.json()
         text = (body.get("text") or "").strip()
         locale = "zh-CN" if body.get("locale") == "zh-CN" else "en"
         if not text:
-            with slot.lock:
-                return {
-                    "reply": "Say something.",
-                    "world": world_payload(slot.session),
-                    "events": [],
-                }
+            return JSONResponse(status_code=400, content={"error": "empty text"})
         # Run the LLM pipeline off the event loop so one slow turn never
         # blocks health checks or other sessions.
         def process_locked():
-            with redis_runtime.session_lock(request.state.session_id), slot.lock:
+            with locked_slot(request) as slot:
                 result = slot.pipeline.process(text, locale=locale)
                 current_world = world_payload(slot.session)
                 persist_slot(request.state.session_id, slot)
@@ -1108,23 +1122,64 @@ def create_app(
     @app.post("/api/turn/stream")
     async def turn_stream(request: Request):
         """SSE endpoint: yields text deltas, then a final done event."""
-        slot = slot_for(request)
         body = await request.json()
         text = (body.get("text") or "").strip()
         locale = "zh-CN" if body.get("locale") == "zh-CN" else "en"
         if not text:
             return JSONResponse(status_code=400, content={"error": "empty text"})
 
-        def gen():
+        loop = asyncio.get_running_loop()
+        events = asyncio.Queue(maxsize=64)
+        disconnected = Event()
+
+        def emit(event):
+            if disconnected.is_set():
+                return
+            pending = asyncio.run_coroutine_threadsafe(events.put(event), loop)
+            while not disconnected.is_set():
+                try:
+                    pending.result(timeout=0.5)
+                    return
+                except TimeoutError:
+                    continue
+            pending.cancel()
+
+        def produce():
+            # Keep every RLock acquire/release on ONE worker thread. A sync
+            # StreamingResponse iterator may resume on different pool threads.
             try:
-                with redis_runtime.session_lock(request.state.session_id), slot.lock:
+                with locked_slot(request) as slot:
+                    terminal = None
                     for ev in slot.pipeline.process_stream(
                         text, world_renderer=world_payload, locale=locale
                     ):
-                        yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+                        if ev.get("type") == "done":
+                            terminal = ev
+                            continue
+                        emit(ev)
                     persist_slot(request.state.session_id, slot)
+                    if terminal is not None:
+                        emit(terminal)
             except Exception as exc:  # surface errors to the client
-                yield f"data: {json.dumps({'type': 'error', 'message': str(exc)[:300]}, ensure_ascii=False)}\n\n"
+                emit({'type': 'error', 'message': str(exc)[:300]})
+            finally:
+                emit(None)
+
+        async def gen():
+            producer = asyncio.create_task(run_in_threadpool(produce))
+            stream_tasks.add(producer)
+            producer.add_done_callback(stream_tasks.discard)
+            try:
+                while True:
+                    ev = await events.get()
+                    if ev is None:
+                        break
+                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+                await producer
+            finally:
+                # A disconnected browser stops delivery, not an already-running
+                # world transaction. The worker completes and releases its lock.
+                disconnected.set()
 
         return StreamingResponse(
             gen(),

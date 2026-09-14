@@ -274,3 +274,39 @@
   .evidence-card > p { font-size: 11px; }
   .evidence-source { font-size: 10px; }
 }
+
+/* Match the main game's reading scale on every viewport. */
+.team-bubble, .team-form textarea { font-size: var(--read-body, 16px); line-height: 1.7; }
+.team-message-meta strong, .team-task-title, .team-member-name,
+.case-lead-card strong, .evidence-card > strong { font-size: 14px; }
+.team-message-meta span, .team-message-reply, .team-kind, .team-status,
+.team-member small, .team-boundary, .team-task-kicker, .team-task-foot,
+.team-task-card p, .team-view-tabs button, .team-mentions button,
+.evidence-summary span, .case-readiness p, .evidence-source,
+.evidence-card > p, .case-board-heading, .evidence-card-top,
+.case-lead-card span, .evidence-empty p { font-size: 12px; line-height: 1.6; }
+.team-message-meta span, .team-kind, .team-member small, .team-status { color: #a8b6bd; }
+.team-form button, .team-task-approve { font-size: 13px; min-height: 42px; }
+.team-view-tabs span[data-i18n] { font-size: 13px; background: none; padding: 0; }
+.team-view-tabs #team-board-count { font-size: 12px; }
+@media (min-width: 801px) {
+  .team-panel { right: max(24px, calc((100vw - 1180px) / 2)); }
+}
+@media (min-width: 1100px) {
+  .team-panel:not([data-view="evidence"]) .team-content { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); }
+  .team-panel:not([data-view="evidence"]) .team-evidence-board { display: block; padding: 18px; border-left: 1px solid rgba(255,255,255,.12); background: #08141b; }
+  .team-panel:not([data-view="evidence"]) .case-board-section { grid-template-columns: minmax(0, 1fr); }
+  .team-messages { padding: 24px; }
+  .team-mentions, .team-form { padding-inline: 24px; }
+}
+@media (max-width: 800px) {
+  .team-panel, .team-backdrop { top: 112px; }
+  .team-panel { width: 100%; }
+  .team-panel-head { min-height: 60px; padding: 10px 14px; }
+  .team-members { padding: 8px 14px; }
+  .team-member { min-width: 120px; }
+  .team-boundary { margin: 6px 12px 0; padding: 6px 8px; }
+  .team-boundary strong { float: none; display: block; }
+  .team-messages { padding: 14px; }
+  .team-form { padding: 8px 12px; }
+}

@@ -74,7 +74,7 @@ let dirty = false;
 
 function t(key) { return (TEXT[$("#language").value] || TEXT["zh-CN"])[key] || key; }
 function isZh() { return $("#language").value === "zh-CN"; }
-function esc(value) { const el = document.createElement("div"); el.textContent = String(value ?? ""); return el.innerHTML; }
+function esc(value) { const el = document.createElement("div"); el.textContent = String(value ?? ""); return el.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
 function message(text, state="") { const el = $("#save-message"); el.textContent = text; el.className = state; }
 function markDirty() { dirty = true; message(t("unsaved")); }
 function num(value) { return Number(value || 0).toLocaleString(isZh() ? "zh-CN" : "en-US"); }
@@ -176,7 +176,12 @@ function renderConnections() {
         <div class="field"><label>${t("inputPrice")}</label><input data-field="input_cost_per_million" type="number" min="0" step="0.01" value="${Number(c.input_cost_per_million || 0)}"/></div>
         <div class="field"><label>${t("outputPrice")}</label><input data-field="output_cost_per_million" type="number" min="0" step="0.01" value="${Number(c.output_cost_per_million || 0)}"/></div>
       </div>`;
-    row.querySelectorAll("input:not(:disabled)").forEach(input => input.addEventListener("input", markDirty));
+    row.querySelector('[data-field="api_key"]').value = c.api_key || "";
+    row.querySelectorAll("input:not(:disabled)").forEach(input => input.addEventListener("input", () => {
+      // Drafts live only in memory; never store API secrets in localStorage.
+      c[input.dataset.field] = input.type === "number" ? Number(input.value || 0) : input.value;
+      markDirty();
+    }));
     row.querySelector("[data-test]").addEventListener("click", () => testConnection(id, row));
     row.querySelector("[data-remove]").addEventListener("click", () => removeConnection(id));
     host.appendChild(row);
@@ -191,7 +196,8 @@ function renderRoutes() {
     const connection = settings.connections[selected];
     const group = agent.group === "Investigation team" ? t("investigationTeam") : agent.group === "Game runtime" ? t("gameRuntime") : agent.group;
     const row = document.createElement("tr");
-    row.innerHTML = `<td><span class="agent-name">${esc(agentName(agent.id))}</span><span class="agent-id">${esc(agent.id)}</span></td><td>${esc(group)}</td><td><span class="badge ${agent.active ? "" : "pending"}">${agent.active ? t("active") : t("planned")}</span></td><td><select data-agent="${esc(agent.id)}">${connectionOptions(selected)}</select></td><td data-agent-model>${esc(connection?.model || "—")} <span class="badge ${connection?.credential_source || "personal"}">${sourceName(connection?.credential_source)}</span></td>`;
+    const readiness = !agent.active ? t("planned") : settings.mode === "stub" ? t("offlineStub") : connection?.key_configured ? t("credentialConfigured") : t("noCredential");
+    row.innerHTML = `<td><span class="agent-name">${esc(agentName(agent.id))}</span><span class="agent-id">${esc(agent.id)}</span></td><td>${esc(group)}</td><td><span class="badge ${agent.active ? "" : "pending"}">${readiness}</span></td><td><select data-agent="${esc(agent.id)}">${connectionOptions(selected)}</select></td><td data-agent-model>${esc(connection?.model || "—")} <span class="badge ${connection?.credential_source || "personal"}">${sourceName(connection?.credential_source)}</span></td>`;
     row.querySelector("select").addEventListener("change", event => {
       settings.agent_routes[agent.id] = event.target.value;
       const next = settings.connections[event.target.value];
@@ -271,7 +277,7 @@ function renderUsage() {
   const quota = summary.platform_quota || {};
   const guardrails = summary.platform_guardrails || {};
   $("#metric-calls").textContent = num(summary.calls);
-  $("#metric-success").textContent = `${summary.success_rate ?? 100}% ${t("successRate")}`;
+  $("#metric-success").textContent = summary.calls ? `${summary.success_rate}% ${t("successRate")}` : (isZh() ? "暂无调用数据" : "No calls yet");
   $("#metric-tokens").textContent = num(summary.total_tokens);
   $("#metric-token-detail").textContent = isZh() ? `${num(summary.prompt_tokens)} 输入 / ${num(summary.completion_tokens)} 输出` : `${num(summary.prompt_tokens)} in / ${num(summary.completion_tokens)} out`;
   $("#metric-platform").textContent = num(quota.used);
@@ -394,6 +400,8 @@ async function saveSettings() {
 
 async function testConnection(id, row) {
   if (dirty && !(await saveSettings())) return;
+  row = document.querySelector(`[data-connection="${CSS.escape(id)}"]`);
+  if (!row) return;
   const button = row.querySelector("[data-test]");
   const result = row.querySelector("[data-key-status]");
   button.disabled = true;
@@ -403,9 +411,11 @@ async function testConnection(id, row) {
     const response = await fetch("/api/llm/test", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({connection_id:id})});
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || t("testFailed"));
-    result.textContent = `OK · ${data.latency_ms} ms`;
+    result.textContent = data.mode === "stub"
+      ? ($("#language").value === "zh-CN" ? "离线模拟 · 未连接真实 API" : "Offline simulation · no API request")
+      : `OK · ${data.latency_ms} ms`;
     result.className = "test-result ok";
-    await loadSettings();
+    await loadUsage();
   } catch (error) {
     result.textContent = error.message;
     result.className = "test-result bad";

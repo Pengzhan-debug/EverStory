@@ -293,7 +293,7 @@ body.lighthouse-lit #beam-sweep {
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(0, 0, 0, 0.35);
   color: #cfd7d8;
-  font: 500 10px var(--sans);
+  font: 500 12px var(--sans);
   letter-spacing: 2px;
   padding: 9px 16px;
   border-radius: 3px;
@@ -651,8 +651,8 @@ body.truth-open .inspector { transform: translateX(0); }
 }
 .map-current small,
 .map-current strong { display: block; }
-.map-current small { color: #64757b; font: 7px var(--mono); letter-spacing: 1.2px; }
-.map-current strong { margin-top: 4px; color: #e2ddd1; font: 500 11px var(--display); }
+.map-current small { color: #7f9298; font: 12px var(--mono); letter-spacing: .5px; }
+.map-current strong { margin-top: 4px; color: #e2ddd1; font: 500 14px var(--display); }
 .map-route-line {
   width: 1px;
   height: 12px;
@@ -679,12 +679,12 @@ body.truth-open .inspector { transform: translateX(0); }
   background: rgba(8,26,33,.8);
   outline: none;
 }
-.route-direction { color: #5e747a; font: 7px var(--mono); letter-spacing: 1px; }
-.route-card strong { font: 500 9px var(--display); }
+.route-direction { color: #7f9298; font: 12px var(--mono); letter-spacing: .5px; }
+.route-card strong { font: 500 13px var(--display); }
 .route-arrow { color: var(--sea); text-align: right; }
 .known-locations {
   color: #718084;
-  font-size: 9px;
+  font-size: 12px;
   border-top: 1px solid rgba(255,255,255,.06);
   padding-top: 9px;
 }
@@ -1429,49 +1429,120 @@ body.truth-open .truth-backdrop { visibility: visible; opacity: 1; }
 .account-panel.open { opacity: 1; visibility: visible; transform: none; }
 .account-panel-head, .account-identity, .account-section-head, .account-session, .account-investigation { display: flex; align-items: center; }
 .account-panel-head { justify-content: space-between; padding-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, .09); }
-.account-kicker { color: var(--gold); font: 600 8px var(--mono); letter-spacing: 2px; }
+.account-kicker { color: var(--gold); font: 600 10px var(--mono); letter-spacing: 2px; }
 .account-panel h2 { margin: 5px 0 0; color: #ebe6da; font: 600 19px var(--display); }
 .account-panel-head button { width: 34px; height: 34px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 50%; color: #aeb9bb; background: transparent; cursor: pointer; }
-.account-status { min-height: 20px; margin: 13px 0; color: var(--sea); font: 10px/1.5 var(--mono); }
+.account-status { min-height: 20px; margin: 13px 0; color: var(--sea); font: 12px/1.6 var(--mono); }
 .account-status.error { color: #ee8e8e; }
-.account-copy { color: #97a5a8; font-size: 12px; line-height: 1.7; }
+.account-copy { color: #a8b6bd; font-size: 13px; line-height: 1.7; }
 .account-form[hidden], #account-guest-view[hidden], #account-user-view[hidden] { display: none !important; }
 .account-form { display: grid; gap: 11px; margin-top: 14px; }
-.account-form label { display: grid; gap: 7px; color: #aab5b7; font-size: 10px; }
-.account-form input { width: 100%; padding: 12px 13px; border: 1px solid rgba(255, 255, 255, .13); border-radius: 6px; outline: none; color: #f1eee6; background: rgba(0, 0, 0, .28); font: 12px var(--mono); }
+.account-form label { display: grid; gap: 7px; color: #b6c1c3; font-size: 12px; }
+.account-form input { width: 100%; padding: 12px 13px; border: 1px solid rgba(255, 255, 255, .13); border-radius: 6px; outline: none; color: #f1eee6; background: rgba(0, 0, 0, .28); font: 14px var(--mono); }
 .account-form input:focus { border-color: rgba(228, 182, 93, .58); }
-.account-form button, .account-section-head button, .account-session button, .account-investigation button, .account-danger { border: 1px solid rgba(228, 182, 93, .32); border-radius: 6px; padding: 10px 13px; color: #efe5cf; background: rgba(228, 182, 93, .1); font: 600 10px var(--sans); cursor: pointer; }
+.account-form button, .account-section-head button, .account-session button, .account-investigation button, .account-danger { border: 1px solid rgba(228, 182, 93, .32); border-radius: 6px; padding: 10px 13px; color: #efe5cf; background: rgba(228, 182, 93, .1); font: 600 12px var(--sans); cursor: pointer; }
 .account-form button:hover { background: rgba(228, 182, 93, .2); }
 .account-form button:disabled { opacity: .5; cursor: wait; }
 .account-identity { gap: 12px; margin: 8px 0 17px; }
 .account-identity > div { display: grid; gap: 4px; }
 .account-identity strong { color: #eee9df; font: 600 14px var(--display); }
-.account-identity small { color: #829194; font: 9px var(--mono); }
+.account-identity small { color: #93a3a7; font: 12px var(--mono); }
 .account-avatar { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid rgba(82, 213, 155, .35); border-radius: 50%; color: var(--ok); background: rgba(82, 213, 155, .08); font: 700 9px var(--mono); }
-.account-section-head { justify-content: space-between; margin: 19px 0 9px; color: #c8d0ce; font-size: 10px; }
+.account-section-head { justify-content: space-between; margin: 19px 0 9px; color: #c8d0ce; font-size: 12px; }
 .account-section-head button { padding: 5px 9px; border-color: rgba(255,255,255,.12); background: transparent; }
-.account-sessions { display: grid; gap: 7px; color: #78878a; font-size: 10px; }
+.account-sessions { display: grid; gap: 7px; color: #91a0a4; font-size: 12px; }
 .account-session { justify-content: space-between; gap: 12px; padding: 11px; border: 1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.16); }
 .account-session > div { display: grid; gap: 4px; }
-.account-session strong { color: #cdd5d3; font-size: 10px; }
-.account-session small { color: #6e7e82; font: 8px var(--mono); }
+.account-session strong { color: #cdd5d3; font-size: 13px; }
+.account-session small { color: #829398; font: 11px var(--mono); }
 .account-session button { padding: 6px 9px; border-color: rgba(238,142,142,.25); color: #e7aaaa; background: transparent; }
 .account-investigations { display: grid; gap: 8px; }
 .account-investigation { justify-content: space-between; gap: 14px; padding: 13px; border: 1px solid rgba(228,182,93,.12); border-radius: 7px; background: linear-gradient(120deg, rgba(228,182,93,.055), rgba(0,0,0,.16)); }
 .account-investigation.is-current { border-color: rgba(82,213,155,.3); background: linear-gradient(120deg, rgba(82,213,155,.08), rgba(0,0,0,.14)); }
 .account-investigation > div { min-width: 0; display: grid; gap: 5px; }
-.account-investigation strong { overflow: hidden; color: #e5dfd3; font: 600 11px var(--display); text-overflow: ellipsis; white-space: nowrap; }
-.account-investigation small { color: #8f9da0; font: 9px/1.45 var(--sans); }
-.account-investigation code { color: #58696d; font: 8px var(--mono); }
+.account-investigation strong { overflow: hidden; color: #e5dfd3; font: 600 13px var(--display); text-overflow: ellipsis; white-space: nowrap; }
+.account-investigation small { color: #9ba9ac; font: 12px/1.5 var(--sans); }
+.account-investigation code { color: #7b8c91; font: 11px var(--mono); }
 .account-investigation button { flex: none; padding: 7px 10px; }
 .account-investigation button:disabled { opacity: .5; cursor: wait; }
-.account-current { color: var(--ok); font: 8px var(--mono); letter-spacing: 1px; }
+.account-current { color: var(--ok); font: 11px var(--mono); letter-spacing: .5px; }
 .account-danger { width: 100%; margin-top: 18px; border-color: rgba(238,142,142,.28); color: #e9aaaa; background: rgba(150,45,45,.08); }
-.account-admin { display: block; margin-top: 18px; border: 1px solid rgba(88,195,204,.34); border-radius: 6px; padding: 10px 13px; color: #bce9ec; background: rgba(88,195,204,.08); text-align: center; text-decoration: none; font: 600 10px var(--sans); letter-spacing: .04em; }
+.account-admin { display: block; margin-top: 18px; border: 1px solid rgba(88,195,204,.34); border-radius: 6px; padding: 10px 13px; color: #bce9ec; background: rgba(88,195,204,.08); text-align: center; text-decoration: none; font: 600 12px var(--sans); letter-spacing: .04em; }
 .account-admin[hidden] { display: none !important; }
 .account-admin + .account-danger { margin-top: 9px; }
 
 @media (max-width: 800px) {
   .controls #account-btn { display: inline-flex; }
   .account-panel { top: 70px; right: 16px; }
+}
+
+/* Shared reading scale: narrative first, metadata second. */
+:root { --read-body: 16px; --read-label: 13px; --read-meta: 12px; --read-muted: #a8b6bd; }
+.topbar { gap: 20px; }
+.topbar .brand { flex-shrink: 0; }
+.topbar .world-status { position: static; transform: none; margin-left: auto; white-space: nowrap; font-size: var(--read-meta); letter-spacing: .6px; }
+.topbar .controls { min-width: 0; gap: 6px; }
+.topbar .btn-ghost, .topbar .language-switch { font-size: var(--read-meta); min-height: 36px; }
+#messages .msg:not(:last-child) { opacity: 1; }
+#messages .msg.system .sys-pill { max-width: min(760px, 100%); font-size: 14px; line-height: 1.65; }
+.assistant-content { min-width: 0; }
+.assistant-speaker { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 10px; height: auto; min-height: 29px; padding: 4px 10px; background: rgba(3,10,15,.9); }
+.assistant-speaker strong { font: 600 14px/1.5 var(--sans); }
+.assistant-speaker span { font: 12px/1.5 var(--sans); color: var(--read-muted); }
+#messages .msg.user .bubble, #messages .msg.assistant .bubble { font-size: var(--read-body) !important; line-height: 1.75; }
+.input-bar #input { font-size: var(--read-body) !important; }
+.input-hint, .story-prompt, .chat-panel .hud-line, .chat-panel .weather { font-size: var(--read-meta); color: var(--read-muted); }
+.case-objective span, .scene-presence::before { font-size: var(--read-meta); }
+.presence-card strong { font-size: var(--read-label); }
+.presence-card small { font-size: var(--read-label); line-height: 1.5; -webkit-line-clamp: 2; }
+.action-choice { font-size: var(--read-label); }
+body.truth-open .card h3 { font-size: var(--read-label); }
+body.truth-open .facts, body.truth-open .player-loc, body.truth-open .entity-name,
+body.truth-open .quest-title, body.truth-open .log-entry { font-size: 14px; line-height: 1.65; }
+body.truth-open .muted, body.truth-open .label, body.truth-open .stat-label,
+body.truth-open .entity-meta, body.truth-open .quest-desc, body.truth-open .map-hint { font-size: var(--read-meta); color: var(--read-muted); }
+button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+@media (min-width: 801px) {
+  body.truth-open .inspector { right: max(24px, calc((100vw - 1180px) / 2)); }
+  body.truth-open .card { align-self: start; }
+}
+@media (max-width: 1200px) {
+  .topbar .world-status { display: none; }
+}
+@media (max-width: 800px) {
+  .topbar { height: 112px; padding: 8px 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .topbar .brand { height: 40px; }
+  .topbar .controls { margin: 0; width: 100%; justify-content: flex-start; gap: 5px; }
+  .topbar .controls .btn-ghost, .topbar .controls .language-switch { flex: 1 1 0; min-width: 0; width: auto; height: 42px; padding: 0 5px; font-size: 12px; white-space: nowrap; justify-content: center; }
+  .topbar .controls #inventory-btn::before, .topbar .controls #debug-btn::before,
+  .topbar .controls #settings-btn::before, .topbar .controls #team-btn::before { display: none; }
+  .topbar .controls #journal-btn, .topbar .controls #mode-chip { display: none; }
+  .topbar .controls #inventory-btn, .topbar .controls #debug-btn,
+  .topbar .controls #settings-btn, .topbar .controls #team-btn { font-size: 12px; min-height: 42px; }
+  .game-shell { height: calc(100dvh - 112px); min-height: 0; }
+  .game-shell .chat-panel {
+    min-height: 0; height: 100%; display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    gap: 10px; padding-bottom: 22px;
+  }
+  .chat-panel .top-left { position: relative; top: auto; left: auto; grid-row: 1; margin: 54px 16px 0; }
+  .chat-panel .scene-location { display: none; }
+  .chat-panel .case-objective { position: relative; top: auto; left: auto; width: auto; grid-row: 2; margin: 0 16px; }
+  .chat-panel #messages { position: relative; top: auto; bottom: auto; left: auto; right: auto; grid-row: 3; margin: 0 16px; width: auto; min-height: 0; max-height: none; }
+  .chat-panel .action-suggestions { position: relative; bottom: auto; left: auto; right: auto; grid-row: 4; margin: 0 16px; }
+  .chat-panel .input-bar { position: relative; bottom: auto; left: auto; right: auto; grid-row: 5; margin: 0 16px; width: auto; }
+  .chat-panel .story-prompt { display: none; }
+  .topbar .controls .btn-ghost { align-items: center; }
+  .inspector, .inspector::before, .truth-backdrop { top: 112px; }
+  .account-panel { top: 120px; }
+  .presence-card small { font-size: 13px; }
+  .input-hint { font-size: 12px; letter-spacing: 0; }
+}
+@media (max-width: 560px) {
+  html[lang="en"] .topbar .controls #inventory-btn,
+  html[lang="en"] .topbar .controls #debug-btn { font-size: 0; }
+  html[lang="en"] .topbar .controls #inventory-btn::before,
+  html[lang="en"] .topbar .controls #debug-btn::before { display: grid; font-size: 12px; }
+  html[lang="en"] .topbar .controls #inventory-btn::before { content: "Bag"; }
+  html[lang="en"] .topbar .controls #debug-btn::before { content: "World"; }
 }

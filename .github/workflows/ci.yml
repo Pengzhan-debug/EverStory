@@ -26,3 +26,38 @@ jobs:
       - name: Verify multi-agent investigation benchmark
         if: matrix.python-version == '3.12'
         run: python -m everstory.eval --mode stub --team-only --out /tmp/everstory-team-eval.md
+
+  infrastructure:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: everstory_test
+          POSTGRES_PASSWORD: disposable-ci-password
+          POSTGRES_DB: everstory_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U everstory_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      LLM_MODE: stub
+      TEST_DATABASE_URL: postgresql+psycopg://everstory_test:disposable-ci-password@127.0.0.1:5432/everstory_test
+      TEST_REDIS_URL: redis://127.0.0.1:6379/15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e ".[web,production]"
+      - name: Migrate disposable test database
+        run: DATABASE_URL="$TEST_DATABASE_URL" python -m alembic upgrade head
+      - name: Exercise PostgreSQL CAS and independent Redis clients
+        run: python -m unittest tests.test_infrastructure -v

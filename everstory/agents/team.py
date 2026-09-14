@@ -245,7 +245,7 @@ class TeamChatSession:
                     action = {"type": "talk", "params": {"target": target["id"]}}
                     task_type = "interview"
             if action is None and any(word in lowered for word in ("examine", "inspect", "check", "检查", "查看", "检视")):
-                target = self._mentioned_target(player_text, scene["items"])
+                target = self._mentioned_target(player_text, scene["items"] + world_view.get("player", {}).get("inventory_items", []))
                 if target:
                     action = {"type": "examine", "params": {"target": target["id"]}}
                     task_type = "examine"
@@ -322,7 +322,7 @@ class TeamChatSession:
         allowed = {
             "move": {item["id"] for item in scene["exits"]},
             "talk": {item["id"] for item in scene["characters"]},
-            "examine": {item["id"] for item in scene["items"]},
+            "examine": {item["id"] for item in scene["items"] + world_view.get("player", {}).get("inventory_items", [])},
             "accuse": {item["id"] for item in scene["characters"]},
         }
         action_type = action.get("type")
