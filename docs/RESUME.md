@@ -32,17 +32,19 @@
 
 ## 软件测试 / AI 测试投递版本
 
-**EverStory｜多智能体 AI 应用自动化测试与评测**
+**EverStory｜多智能体 AI 调查游戏与可验证世界引擎**
 
-**技术栈：Python、pytest、Requests/HTTPX、Playwright、Allure、Locust、FastAPI/SSE、PostgreSQL、Redis、GitHub Actions**
+**技术栈：** Python、FastAPI、SSE、Multi-Agent、PostgreSQL、Redis、SQLAlchemy、Docker Compose
 
-- 基于等价类、边界值与场景法新增 63 项 pytest 参数化接口用例，覆盖非法输入、CSRF、会话隔离、重复审批、限流与异常恢复；通过 Mock 故障注入定位并修复 3 类接口问题。
-- 使用 Requests Session 验证真实 HTTP 服务的 Cookie、CSRF、JSON、SSE 完成事件及存档隔离，6 项用例全部通过；比对完成事件与持久化状态，验证响应和数据一致性。
-- 使用 Playwright + Page Object 编写行动、审批、存取档、刷新恢复及网络失败重试等 10 个页面流程，全部通过；集成 Allure，保留截图、SSE 附件及失败 trace。
-- 使用 Locust 开展 5/15/30 用户负载与 120 秒短时持续测试；本地 Stub / SQLite 环境 CSV 记录 8,537 次请求、0 次失败，30 用户 P95 为 1.0–1.2 秒；逐会话校验回合与状态哈希。
-- 围绕“LLM 提案、状态机裁决”设计 Agent 评测，校验审批前越权修改、提案正确性、过期任务拒绝与证据来源；离线基准完成 8/8 任务审批，未授权世界修改为 0。
-- 复算 23 个角色—模型组合的 69 份历史输出，评分与归档记录一致；所选路由在原有 3 个固定案例上平均得分 98.8%，结合 Token、延迟、成本与错误率分析模型质量。
-- 集成 GitHub Actions 自动回归与报告归档，离线回归 222 项、HTTP / 页面流程 16 项通过；CI 验证 PostgreSQL / Redis 集成用例，并覆盖 Python 3.11 / 3.12。
+**测试工具：** pytest、Requests/HTTPX、Playwright、Allure、Locust、GitHub Actions
+
+- 独立开发多智能体 AI 调查游戏，支持自然语言行动、团队讨论与证据推理；采用“LLM 提案、状态机裁决”架构，将位置、物品、任务与证据存入结构化状态图，约束模型幻觉与越权写入。
+- 构建案件主管、现场调查员、分析师、质疑者等 8 类角色，支持点名回复、相互质疑、结构化任务提案与玩家审批；为证据关联来源、任务和回合，支持过期任务拒绝与案件追溯。
+- 基于 FastAPI + SSE 实现流式交互与中英文界面，按角色接入多模型路由；提供 Token、延迟、成本、错误率与熔断状态诊断，支持模型配置和质量问题定位。
+- 基于 PostgreSQL / SQLAlchemy 持久化世界、调查记忆、存档及幂等用量账本，结合 Redis 实现会话 TTL、接口限流与跨进程锁；使用 Alembic 管理迁移，Docker Compose 编排部署。
+- 实现游客与账号运行档隔离、邮箱验证码登录及设备会话管理；使用 AES-256-GCM 信封加密与账号绑定 AAD 保存 BYOK 凭据，避免明文密钥进入运行态及前端响应。
+- 使用 pytest + Requests/HTTPX 构建接口回归，新增 63 项参数化用例并修复 3 类问题；结合 Playwright + Allure 验证 10 个页面流程，覆盖审批、存取档、会话隔离与异常恢复，接入 GitHub Actions。
+- 使用 Locust 验证并发下的回合与状态一致性，本地 Stub/SQLite 环境 7 轮 CSV 记录 8,537 次请求、0 次失败；结合固定案例检查 Agent 提案、权限与证据来源，并复核历史模型评分。
 
 ### 技能栏表述
 
@@ -54,7 +56,9 @@
 - **AI 测试与模型评估：**了解 LLM / Agent、RAG 与工具调用链路，围绕事实一致性、证据溯源和任务拒绝设计评测；具备 PyTorch、消融实验与跨数据集评测经验，分析准确率、AUROC 等指标。
 - **编程与协作工具：**熟悉 Python、C，具备 FastAPI、Node.js、JavaScript 项目经验；使用 VS Code、PyCharm 及 AI 编程工具辅助脚本开发、调试、问题排查与重构。
 
-### 测试数字与证据
+<details>
+<summary>测试补充材料与证据</summary>
+
 
 | 简历数字 | 统计范围 | 证据 |
 | --- | --- | --- |
@@ -66,6 +70,8 @@
 | 222 项、16 项 | 回归通过数与 HTTP/页面通过数分别统计；本地另有 3 项基础设施用例跳过，由 CI 使用真实 PostgreSQL/Redis 验证 | [CI 配置](../.github/workflows/ci.yml) |
 
 性能数据仅作为本机 Stub/SQLite 基线；120 秒为短时持续测试。窄视口用例验证交互可用性，尚未完成真实手机或全部浏览器的兼容性测试。复现命令、Allure 查看方式与面试说明见[系统测试实验](../reports/system-qa/测试技术栈与实验.md)。
+
+</details>
 
 本段与测试岗 Word 简历的技能及项目措辞保持一致。公开仓库仅包含项目文案与实验结果。投递前应自行复现关键用例并能够解释断言和指标。
 
