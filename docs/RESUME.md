@@ -49,9 +49,10 @@
 ### 技能栏表述
 
 - **测试基础与用例设计：**了解软件测试流程、功能测试与回归测试；能够按正常、异常和边界场景拆分需求，使用等价类、边界值与场景法设计用例，跟进缺陷复现、定位和回归。
+- **计算机网络基础：**了解 TCP/IP、HTTP/HTTPS、DNS，能够分析请求与响应、常见状态码及 Cookie/Session 机制。
 - **接口自动化测试：**使用 Python、pytest、Requests / HTTPX 编写接口用例，结合 fixture、参数化与 Mock 验证 RESTful API、Cookie / CSRF、SSE 流式响应、会话隔离及异常恢复。
 - **Web 与性能测试：**使用 Playwright + Page Object 编写页面流程测试，结合 Allure 输出截图与结果；使用 Locust 设计并发负载，分析 P95、吞吐量、失败率及业务状态一致性。
-- **SQL 与数据校验：**了解 PostgreSQL、Redis，能够使用 SQL 完成常用数据增删改查；结合会话状态、业务数据持久化经验，核对写入结果，关注幂等、会话过期与接口限流。
+- **数据库基础：**能够使用 SQL 完成常用查询和数据核对，了解 PostgreSQL、Redis。
 - **环境部署与问题定位：**熟悉 Linux、Git、Docker / Docker Compose，具备服务部署、日志检查和问题复现经验；使用 GitHub Actions 执行自动化回归与报告归档。
 - **AI 测试与模型评估：**了解 LLM / Agent、RAG 与工具调用链路，围绕事实一致性、证据溯源和任务拒绝设计评测；具备 PyTorch、消融实验与跨数据集评测经验，分析准确率、AUROC 等指标。
 - **编程与协作工具：**熟悉 Python、C，具备 FastAPI、Node.js、JavaScript 项目经验；使用 VS Code、PyCharm 及 AI 编程工具辅助脚本开发、调试、问题排查与重构。
