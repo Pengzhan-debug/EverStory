@@ -375,6 +375,10 @@ EverStory takes a different approach:
 
 The immersive UI is therefore more than decoration. It is a visualization layer for a persistent, state-consistent AI world: the player sees the story, while the inspector can reveal the exact entities, transitions, quests and events that made the story possible.
 
+## System QA
+
+Six real HTTP checks using Requests and ten Playwright browser journeys pass locally, with Allure evidence. Locust adds repeated 5/15/30-user load tests and a short sustained run. See [methods, measured limits and reproduction commands](reports/system-qa/测试技术栈与实验.md). Install the optional tools with `pip install -e ".[web,test,qa]"`.
+
 ## 📜 License
 
 MIT

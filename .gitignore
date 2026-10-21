@@ -20,3 +20,6 @@ reports/autumn-qa/coverage.json
 reports/autumn-qa/*.xml
 reports/autumn-qa/*.log
 reports/autumn-qa/environment-freeze.txt
+reports/system-qa/artifacts/
+qa/node_modules/
+test-results/

@@ -246,6 +246,10 @@ docs/              架构文档、演示脚本、评测报告
 见 [docs/DEMO.md](docs/DEMO.md) —— 90 秒演示脚本 + 高频追问回答；简历项目描述见
 [docs/RESUME.md](docs/RESUME.md)，公开演示部署步骤见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
 
+## 系统测试技术栈
+
+新增 Requests 真实 HTTP 用例 6 项、Playwright 页面流程 10 项，全部通过，并生成 Allure 报告。Locust 覆盖 5/15/30 用户分级负载及短时持续测试；实测数据、复现命令和简历措辞见[系统测试实验](reports/system-qa/测试技术栈与实验.md)。
+
 ## License
 
 MIT

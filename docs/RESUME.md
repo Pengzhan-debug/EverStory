@@ -23,11 +23,34 @@
   设备会话撤销；验证码以服务端密钥 HMAC 保存，并按 IP/邮箱实施 Redis 限频。
 - 为注册账号实现 AES-256-GCM 信封加密 BYOK：每次写入使用随机 data key，账号 ID
   绑定 AAD，主密钥按版本轮换；密钥不进入运行态 JSON、Redis、用量账本和前端响应。
-- 建立 133 项离线自动化测试与可断点恢复的真实模型评测；覆盖 8 类角色、23 个
-  角色—模型组合、6 条跨智能体交换链和 3 个完整案件，推荐路由平均分 98.8%，
-  信息传递、来源保留、污染拒绝、证据落地与完整破案均为 100%。
+- 建立 pytest 参数化接口回归与故障注入测试，离线回归本地 222 项通过；补充
+  Requests 真实 HTTP 用例 6 项、Playwright 浏览器流程 10 项及 Allure 报告。
+- 复核 8 类角色、23 个角色—模型组合的历史原始输出；所选路由在原有 3 个固定
+  案例上的平均分为 98.8%。该分数来自同一评测集上的路由选择，尚未验证独立测试集泛化。
 
 如简历空间较小，保留前 3 条；如果投递 AI 应用工程师，优先保留第 1、2、4 条。
+
+## 软件测试 / AI 测试投递版本
+
+**技术栈：** Python、pytest、Requests、HTTPX、Playwright、Allure、Locust、GitHub Actions。
+
+- 基于等价类与边界值设计 63 项 pytest 接口用例，覆盖非法输入、CSRF、会话隔离、
+  重复审批、限流、模型超时与持久化冲突；通过 Mock 故障注入定位并修复 3 类接口问题。
+- 使用 Requests Session 对真实本地 HTTP 服务验证 Cookie、CSRF、JSON 请求、
+  SSE 完成事件及存档隔离；使用 Playwright Page Object 验证行动、审批、存取档、
+  刷新恢复、语言切换、网络失败恢复等 10 个页面流程，生成含截图的 Allure 报告。
+- 使用 Locust 设计 5/15/30 用户分级负载和 15 用户短时持续测试，分析吞吐量、
+  P95、失败率，并校验各会话的回合数和状态哈希；具体实测值与环境边界见
+  [系统测试实验](../reports/system-qa/测试技术栈与实验.md)。
+- 对 AI Agent 检查提案正确性、审批前越权修改、过期任务拒绝、证据来源和案件完成情况；
+  对模型历史输出重新评分，区分规则指标、固定案例结果与独立测试集泛化。
+
+**技能栏可裁剪为：** 能够使用 pytest + Requests/HTTPX 编写接口自动化用例，运用
+fixture、参数化、Mock 和边界值设计验证异常处理及状态一致性；使用 Playwright 编写
+页面流程测试，使用 Allure 生成报告，使用 Locust 进行并发负载测试并分析 P95、吞吐量
+与失败率；了解基于固定样本和规则断言的 AI Agent 评测流程。
+
+以上是项目已经实现的能力范围；投递前应自行复现并能够讲解关键用例及断言。
 
 ## 一句话介绍
 
@@ -47,7 +70,7 @@
 2. 打开联合调查室，让一个智能体提出任务、另一个智能体质疑。
 3. 玩家批准检查，展示只有引擎确认的事实才进入证据板。
 4. 打开模型控制台，展示不同角色的路由和 Token/延迟统计。
-5. 用架构图解释权威状态边界，再展示 133 项测试和真实模型评测报告。
+5. 用架构图解释权威状态边界，再展示 pytest、系统测试报告与历史模型评测范围。
 
 ## English version
 
@@ -72,10 +95,10 @@
   CSRF, device revocation, HMAC-protected challenges, and scoped Redis limits.
 - Added account-scoped BYOK persistence with random data keys, AES-256-GCM
   envelope encryption, account-bound AAD, and versioned master-key rotation.
-- Created 133 offline tests and a checkpointed live-model benchmark covering
-  23 role/model combinations, six cross-agent exchange chains, and three full
-  cases; selected routes averaged 98.8% with 100% transfer, provenance,
-  poison rejection, evidence grounding, and completion.
+- Added parametrized pytest contracts and fault injection (222 local regression
+  passes), plus six real HTTP and ten browser journeys with Allure reporting.
+  Rescored archived outputs for 23 role/model combinations; selected routes
+  averaged 98.8% on the same three fixed cases, without held-out validation.
 
 ## 诚实的项目边界
 
