@@ -48,14 +48,14 @@
 
 ### 技能栏表述
 
-- **测试基础与用例设计：**了解软件测试流程、功能测试与回归测试；能够按正常、异常和边界场景拆分需求，使用等价类、边界值与场景法设计用例，跟进缺陷复现、定位和回归。
+- **测试基础与用例设计：**能够使用等价类、边界值和场景法设计用例，开展功能与回归测试，完成缺陷记录、复现和跟踪。
 - **计算机网络基础：**了解 TCP/IP、HTTP/HTTPS、DNS，能够分析请求与响应、常见状态码及 Cookie/Session 机制。
-- **接口自动化测试：**使用 Python、pytest、Requests / HTTPX 编写接口用例，结合 fixture、参数化与 Mock 验证 RESTful API、Cookie / CSRF、SSE 流式响应、会话隔离及异常恢复。
-- **Web 与性能测试：**使用 Playwright + Page Object 编写页面流程测试，结合 Allure 输出截图与结果；使用 Locust 设计并发负载，分析 P95、吞吐量、失败率及业务状态一致性。
-- **数据库基础：**能够使用 SQL 完成常用查询和数据核对，了解 PostgreSQL、Redis。
-- **环境部署与问题定位：**熟悉 Linux、Git、Docker / Docker Compose，具备服务部署、日志检查和问题复现经验；使用 GitHub Actions 执行自动化回归与报告归档。
-- **AI 测试与模型评估：**了解 LLM / Agent、RAG 与工具调用链路，围绕事实一致性、证据溯源和任务拒绝设计评测；具备 PyTorch、消融实验与跨数据集评测经验，分析准确率、AUROC 等指标。
-- **编程与协作工具：**熟悉 Python、C，具备 FastAPI、Node.js、JavaScript 项目经验；使用 VS Code、PyCharm 及 AI 编程工具辅助脚本开发、调试、问题排查与重构。
+- **接口自动化测试：**能够使用 Python、pytest、Requests/HTTPX 编写接口自动化脚本，结合 fixture、参数化和 Mock 组织用例，完成请求发送、响应断言和异常场景测试。
+- **Web 与性能测试：**能够使用 Playwright 编写 Web 自动化测试，使用 Allure 生成测试报告；使用 Locust 进行并发测试，分析响应时间、吞吐量和错误率。
+- **数据库基础：**能够使用 SQL 完成常用查询和数据核对，了解 PostgreSQL、Redis 的基础使用。
+- **环境部署与问题定位：**能够使用 Linux 查看日志和检查服务，使用 Git 管理代码、Docker Compose 搭建测试环境，并通过 GitHub Actions 执行自动化测试。
+- **AI 应用与模型测试：**能够围绕 LLM/Agent、RAG 和工具调用编写测试与评测脚本，整理测试数据、分析输出结果；使用 PyTorch 完成模型训练、调试和指标评估。
+- **编程与开发工具：**熟悉 Python、C，能够使用 FastAPI、Node.js、JavaScript 开发接口和自动化脚本，并使用 VS Code、PyCharm 及 AI 编程工具完成编码与调试。
 
 <details>
 <summary>测试补充材料与证据</summary>
