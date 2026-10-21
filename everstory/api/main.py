@@ -64,6 +64,25 @@ CSRF_TOKEN_RE = re.compile(r"^[a-f0-9]{64}$")
 MAX_RUNTIME_SESSIONS = 128
 
 
+class InvalidTextRequest(ValueError):
+    """A client supplied malformed JSON or a missing/non-string text field."""
+
+
+async def read_text_request(request: Request) -> tuple[str, str]:
+    """Reject malformed payloads before starting a mutable world transaction."""
+    try:
+        body = await request.json()
+    except (ValueError, UnicodeError) as exc:
+        raise InvalidTextRequest("Request body must be valid JSON.") from exc
+    if not isinstance(body, dict):
+        raise InvalidTextRequest("Request body must be a JSON object.")
+    text = body.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise InvalidTextRequest("text must be a non-empty string.")
+    locale = "zh-CN" if body.get("locale") == "zh-CN" else "en"
+    return text.strip(), locale
+
+
 def configured_admin_emails() -> set[str]:
     return {
         email.strip().lower()
@@ -249,6 +268,10 @@ def create_app(
     runtimes: dict[str, RuntimeSlot] = {}
     runtimes_lock = RLock()
     stream_tasks: set[asyncio.Task] = set()
+
+    @app.exception_handler(InvalidTextRequest)
+    async def invalid_text_request_handler(request: Request, exc):
+        return JSONResponse(status_code=400, content={"error": str(exc)})
 
     @app.exception_handler(RuntimeConflict)
     async def runtime_conflict_handler(request: Request, exc):
@@ -1027,11 +1050,7 @@ def create_app(
 
     @app.post("/api/agents/chat")
     async def agent_chat_post(request: Request):
-        body = await request.json()
-        text = str(body.get("text") or "").strip()
-        locale = "zh-CN" if body.get("locale") == "zh-CN" else "en"
-        if not text:
-            return JSONResponse(status_code=400, content={"error": "empty message"})
+        text, locale = await read_text_request(request)
 
         def discuss_locked():
             with locked_slot(request) as slot:
@@ -1089,11 +1108,7 @@ def create_app(
 
     @app.post("/api/turn")
     async def turn(request: Request):
-        body = await request.json()
-        text = (body.get("text") or "").strip()
-        locale = "zh-CN" if body.get("locale") == "zh-CN" else "en"
-        if not text:
-            return JSONResponse(status_code=400, content={"error": "empty text"})
+        text, locale = await read_text_request(request)
         # Run the LLM pipeline off the event loop so one slow turn never
         # blocks health checks or other sessions.
         def process_locked():
@@ -1103,7 +1118,13 @@ def create_app(
                 persist_slot(request.state.session_id, slot)
                 return result, current_world
 
-        result, current_world = await run_in_threadpool(process_locked)
+        try:
+            result, current_world = await run_in_threadpool(process_locked)
+        except TimeoutError:
+            return JSONResponse(
+                status_code=502,
+                content={"error": "Model response timed out. Please retry.", "code": "model_timeout"},
+            )
         return {
             "reply": result.narration,
             "turn": result.turn,
@@ -1122,11 +1143,7 @@ def create_app(
     @app.post("/api/turn/stream")
     async def turn_stream(request: Request):
         """SSE endpoint: yields text deltas, then a final done event."""
-        body = await request.json()
-        text = (body.get("text") or "").strip()
-        locale = "zh-CN" if body.get("locale") == "zh-CN" else "en"
-        if not text:
-            return JSONResponse(status_code=400, content={"error": "empty text"})
+        text, locale = await read_text_request(request)
 
         loop = asyncio.get_running_loop()
         events = asyncio.Queue(maxsize=64)

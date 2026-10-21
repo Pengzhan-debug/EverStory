@@ -6,6 +6,34 @@ on:
   pull_request:
 
 jobs:
+  system:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: qa/package-lock.json
+      - run: python -m pip install -e ".[web,test,qa]"
+      - run: python -m playwright install --with-deps chromium
+      - name: Exercise real HTTP and browser journeys
+        run: python scripts/run_system_qa.py --skip-load --out reports/system-qa/artifacts/verified
+      - name: Generate Allure report
+        if: always()
+        run: |
+          npm ci --prefix qa
+          node qa/node_modules/allure/cli.js awesome reports/system-qa/artifacts/verified/allure-results --single-file --output reports/system-qa/artifacts/verified/allure-report
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: system-qa-chromium
+          path: reports/system-qa/artifacts/verified
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -18,11 +46,17 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install project
-        run: python -m pip install -e ".[web,production]"
+        run: python -m pip install -e ".[web,production,test]"
       - name: Run offline deterministic test suite
         env:
           LLM_MODE: stub
-        run: python -m unittest discover -s tests -v
+        run: python -m pytest tests --junitxml=reports/autumn-qa/ci-tests.xml --cov=everstory --cov-branch --cov-report=xml:reports/autumn-qa/ci-coverage.xml
+      - name: Preserve test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-python-${{ matrix.python-version }}
+          path: reports/autumn-qa/ci-*.xml
       - name: Verify multi-agent investigation benchmark
         if: matrix.python-version == '3.12'
         run: python -m everstory.eval --mode stub --team-only --out /tmp/everstory-team-eval.md

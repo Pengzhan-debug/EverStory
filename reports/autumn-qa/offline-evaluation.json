@@ -1,0 +1,227 @@
+{
+  "mode": "stub",
+  "real_model_calls": 0,
+  "real_model_tokens": 0,
+  "architecture": [
+    {
+      "baseline": "pure-llm",
+      "episode": "lost_key",
+      "recall": 0.0,
+      "correct": 0,
+      "total": 3,
+      "rejections": 0,
+      "tokens": 0,
+      "provider": "offline-stub"
+    },
+    {
+      "baseline": "pure-llm",
+      "episode": "gift_for_mara",
+      "recall": 0.0,
+      "correct": 0,
+      "total": 1,
+      "rejections": 0,
+      "tokens": 0,
+      "provider": "offline-stub"
+    },
+    {
+      "baseline": "pure-llm",
+      "episode": "light_the_lighthouse",
+      "recall": 0.0,
+      "correct": 0,
+      "total": 2,
+      "rejections": 0,
+      "tokens": 0,
+      "provider": "offline-stub"
+    },
+    {
+      "baseline": "summary-memory",
+      "episode": "lost_key",
+      "recall": 0.0,
+      "correct": 0,
+      "total": 3,
+      "rejections": 0,
+      "tokens": 0,
+      "provider": "offline-stub"
+    },
+    {
+      "baseline": "summary-memory",
+      "episode": "gift_for_mara",
+      "recall": 0.0,
+      "correct": 0,
+      "total": 1,
+      "rejections": 0,
+      "tokens": 0,
+      "provider": "offline-stub"
+    },
+    {
+      "baseline": "summary-memory",
+      "episode": "light_the_lighthouse",
+      "recall": 0.0,
+      "correct": 0,
+      "total": 2,
+      "rejections": 0,
+      "tokens": 0,
+      "provider": "offline-stub"
+    },
+    {
+      "baseline": "everstory",
+      "episode": "lost_key",
+      "recall": 1.0,
+      "correct": 3,
+      "total": 3,
+      "rejections": 0,
+      "tokens": 0,
+      "provider": "offline-stub"
+    },
+    {
+      "baseline": "everstory",
+      "episode": "gift_for_mara",
+      "recall": 1.0,
+      "correct": 1,
+      "total": 1,
+      "rejections": 0,
+      "tokens": 0,
+      "provider": "offline-stub"
+    },
+    {
+      "baseline": "everstory",
+      "episode": "light_the_lighthouse",
+      "recall": 1.0,
+      "correct": 2,
+      "total": 2,
+      "rejections": 0,
+      "tokens": 0,
+      "provider": "offline-stub"
+    }
+  ],
+  "long_horizon": [
+    {
+      "baseline": "pure-llm",
+      "provider": "offline-stub",
+      "checkpoints": {
+        "20": 0.0,
+        "40": 0.0,
+        "60": 0.0
+      },
+      "rejections": 0,
+      "tokens": 0,
+      "contradictions": null
+    },
+    {
+      "baseline": "summary-memory",
+      "provider": "offline-stub",
+      "checkpoints": {
+        "20": 0.0,
+        "40": 0.0,
+        "60": 0.0
+      },
+      "rejections": 0,
+      "tokens": 0,
+      "contradictions": null
+    },
+    {
+      "baseline": "everstory",
+      "provider": "offline-stub",
+      "checkpoints": {
+        "20": 1.0,
+        "40": 1.0,
+        "60": 1.0
+      },
+      "rejections": 0,
+      "tokens": 0,
+      "contradictions": null
+    }
+  ],
+  "team_repeats": [
+    {
+      "provider": "offline-stub-repeat-1",
+      "proposal_accuracy": 1.0,
+      "proposals_correct": 8,
+      "proposals_total": 8,
+      "approval_success": 1.0,
+      "approvals_ok": 8,
+      "approvals_total": 8,
+      "unauthorized_mutations": 0,
+      "stale_task_blocked": true,
+      "evidence_grounding": 1.0,
+      "grounded_evidence": 9,
+      "evidence_total": 9,
+      "challenge_messages": 1,
+      "structured_message_coverage": 1.0,
+      "evidence_linkage": 1.0,
+      "cross_agent_reply_links": 1,
+      "message_efficiency": 0.9523809523809523,
+      "case_solved": true,
+      "memory_roundtrip": true,
+      "memory_messages": 31,
+      "memory_tasks": 10,
+      "memory_evidence": 9,
+      "memory_bytes": 30274,
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "average_latency_ms": 0,
+      "per_agent": {}
+    },
+    {
+      "provider": "offline-stub-repeat-2",
+      "proposal_accuracy": 1.0,
+      "proposals_correct": 8,
+      "proposals_total": 8,
+      "approval_success": 1.0,
+      "approvals_ok": 8,
+      "approvals_total": 8,
+      "unauthorized_mutations": 0,
+      "stale_task_blocked": true,
+      "evidence_grounding": 1.0,
+      "grounded_evidence": 9,
+      "evidence_total": 9,
+      "challenge_messages": 1,
+      "structured_message_coverage": 1.0,
+      "evidence_linkage": 1.0,
+      "cross_agent_reply_links": 1,
+      "message_efficiency": 0.9523809523809523,
+      "case_solved": true,
+      "memory_roundtrip": true,
+      "memory_messages": 31,
+      "memory_tasks": 10,
+      "memory_evidence": 9,
+      "memory_bytes": 30274,
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "average_latency_ms": 0,
+      "per_agent": {}
+    },
+    {
+      "provider": "offline-stub-repeat-3",
+      "proposal_accuracy": 1.0,
+      "proposals_correct": 8,
+      "proposals_total": 8,
+      "approval_success": 1.0,
+      "approvals_ok": 8,
+      "approvals_total": 8,
+      "unauthorized_mutations": 0,
+      "stale_task_blocked": true,
+      "evidence_grounding": 1.0,
+      "grounded_evidence": 9,
+      "evidence_total": 9,
+      "challenge_messages": 1,
+      "structured_message_coverage": 1.0,
+      "evidence_linkage": 1.0,
+      "cross_agent_reply_links": 1,
+      "message_efficiency": 0.9523809523809523,
+      "case_solved": true,
+      "memory_roundtrip": true,
+      "memory_messages": 31,
+      "memory_tasks": 10,
+      "memory_evidence": 9,
+      "memory_bytes": 30274,
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "average_latency_ms": 0,
+      "per_agent": {}
+    }
+  ]
+}

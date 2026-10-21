@@ -1,0 +1,84 @@
+{
+  "generated_at": "2026-10-21T10:20:22.242636+08:00",
+  "source_commit": "cafa86fe62e89dca3db4389ecd7fe029888ff24b",
+  "local_changes": true,
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.19045-SP0",
+  "versions": {
+    "everstory": "1.4.0",
+    "pytest": "9.1.1",
+    "pytest-cov": "7.1.0",
+    "fastapi": "0.156.4",
+    "starlette": "1.9.0",
+    "httpx": "0.28.1",
+    "SQLAlchemy": "2.1.5",
+    "coverage": "7.16.2"
+  },
+  "baseline": {
+    "total": 162,
+    "passed": 159,
+    "failed": 0,
+    "skipped": 3
+  },
+  "before_fix": {
+    "total": 63,
+    "passed": 35,
+    "failed": 28,
+    "skipped": 0
+  },
+  "final": {
+    "total": 225,
+    "passed": 222,
+    "failed": 0,
+    "skipped": 3
+  },
+  "coverage": {
+    "project_lines": 0.8050632911392405,
+    "project_branches": 0.6532125205930808,
+    "api_lines": 0.9192751235584844,
+    "api_branches": 0.7596153846153846,
+    "project_statement_count": 4345,
+    "project_executed_statements": 3498
+  },
+  "new_api_cases": 63,
+  "new_real_model_calls": 0,
+  "historical_score_audit": {
+    "source_generated_at": "2026-08-27T07:58:53.159058+00:00",
+    "new_model_calls": 0,
+    "candidate_combinations": 23,
+    "unique_cases": 24,
+    "scored_cases": 69,
+    "role_failures": 2,
+    "rescored_case_mismatches": [],
+    "stored_summary": {
+      "calls": 123,
+      "tokens": 118513,
+      "candidate_role_average": 0.9384057971014492,
+      "recommended_role_average": 0.9875,
+      "recommended_role_min": 0.9333333333333335,
+      "transfer_accuracy": 1.0,
+      "provenance_retention": 1.0,
+      "pollution_rejection": 1.0,
+      "contradiction_detection": 1.0,
+      "case_completion": 1.0,
+      "proposal_accuracy": 1.0,
+      "evidence_grounding": 1.0
+    },
+    "recomputed_summary": {
+      "calls": 123,
+      "tokens": 118513,
+      "candidate_role_average": 0.9384057971014492,
+      "recommended_role_average": 0.9875,
+      "recommended_role_min": 0.9333333333333335,
+      "transfer_accuracy": 1.0,
+      "provenance_retention": 1.0,
+      "pollution_rejection": 1.0,
+      "contradiction_detection": 1.0,
+      "case_completion": 1.0,
+      "proposal_accuracy": 1.0,
+      "evidence_grounding": 1.0
+    },
+    "exchange_chains": 6,
+    "full_cases": 3
+  }
+}

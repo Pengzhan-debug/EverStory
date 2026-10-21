@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![Tests](https://img.shields.io/badge/local_tests-162_passed-22C55E)
+![Tests](https://img.shields.io/badge/local_tests-222_passed_3_skipped-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [Play the live demo](https://everstory.onrender.com/) · [Architecture](docs/architecture.md) · [Live benchmark](reports/agent-routing-evaluation-zh.md) · [Deployment](docs/DEPLOYMENT.md) · [Identity/BYOK design](docs/IDENTITY_AND_BYOK_DESIGN.md) · [Interview demo](docs/DEMO.md) · [Resume template](docs/RESUME.md)
@@ -176,7 +176,7 @@ python -m venv everstory-env
 everstory-env\Scripts\activate        # Windows
 # source everstory-env/bin/activate   # macOS/Linux
 
-pip install -e ".[web,production]"
+pip install -e ".[web,production,test]"
 
 # 1. Play in the terminal (deterministic stub mode, no API key needed)
 everstory
@@ -191,13 +191,15 @@ everstory-serve
 everstory-eval --mode stub
 
 # 4. Run the test suite
-python -m unittest discover -s tests -v
+python -m pytest tests -q
 
 # 5. Learn world dynamics from trajectories
 everstory-learn
 ```
 
 The suite includes a full offline acceptance path: agent-proposed travel, three interviews, three evidence examinations, analyst corroboration, and an evidence-gated final accusation. It requires no API key.
+
+The October 21 local run collected 225 tests: **222 passed and 3 PostgreSQL/Redis integration tests skipped** because dedicated services were not configured. The 63 new pytest API cases cover malformed input, authorization, streaming completion, duplicate approvals, rate limits, and failure recovery. See the [test experiment and evaluation guide](reports/autumn-qa/测试实验与评测说明.md) and [machine-readable results](reports/autumn-qa/experiment-summary.json). To reproduce the suite, coverage reports, offline benchmarks, and archived-score audit, run `python -m scripts.run_autumn_qa`.
 
 ### Try the world
 
@@ -372,6 +374,10 @@ EverStory takes a different approach:
 > **The world is truth. The LLM is a constrained actor. Every important claim can be verified.**
 
 The immersive UI is therefore more than decoration. It is a visualization layer for a persistent, state-consistent AI world: the player sees the story, while the inspector can reveal the exact entities, transitions, quests and events that made the story possible.
+
+## System QA
+
+Six real HTTP checks using Requests and ten Playwright browser journeys pass locally, with Allure evidence. Locust adds repeated 5/15/30-user load tests and a short sustained run. See [methods, measured limits and reproduction commands](reports/system-qa/测试技术栈与实验.md). Install the optional tools with `pip install -e ".[web,test,qa]"`. See [testing-role resume wording and evidence mapping](docs/RESUME.md#软件测试--ai-测试投递版本).
 
 ## 📜 License
 
