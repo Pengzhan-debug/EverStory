@@ -13,3 +13,10 @@ build/
 .vscode/
 .pytest_cache/
 .ruff_cache/
+.venv/
+.coverage
+reports/autumn-qa/coverage/
+reports/autumn-qa/coverage.json
+reports/autumn-qa/*.xml
+reports/autumn-qa/*.log
+reports/autumn-qa/environment-freeze.txt

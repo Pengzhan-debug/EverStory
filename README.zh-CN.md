@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml/badge.svg)](https://github.com/Pengzhan-debug/EverStory/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
-![测试](https://img.shields.io/badge/local_tests-162_passed-22C55E)
+![测试](https://img.shields.io/badge/local_tests-222_passed_3_skipped-22C55E)
 ![License](https://img.shields.io/badge/license-MIT-0F172A)
 
 [在线试玩](https://everstory.onrender.com/) · [English README](README.md) · [系统架构](docs/architecture.md) · [真实模型评测](reports/agent-routing-evaluation-zh.md) · [公开部署](docs/DEPLOYMENT.md) · [身份与 BYOK 设计](docs/IDENTITY_AND_BYOK_DESIGN.md) · [面试演示](docs/DEMO.md) · [简历模板](docs/RESUME.md)
@@ -23,7 +23,7 @@ EverStory 是一个解决 **LLM 长程交互不可靠**（遗忘、自相矛盾�
 
 本轮修复与验收见[稳定性修复报告](docs/RELIABILITY_REPAIR_2026-09-06.md)。
 历史真实模型分数来自固定样例，不代表一般化自主破案能力或多智能体优于单智能体；
-本轮未重跑付费模型接口；PostgreSQL/Redis 独立集成测试已在本地通过，CI 仍待推送后验证。
+2026 年 10 月 21 日本地回归为 222 项通过、3 项因未配置独立 PostgreSQL/Redis 服务跳过；本轮未重跑付费模型接口。新增测试、缺陷修复与评分复算见[测试实验与评测说明](reports/autumn-qa/测试实验与评测说明.md)，线上验证状态以 CI 检查为准。
 
 ![EverStory 产品演示](docs/assets/readme/everstory-demo.gif)
 
@@ -148,17 +148,17 @@ docker compose up --build
 ```bash
 python -m venv everstory-env
 everstory-env\Scripts\activate        # Windows
-pip install -e ".[web]"
+pip install -e ".[web,production,test]"
 
 everstory             # 终端玩
 everstory-serve       # Web UI → http://127.0.0.1:8123
 everstory-eval --mode stub    # 离线评测
 everstory-learn       # 规则归纳报告
-python -m unittest discover -s tests -v   # 测试
+python -m pytest tests -q                # 全量测试
+python -m scripts.run_autumn_qa          # 测试、覆盖率、离线评测及历史评分复算
 ```
 
-当前本地验收为 **162 项全部通过**，其中 3 项接入一次性 PostgreSQL 16 / Redis 7 服务真实执行，均无需模型 API Key。完整验收路径覆盖智能体提议移动、
-三次证人询问、三项证据检查、分析师复核以及受证据链约束的最终指控。
+本次共收集 **225 项测试，222 项通过、3 项跳过**；新增 63 项 pytest 接口用例，覆盖输入边界、CSRF、会话隔离、重复审批、限流和异常恢复。3 项真实 PostgreSQL/Redis 集成测试需要配置独立服务后执行。完整离线验收路径覆盖智能体提议移动、三次证人询问、三项证据检查、分析师复核以及受证据链约束的最终指控，均无需模型 API Key。详细指标和适用范围见[测试实验与评测说明](reports/autumn-qa/测试实验与评测说明.md)。
 
 ## 配置真实模型（.env）
 

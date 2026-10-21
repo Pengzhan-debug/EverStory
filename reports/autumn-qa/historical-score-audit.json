@@ -1,0 +1,39 @@
+{
+  "source_generated_at": "2026-08-27T07:58:53.159058+00:00",
+  "new_model_calls": 0,
+  "candidate_combinations": 23,
+  "unique_cases": 24,
+  "scored_cases": 69,
+  "role_failures": 2,
+  "rescored_case_mismatches": [],
+  "stored_summary": {
+    "calls": 123,
+    "tokens": 118513,
+    "candidate_role_average": 0.9384057971014492,
+    "recommended_role_average": 0.9875,
+    "recommended_role_min": 0.9333333333333335,
+    "transfer_accuracy": 1.0,
+    "provenance_retention": 1.0,
+    "pollution_rejection": 1.0,
+    "contradiction_detection": 1.0,
+    "case_completion": 1.0,
+    "proposal_accuracy": 1.0,
+    "evidence_grounding": 1.0
+  },
+  "recomputed_summary": {
+    "calls": 123,
+    "tokens": 118513,
+    "candidate_role_average": 0.9384057971014492,
+    "recommended_role_average": 0.9875,
+    "recommended_role_min": 0.9333333333333335,
+    "transfer_accuracy": 1.0,
+    "provenance_retention": 1.0,
+    "pollution_rejection": 1.0,
+    "contradiction_detection": 1.0,
+    "case_completion": 1.0,
+    "proposal_accuracy": 1.0,
+    "evidence_grounding": 1.0
+  },
+  "exchange_chains": 6,
+  "full_cases": 3
+}
