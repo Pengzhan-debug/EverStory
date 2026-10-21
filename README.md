@@ -377,7 +377,7 @@ The immersive UI is therefore more than decoration. It is a visualization layer 
 
 ## System QA
 
-Six real HTTP checks using Requests and ten Playwright browser journeys pass locally, with Allure evidence. Locust adds repeated 5/15/30-user load tests and a short sustained run. See [methods, measured limits and reproduction commands](reports/system-qa/测试技术栈与实验.md). Install the optional tools with `pip install -e ".[web,test,qa]"`.
+Six real HTTP checks using Requests and ten Playwright browser journeys pass locally, with Allure evidence. Locust adds repeated 5/15/30-user load tests and a short sustained run. See [methods, measured limits and reproduction commands](reports/system-qa/测试技术栈与实验.md). Install the optional tools with `pip install -e ".[web,test,qa]"`. See [testing-role resume wording and evidence mapping](docs/RESUME.md#软件测试--ai-测试投递版本).
 
 ## 📜 License
 

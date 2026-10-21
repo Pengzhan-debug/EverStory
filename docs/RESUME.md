@@ -32,25 +32,42 @@
 
 ## 软件测试 / AI 测试投递版本
 
-**技术栈：** Python、pytest、Requests、HTTPX、Playwright、Allure、Locust、GitHub Actions。
+**EverStory｜多智能体 AI 应用自动化测试与评测**
 
-- 基于等价类与边界值设计 63 项 pytest 接口用例，覆盖非法输入、CSRF、会话隔离、
-  重复审批、限流、模型超时与持久化冲突；通过 Mock 故障注入定位并修复 3 类接口问题。
-- 使用 Requests Session 对真实本地 HTTP 服务验证 Cookie、CSRF、JSON 请求、
-  SSE 完成事件及存档隔离；使用 Playwright Page Object 验证行动、审批、存取档、
-  刷新恢复、语言切换、网络失败恢复等 10 个页面流程，生成含截图的 Allure 报告。
-- 使用 Locust 设计 5/15/30 用户分级负载和 15 用户短时持续测试，分析吞吐量、
-  P95、失败率，并校验各会话的回合数和状态哈希；具体实测值与环境边界见
-  [系统测试实验](../reports/system-qa/测试技术栈与实验.md)。
-- 对 AI Agent 检查提案正确性、审批前越权修改、过期任务拒绝、证据来源和案件完成情况；
-  对模型历史输出重新评分，区分规则指标、固定案例结果与独立测试集泛化。
+**技术栈：Python、pytest、Requests/HTTPX、Playwright、Allure、Locust、FastAPI/SSE、PostgreSQL、Redis、GitHub Actions**
 
-**技能栏可裁剪为：** 能够使用 pytest + Requests/HTTPX 编写接口自动化用例，运用
-fixture、参数化、Mock 和边界值设计验证异常处理及状态一致性；使用 Playwright 编写
-页面流程测试，使用 Allure 生成报告，使用 Locust 进行并发负载测试并分析 P95、吞吐量
-与失败率；了解基于固定样本和规则断言的 AI Agent 评测流程。
+- 基于等价类、边界值与场景法新增 63 项 pytest 参数化接口用例，覆盖非法输入、CSRF、会话隔离、重复审批、限流与异常恢复；通过 Mock 故障注入定位并修复 3 类接口问题。
+- 使用 Requests Session 验证真实 HTTP 服务的 Cookie、CSRF、JSON、SSE 完成事件及存档隔离，6 项用例全部通过；比对完成事件与持久化状态，验证响应和数据一致性。
+- 使用 Playwright + Page Object 编写行动、审批、存取档、刷新恢复及网络失败重试等 10 个页面流程，全部通过；集成 Allure，保留截图、SSE 附件及失败 trace。
+- 使用 Locust 开展 5/15/30 用户负载与 120 秒短时持续测试；本地 Stub / SQLite 环境 CSV 记录 8,537 次请求、0 次失败，30 用户 P95 为 1.0–1.2 秒；逐会话校验回合与状态哈希。
+- 围绕“LLM 提案、状态机裁决”设计 Agent 评测，校验审批前越权修改、提案正确性、过期任务拒绝与证据来源；离线基准完成 8/8 任务审批，未授权世界修改为 0。
+- 复算 23 个角色—模型组合的 69 份历史输出，评分与归档记录一致；所选路由在原有 3 个固定案例上平均得分 98.8%，结合 Token、延迟、成本与错误率分析模型质量。
+- 集成 GitHub Actions 自动回归与报告归档，离线回归 222 项、HTTP / 页面流程 16 项通过；CI 验证 PostgreSQL / Redis 集成用例，并覆盖 Python 3.11 / 3.12。
 
-以上是项目已经实现的能力范围；投递前应自行复现并能够讲解关键用例及断言。
+### 技能栏表述
+
+- **测试基础与用例设计：**了解软件测试流程、功能测试与回归测试；能够按正常、异常和边界场景拆分需求，使用等价类、边界值与场景法设计用例，跟进缺陷复现、定位和回归。
+- **接口自动化测试：**使用 Python、pytest、Requests / HTTPX 编写接口用例，结合 fixture、参数化与 Mock 验证 RESTful API、Cookie / CSRF、SSE 流式响应、会话隔离及异常恢复。
+- **Web 与性能测试：**使用 Playwright + Page Object 编写页面流程测试，结合 Allure 输出截图与结果；使用 Locust 设计并发负载，分析 P95、吞吐量、失败率及业务状态一致性。
+- **SQL 与数据校验：**了解 PostgreSQL、Redis，能够使用 SQL 完成常用数据增删改查；结合会话状态、业务数据持久化经验，核对写入结果，关注幂等、会话过期与接口限流。
+- **环境部署与问题定位：**熟悉 Linux、Git、Docker / Docker Compose，具备服务部署、日志检查和问题复现经验；使用 GitHub Actions 执行自动化回归与报告归档。
+- **AI 测试与模型评估：**了解 LLM / Agent、RAG 与工具调用链路，围绕事实一致性、证据溯源和任务拒绝设计评测；具备 PyTorch、消融实验与跨数据集评测经验，分析准确率、AUROC 等指标。
+- **编程与协作工具：**熟悉 Python、C，具备 FastAPI、Node.js、JavaScript 项目经验；使用 VS Code、PyCharm 及 AI 编程工具辅助脚本开发、调试、问题排查与重构。
+
+### 测试数字与证据
+
+| 简历数字 | 统计范围 | 证据 |
+| --- | --- | --- |
+| 63 项、3 类问题 | 新增 pytest 参数化回归；错误输入与超时处理 | [接口用例](../tests/pytest_api/test_contracts.py)、[实验说明](../reports/autumn-qa/测试实验与评测说明.md) |
+| 6 项 HTTP、10 项页面流程 | 独立于原有回归套件；本地通过，Linux CI 通过 | [Requests](../qa/http/test_requests.py)、[Playwright](../qa/browser/test_game.py)、[系统实验](../reports/system-qa/测试技术栈与实验.md) |
+| 8,537 次、0 失败、P95 1.0–1.2 秒 | 7 轮本机 Stub/SQLite 负载 CSV 快照；P95 为 30 用户两轮结果 | [完整分接口数据](../reports/system-qa/results.json)、[Locust 脚本](../qa/performance/locustfile.py) |
+| 8/8、未授权修改 0 | 固定离线 Agent 场景的审批及权限检查 | [离线评测](../reports/autumn-qa/offline-evaluation.md) |
+| 69 份、98.8% | 历史输出重新评分；在相同 3 个固定案例上选路由，尚无独立测试集验证 | [评分复核](../reports/autumn-qa/historical-rescored.md) |
+| 222 项、16 项 | 回归通过数与 HTTP/页面通过数分别统计；本地另有 3 项基础设施用例跳过，由 CI 使用真实 PostgreSQL/Redis 验证 | [CI 配置](../.github/workflows/ci.yml) |
+
+性能数据仅作为本机 Stub/SQLite 基线；120 秒为短时持续测试。窄视口用例验证交互可用性，尚未完成真实手机或全部浏览器的兼容性测试。复现命令、Allure 查看方式与面试说明见[系统测试实验](../reports/system-qa/测试技术栈与实验.md)。
+
+本段与测试岗 Word 简历的技能及项目措辞保持一致。公开仓库仅包含项目文案与实验结果。投递前应自行复现关键用例并能够解释断言和指标。
 
 ## 一句话介绍
 

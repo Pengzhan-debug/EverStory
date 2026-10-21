@@ -248,7 +248,7 @@ docs/              架构文档、演示脚本、评测报告
 
 ## 系统测试技术栈
 
-新增 Requests 真实 HTTP 用例 6 项、Playwright 页面流程 10 项，全部通过，并生成 Allure 报告。Locust 覆盖 5/15/30 用户分级负载及短时持续测试；实测数据、复现命令和简历措辞见[系统测试实验](reports/system-qa/测试技术栈与实验.md)。
+新增 Requests 真实 HTTP 用例 6 项、Playwright 页面流程 10 项，全部通过，并生成 Allure 报告。Locust 覆盖 5/15/30 用户分级负载及短时持续测试；实测数据、复现命令和简历措辞见[系统测试实验](reports/system-qa/测试技术栈与实验.md)。 测试岗位项目描述、技能栏及数字对应证据见[简历与面试文案](docs/RESUME.md#软件测试--ai-测试投递版本)。
 
 ## License
 
